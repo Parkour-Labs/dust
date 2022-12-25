@@ -56,28 +56,34 @@ class ModelGraph extends Graph<Source?, Source?> {
       // Read lock held. Load latest modifications from database.
       final atomData = await isar.atomOps.where().graphIdSrcIdEqualToAnyLabel(graphId, id).findAll();
       final edgeData = await isar.edgeOps.where().graphIdSrcIdEqualToAnyLabel(graphId, id).findAll();
-      final atomMods = Graph.latestForEachAtomId(atomData);
-      final edgeMods = Graph.latestForEachEdgeId(edgeData);
+      final atomOps = Graph.latestForEachAtomId(atomData);
+      final edgeOps = Graph.latestForEachEdgeId(edgeData);
       // Check if already loaded (in which case memory data is newer than database).
       return Pair(
-        atomMods.map((e) => atoms[e.atomId] ?? loadAtom(e, null)).toList(),
-        edgeMods.map((e) => edges[e.edgeId] ?? loadEdge(e, null)).toList(),
+        atomOps.map((e) => atoms[e.atomId] ?? loadAtom(e, null)).toList(),
+        edgeOps.map((e) => edges[e.edgeId] ?? loadEdge(e, null)).toList(),
       );
     });
   }
 
   /// Loads all edges ending at a node with given [id] and with label [label].
   /// Returns asynchronously.
-  Future<List<Edge<Source?>>> loadEdgesToWithLabel(int id, int label) async {
+  Future<Set<Edge<Source?>>> loadEdgesToWithLabel(int id, int label) async {
     return lock.enqueueRead(() async {
       // Read lock held. Load latest modifications from database.
       final data = await isar.edgeOps.where().graphIdDstIdLabelEqualTo(graphId, id, label).findAll();
-      final mods = Graph.latestForEachEdgeId(data);
+      final ops = Graph.latestForEachEdgeId(data);
       // Check if already loaded (in which case memory data is newer than database).
-      final list = mods.map((e) => edges[e.edgeId] ?? loadEdge(e, null)).toList();
+      Set<Edge<Source?>> res = {};
+      for (final op in ops) {
+        if (!edges.containsKey(op.edgeId)) res.add(loadEdge(op, null));
+      }
+      for (final edge in edgesTo.findAll(id)) {
+        if (edge.label == label) res.add(edge);
+      }
       // Establish exhaustive backlink.
-      edgesToWithLabel[Pair(id, label)]?.load(Set.of(list));
-      return list;
+      edgesToWithLabel[Pair(id, label)]?.load(res);
+      return res;
     });
   }
 

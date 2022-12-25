@@ -3,30 +3,30 @@ import 'package:meta/meta.dart';
 /// A [MultiMap] maps each key to a [Set] of values.
 @immutable
 class MultiMap<K, V> {
-  final Map<K, Set<V>> _m = {};
+  final Map<K, Set<V>> map = {};
 
   void add(K key, V value) {
-    _m.putIfAbsent(key, () => {}).add(value);
+    map.putIfAbsent(key, () => {}).add(value);
   }
 
-  Iterable<V> findAll(K key) => _m[key] ?? [];
+  Iterable<V> findAll(K key) => map[key] ?? [];
 
   void remove(K key, V value) {
-    final values = _m[key];
+    final values = map[key];
     if (values == null) {
       assert(false);
       return;
     }
     final res = values.remove(value);
-    if (values.isEmpty) _m.remove(key);
+    if (values.isEmpty) map.remove(key);
     assert(res);
   }
 
-  Iterable<V> removeAll(K key) => _m.remove(key) ?? [];
+  Iterable<V> removeAll(K key) => map.remove(key) ?? [];
 
   int get length {
     var res = 0;
-    for (final values in _m.values) {
+    for (final values in map.values) {
       res += values.length;
     }
     return res;

@@ -8,15 +8,8 @@ import 'model_graph.dart';
 
 class Model with Disposable {
   final int id;
-  final List<Disposable> disposables; 
 
-  Model(this.id, this.disposables);
-
-  @override
-  void dispose() {
-    super.dispose();
-    disposes(disposables);
-  }
+  Model(this.id);
 }
 
 class ActiveAtom<T extends String?> with Disposable, Source {
@@ -53,10 +46,10 @@ class ActiveAtom<T extends String?> with Disposable, Source {
 
 class ActiveLink<T extends Model?> with Disposable, Source {
   final ModelRepository repo;
-  final int label;
+  final int dstLabel;
   final Edge<Source?> edge;
 
-  ActiveLink(this.repo, this.label, this.edge) {
+  ActiveLink(this.repo, this.dstLabel, this.edge) {
     assert(edge.payload == null, 'Only one source can be attached to an edge.');
     edge.payload = this;
   }
@@ -72,7 +65,7 @@ class ActiveLink<T extends Model?> with Disposable, Source {
   /// Loads the target object if `absent`.
   FutureOr<T> load() {
     if (!isAbsent(null)) return get(null);
-    return repo.load(edge.dstId, label).then((value) => get(null) /* value as T */);
+    return repo.load(edge.dstId, dstLabel).then((value) => get(null) /* value as T */);
   }
 
   bool isAbsent(Ref? ref) {
@@ -134,7 +127,7 @@ class ActiveBacklink<T extends Model?> with Disposable, Source {
 }
 
 class ModelSchema {
-  final Model? Function(ModelRepository repo, int id, List<Atom> atoms, List<Edge> edges) constructor;
+  final Model? Function(ModelRepository repo, int id, List<Atom<Source?>> atoms, List<Edge<Source?>> edges) constructor;
 
   const ModelSchema(this.constructor);
 }
@@ -189,10 +182,10 @@ class ModelRepository {
 
   /// Creates a new model with given parameters, or `null` if creation failed / parameters are not well-formed.
   /// Returns synchronously. Async write operations are queued.
-  Model? add(int label, List<Pair<int, String>> labelValues, List<Pair<int, Model>> labelDsts) {
+  Model? add(int label, List<Pair<int, String?>> labelValues, List<Pair<int, Model?>> labelDsts) {
     final id = Identifier.random();
     final atoms = labelValues.map((e) => graph.addAtom(e.first, id, e.second, null)).toList();
-    final edges = labelDsts.map((e) => graph.addEdge(e.first, id, e.second.id, null)).toList();
+    final edges = labelDsts.map((e) => graph.addEdge(e.first, id, e.second?.id, null)).toList();
     final model = schemas[label]!.constructor(this, id, atoms, edges);
     if (model == null) {
       assert(false, 'Data passed in from constructor are not well-formed.');

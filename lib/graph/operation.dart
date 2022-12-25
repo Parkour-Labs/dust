@@ -36,7 +36,7 @@ class Identifier {
 /// Graph metadata.
 @Collection()
 class GraphData {
-  late final Id graphId;
+  late Id graphId;
   late final int replicaId;
   late int lastTimeStamp;
 

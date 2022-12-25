@@ -162,27 +162,27 @@ class Graph<A, E> {
 
   /// Constructs a "removed atom" for use when creating new atoms without waiting for async loading.
   /// [atomId] must be new.
-  AtomOp placeholderAtomOp(int atomId) => AtomOp.values(null, graphId, -1, replicaId, atomId, 0, 0, '', true);
+  AtomOp _placeholderAtomOp(int atomId) => AtomOp.values(null, graphId, -1, replicaId, atomId, 0, 0, '', true);
 
   /// Constructs a "removed edge" for use when creating new edges without waiting for async loading.
   /// [edgeId] must be new.
-  EdgeOp placeholderEdgeOp(int edgeId) => EdgeOp.values(null, graphId, -1, replicaId, edgeId, 0, 0, 0, true);
+  EdgeOp _placeholderEdgeOp(int edgeId) => EdgeOp.values(null, graphId, -1, replicaId, edgeId, 0, 0, 0, true);
 
   /// Creates an atom.
   /// Returns synchronously. Async write operations are queued.
-  Atom<A> addAtom(int label, int srcId, String value, A payload) {
+  Atom<A> addAtom(int label, int srcId, String? value, A payload) {
     final atomId = Identifier.random();
-    final res = loadAtom(placeholderAtomOp(atomId), payload);
-    mergeAtom(AtomOp.values(null, graphId, timeStamp(), replicaId, atomId, label, srcId, value, false));
+    final res = loadAtom(_placeholderAtomOp(atomId), payload);
+    mergeAtom(AtomOp.values(null, graphId, timeStamp(), replicaId, atomId, label, srcId, value ?? '', value == null));
     return res;
   }
 
   /// Creates an edge.
   /// Returns synchronously. Async write operations are queued.
-  Edge<E> addEdge(int label, int srcId, int dstId, E payload) {
+  Edge<E> addEdge(int label, int srcId, int? dstId, E payload) {
     final edgeId = Identifier.random();
-    final res = loadEdge(placeholderEdgeOp(edgeId), payload);
-    mergeEdge(EdgeOp.values(null, graphId, timeStamp(), replicaId, edgeId, label, srcId, dstId, false));
+    final res = loadEdge(_placeholderEdgeOp(edgeId), payload);
+    mergeEdge(EdgeOp.values(null, graphId, timeStamp(), replicaId, edgeId, label, srcId, dstId ?? 0, dstId == null));
     return res;
   }
 
