@@ -1,0 +1,147 @@
+import 'package:isar/isar.dart';
+
+import '../utils/pair.dart';
+import '../utils/multi_map.dart';
+import '../reactive/reactive.dart';
+import 'operation.dart';
+import 'graph.dart';
+
+class Backlink {
+  final int id;
+  final int label;
+  final Source payload;
+  Set<Edge<Source?>>? edges;
+
+  Backlink(this.id, this.label, this.payload);
+
+  Iterable<int>? get srcIds => edges?.map((e) => e.srcId);
+
+  void load(Set<Edge<Source?>> edges) {
+    this.edges = edges;
+    payload.notify();
+  }
+
+  void unload() {
+    edges = null;
+    payload.notify();
+  }
+
+  void add(Edge<Source?> e) {
+    edges?.add(e);
+    if (edges != null) payload.notify();
+  }
+  
+  void remove(Edge<Source?> e) {
+    edges?.remove(e);
+    if (edges != null) payload.notify();
+  }
+}
+
+/// Extended [Graph] that tracks more information (to support reactivity, links and backlinks).
+///
+/// Any notifiable sources pointed to by [Atom.payload] and [Edge.payload] will be notified on change
+/// of respective atoms and edges.
+class ModelGraph extends Graph<Source?, Source?> {
+  final MultiMap<int, Atom<Source?>> atomsOf = MultiMap();
+  final MultiMap<int, Edge<Source?>> edgesFrom = MultiMap();
+  final MultiMap<int, Edge<Source?>> edgesTo = MultiMap();
+  final Map<Pair<int, int>, Backlink> edgesToWithLabel = {};
+
+  ModelGraph(super.isar, super.graphId);
+
+  /// Loads all atoms and edges from a node with given [id].
+  /// Returns asynchronously.
+  Future<Pair<List<Atom<Source?>>, List<Edge<Source?>>>> loadAtomsAndEdgesFrom(int id) async {
+    return lock.enqueueRead(() async {
+      // Read lock held. Load latest modifications from database.
+      final atomData = await isar.atomOps.where().graphIdSrcIdEqualToAnyLabel(graphId, id).findAll();
+      final edgeData = await isar.edgeOps.where().graphIdSrcIdEqualToAnyLabel(graphId, id).findAll();
+      final atomMods = Graph.latestForEachAtomId(atomData);
+      final edgeMods = Graph.latestForEachEdgeId(edgeData);
+      // Check if already loaded (in which case memory data is newer than database).
+      return Pair(
+        atomMods.map((e) => atoms[e.atomId] ?? loadAtom(e, null)).toList(),
+        edgeMods.map((e) => edges[e.edgeId] ?? loadEdge(e, null)).toList(),
+      );
+    });
+  }
+
+  /// Loads all edges ending at a node with given [id] and with label [label].
+  /// Returns asynchronously.
+  Future<List<Edge<Source?>>> loadEdgesToWithLabel(int id, int label) async {
+    return lock.enqueueRead(() async {
+      // Read lock held. Load latest modifications from database.
+      final data = await isar.edgeOps.where().graphIdDstIdLabelEqualTo(graphId, id, label).findAll();
+      final mods = Graph.latestForEachEdgeId(data);
+      // Check if already loaded (in which case memory data is newer than database).
+      final list = mods.map((e) => edges[e.edgeId] ?? loadEdge(e, null)).toList();
+      // Establish exhaustive backlink.
+      edgesToWithLabel[Pair(id, label)]?.load(Set.of(list));
+      return list;
+    });
+  }
+
+  /// Starts tracking backlink. Note that this does not actually load the link.
+  Backlink startTrackingBacklink(int id, int label, Source source) {
+    final key = Pair(id, label);
+    assert(!edgesToWithLabel.containsKey(key));
+    return edgesToWithLabel[key] = Backlink(id, label, source);
+  }
+
+  /// Stops tracking backlink.
+  void stopTrackingBacklink(Backlink backlink) {
+    final key = Pair(backlink.id, backlink.label);
+    assert(edgesToWithLabel.containsKey(key));
+    edgesToWithLabel.remove(key);
+  }
+
+  @override
+  void registerAtom(Atom<Source?> atom, bool created) {
+    atomsOf.add(atom.srcId, atom);
+    if (created) atom.payload?.notify();
+  }
+
+  @override
+  void unregisterAtom(Atom<Source?> atom, bool removed) {
+    atomsOf.remove(atom.srcId, atom);
+    if (removed) atom.payload?.notify();
+  }
+
+  @override
+  void updateAtom(Atom<Source?> atom, String prev, String curr) {
+    atom.payload?.notify();
+  }
+
+  @override
+  void registerEdge(Edge<Source?> edge, bool created) {
+    edgesFrom.add(edge.srcId, edge);
+    edgesTo.add(edge.dstId, edge);
+    edgesToWithLabel[Pair(edge.dstId, edge.label)]?.add(edge);
+    if (created) edge.payload?.notify();
+  }
+
+  @override
+  void unregisterEdge(Edge<Source?> edge, bool removed) {
+    edgesFrom.remove(edge.srcId, edge);
+    edgesTo.remove(edge.dstId, edge);
+    edgesToWithLabel[Pair(edge.dstId, edge.label)]?.remove(edge);
+    // Unloading an edge causes backlink to be no longer exhaustive.
+    if (!removed) edgesToWithLabel[Pair(edge.dstId, edge.label)]?.unload();
+    if (removed) edge.payload?.notify();
+  }
+
+  @override
+  void updateEdge(Edge<Source?> edge, int prevSrc, int currSrc, int prevDst, int currDst) {
+    if (prevSrc != currSrc) {
+      edgesFrom.remove(prevSrc, edge);
+      edgesFrom.add(currSrc, edge);
+    }
+    if (prevDst != currDst) {
+      edgesTo.remove(prevDst, edge);
+      edgesTo.add(currDst, edge);
+      edgesToWithLabel[Pair(prevDst, edge.label)]?.remove(edge);
+      edgesToWithLabel[Pair(currDst, edge.label)]?.add(edge);
+    }
+    edge.payload?.notify();
+  }
+}
