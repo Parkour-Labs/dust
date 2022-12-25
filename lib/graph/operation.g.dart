@@ -517,8 +517,8 @@ const AtomOpSchema = CollectionSchema(
     r'graphId_atomId': IndexSchema(
       id: 190457333907287182,
       name: r'graphId_atomId',
-      unique: false,
-      replace: false,
+      unique: true,
+      replace: true,
       properties: [
         IndexPropertySchema(
           name: r'graphId',
@@ -670,6 +670,93 @@ List<IsarLinkBase<dynamic>> _atomOpGetLinks(AtomOp object) {
 
 void _atomOpAttach(IsarCollection<dynamic> col, Id id, AtomOp object) {
   object.opId = id;
+}
+
+extension AtomOpByIndex on IsarCollection<AtomOp> {
+  Future<AtomOp?> getByGraphIdAtomId(int graphId, int atomId) {
+    return getByIndex(r'graphId_atomId', [graphId, atomId]);
+  }
+
+  AtomOp? getByGraphIdAtomIdSync(int graphId, int atomId) {
+    return getByIndexSync(r'graphId_atomId', [graphId, atomId]);
+  }
+
+  Future<bool> deleteByGraphIdAtomId(int graphId, int atomId) {
+    return deleteByIndex(r'graphId_atomId', [graphId, atomId]);
+  }
+
+  bool deleteByGraphIdAtomIdSync(int graphId, int atomId) {
+    return deleteByIndexSync(r'graphId_atomId', [graphId, atomId]);
+  }
+
+  Future<List<AtomOp?>> getAllByGraphIdAtomId(
+      List<int> graphIdValues, List<int> atomIdValues) {
+    final len = graphIdValues.length;
+    assert(atomIdValues.length == len,
+        'All index values must have the same length');
+    final values = <List<dynamic>>[];
+    for (var i = 0; i < len; i++) {
+      values.add([graphIdValues[i], atomIdValues[i]]);
+    }
+
+    return getAllByIndex(r'graphId_atomId', values);
+  }
+
+  List<AtomOp?> getAllByGraphIdAtomIdSync(
+      List<int> graphIdValues, List<int> atomIdValues) {
+    final len = graphIdValues.length;
+    assert(atomIdValues.length == len,
+        'All index values must have the same length');
+    final values = <List<dynamic>>[];
+    for (var i = 0; i < len; i++) {
+      values.add([graphIdValues[i], atomIdValues[i]]);
+    }
+
+    return getAllByIndexSync(r'graphId_atomId', values);
+  }
+
+  Future<int> deleteAllByGraphIdAtomId(
+      List<int> graphIdValues, List<int> atomIdValues) {
+    final len = graphIdValues.length;
+    assert(atomIdValues.length == len,
+        'All index values must have the same length');
+    final values = <List<dynamic>>[];
+    for (var i = 0; i < len; i++) {
+      values.add([graphIdValues[i], atomIdValues[i]]);
+    }
+
+    return deleteAllByIndex(r'graphId_atomId', values);
+  }
+
+  int deleteAllByGraphIdAtomIdSync(
+      List<int> graphIdValues, List<int> atomIdValues) {
+    final len = graphIdValues.length;
+    assert(atomIdValues.length == len,
+        'All index values must have the same length');
+    final values = <List<dynamic>>[];
+    for (var i = 0; i < len; i++) {
+      values.add([graphIdValues[i], atomIdValues[i]]);
+    }
+
+    return deleteAllByIndexSync(r'graphId_atomId', values);
+  }
+
+  Future<Id> putByGraphIdAtomId(AtomOp object) {
+    return putByIndex(r'graphId_atomId', object);
+  }
+
+  Id putByGraphIdAtomIdSync(AtomOp object, {bool saveLinks = true}) {
+    return putByIndexSync(r'graphId_atomId', object, saveLinks: saveLinks);
+  }
+
+  Future<List<Id>> putAllByGraphIdAtomId(List<AtomOp> objects) {
+    return putAllByIndex(r'graphId_atomId', objects);
+  }
+
+  List<Id> putAllByGraphIdAtomIdSync(List<AtomOp> objects,
+      {bool saveLinks = true}) {
+    return putAllByIndexSync(r'graphId_atomId', objects, saveLinks: saveLinks);
+  }
 }
 
 extension AtomOpQueryWhereSort on QueryBuilder<AtomOp, AtomOp, QWhere> {
@@ -2373,8 +2460,8 @@ const EdgeOpSchema = CollectionSchema(
     r'graphId_edgeId': IndexSchema(
       id: 2979891312642430158,
       name: r'graphId_edgeId',
-      unique: false,
-      replace: false,
+      unique: true,
+      replace: true,
       properties: [
         IndexPropertySchema(
           name: r'graphId',
@@ -2525,6 +2612,93 @@ List<IsarLinkBase<dynamic>> _edgeOpGetLinks(EdgeOp object) {
 
 void _edgeOpAttach(IsarCollection<dynamic> col, Id id, EdgeOp object) {
   object.opId = id;
+}
+
+extension EdgeOpByIndex on IsarCollection<EdgeOp> {
+  Future<EdgeOp?> getByGraphIdEdgeId(int graphId, int edgeId) {
+    return getByIndex(r'graphId_edgeId', [graphId, edgeId]);
+  }
+
+  EdgeOp? getByGraphIdEdgeIdSync(int graphId, int edgeId) {
+    return getByIndexSync(r'graphId_edgeId', [graphId, edgeId]);
+  }
+
+  Future<bool> deleteByGraphIdEdgeId(int graphId, int edgeId) {
+    return deleteByIndex(r'graphId_edgeId', [graphId, edgeId]);
+  }
+
+  bool deleteByGraphIdEdgeIdSync(int graphId, int edgeId) {
+    return deleteByIndexSync(r'graphId_edgeId', [graphId, edgeId]);
+  }
+
+  Future<List<EdgeOp?>> getAllByGraphIdEdgeId(
+      List<int> graphIdValues, List<int> edgeIdValues) {
+    final len = graphIdValues.length;
+    assert(edgeIdValues.length == len,
+        'All index values must have the same length');
+    final values = <List<dynamic>>[];
+    for (var i = 0; i < len; i++) {
+      values.add([graphIdValues[i], edgeIdValues[i]]);
+    }
+
+    return getAllByIndex(r'graphId_edgeId', values);
+  }
+
+  List<EdgeOp?> getAllByGraphIdEdgeIdSync(
+      List<int> graphIdValues, List<int> edgeIdValues) {
+    final len = graphIdValues.length;
+    assert(edgeIdValues.length == len,
+        'All index values must have the same length');
+    final values = <List<dynamic>>[];
+    for (var i = 0; i < len; i++) {
+      values.add([graphIdValues[i], edgeIdValues[i]]);
+    }
+
+    return getAllByIndexSync(r'graphId_edgeId', values);
+  }
+
+  Future<int> deleteAllByGraphIdEdgeId(
+      List<int> graphIdValues, List<int> edgeIdValues) {
+    final len = graphIdValues.length;
+    assert(edgeIdValues.length == len,
+        'All index values must have the same length');
+    final values = <List<dynamic>>[];
+    for (var i = 0; i < len; i++) {
+      values.add([graphIdValues[i], edgeIdValues[i]]);
+    }
+
+    return deleteAllByIndex(r'graphId_edgeId', values);
+  }
+
+  int deleteAllByGraphIdEdgeIdSync(
+      List<int> graphIdValues, List<int> edgeIdValues) {
+    final len = graphIdValues.length;
+    assert(edgeIdValues.length == len,
+        'All index values must have the same length');
+    final values = <List<dynamic>>[];
+    for (var i = 0; i < len; i++) {
+      values.add([graphIdValues[i], edgeIdValues[i]]);
+    }
+
+    return deleteAllByIndexSync(r'graphId_edgeId', values);
+  }
+
+  Future<Id> putByGraphIdEdgeId(EdgeOp object) {
+    return putByIndex(r'graphId_edgeId', object);
+  }
+
+  Id putByGraphIdEdgeIdSync(EdgeOp object, {bool saveLinks = true}) {
+    return putByIndexSync(r'graphId_edgeId', object, saveLinks: saveLinks);
+  }
+
+  Future<List<Id>> putAllByGraphIdEdgeId(List<EdgeOp> objects) {
+    return putAllByIndex(r'graphId_edgeId', objects);
+  }
+
+  List<Id> putAllByGraphIdEdgeIdSync(List<EdgeOp> objects,
+      {bool saveLinks = true}) {
+    return putAllByIndexSync(r'graphId_edgeId', objects, saveLinks: saveLinks);
+  }
 }
 
 extension EdgeOpQueryWhereSort on QueryBuilder<EdgeOp, EdgeOp, QWhere> {

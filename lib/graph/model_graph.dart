@@ -54,10 +54,8 @@ class ModelGraph extends Graph<Source?, Source?> {
   Future<Pair<List<Atom<Source?>>, List<Edge<Source?>>>> loadAtomsAndEdgesFrom(int id) async {
     return lock.enqueueRead(() async {
       // Read lock held. Load latest modifications from database.
-      final atomData = await isar.atomOps.where().graphIdSrcIdEqualToAnyLabel(graphId, id).findAll();
-      final edgeData = await isar.edgeOps.where().graphIdSrcIdEqualToAnyLabel(graphId, id).findAll();
-      final atomOps = Graph.latestForEachAtomId(atomData);
-      final edgeOps = Graph.latestForEachEdgeId(edgeData);
+      final atomOps = await isar.atomOps.where().graphIdSrcIdEqualToAnyLabel(graphId, id).findAll();
+      final edgeOps = await isar.edgeOps.where().graphIdSrcIdEqualToAnyLabel(graphId, id).findAll();
       // Check if already loaded (in which case memory data is newer than database).
       return Pair(
         atomOps.map((e) => atoms[e.atomId] ?? loadAtom(e, null)).toList(),
@@ -71,8 +69,7 @@ class ModelGraph extends Graph<Source?, Source?> {
   Future<Set<Edge<Source?>>> loadEdgesToWithLabel(int id, int label) async {
     return lock.enqueueRead(() async {
       // Read lock held. Load latest modifications from database.
-      final data = await isar.edgeOps.where().graphIdDstIdLabelEqualTo(graphId, id, label).findAll();
-      final ops = Graph.latestForEachEdgeId(data);
+      final ops = await isar.edgeOps.where().graphIdDstIdLabelEqualTo(graphId, id, label).findAll();
       // Check if already loaded (in which case memory data is newer than database).
       Set<Edge<Source?>> res = {};
       for (final op in ops) {

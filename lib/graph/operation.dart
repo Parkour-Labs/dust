@@ -49,7 +49,7 @@ class GraphData {
 class AtomOp implements Comparable<AtomOp> {
   Id? opId;
 
-  @Index(composite: [CompositeIndex('atomId')])
+  @Index(composite: [CompositeIndex('atomId')], unique: true, replace: true)
   @Index(composite: [CompositeIndex('srcId'), CompositeIndex('label')])
   @Index(composite: [CompositeIndex('value'), CompositeIndex('label')])
   late final int graphId;
@@ -82,7 +82,7 @@ class AtomOp implements Comparable<AtomOp> {
 class EdgeOp implements Comparable<EdgeOp> {
   Id? opId;
 
-  @Index(composite: [CompositeIndex('edgeId')])
+  @Index(composite: [CompositeIndex('edgeId')], unique: true, replace: true)
   @Index(composite: [CompositeIndex('srcId'), CompositeIndex('label')])
   @Index(composite: [CompositeIndex('dstId'), CompositeIndex('label')])
   late final int graphId;

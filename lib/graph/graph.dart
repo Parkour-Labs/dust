@@ -125,8 +125,11 @@ class Graph<A, E> {
     lock.enqueueWrite(
       () => isar.writeTxn(() async {
         // Write lock held. Save the modification (deduplicated by `op.opId`) and the last timestamp.
-        await isar.atomOps.put(op);
-        if (op.replicaId == replicaId) await isar.graphDatas.put(data);
+        final latest = await isar.atomOps.where().graphIdAtomIdEqualTo(graphId, op.atomId).findFirst();
+        if (latest == null || op.compareTo(latest) > 0) {
+          await isar.atomOps.put(op);
+          if (op.replicaId == replicaId) await isar.graphDatas.put(data);
+        }
       }),
     );
   }
@@ -154,8 +157,11 @@ class Graph<A, E> {
     lock.enqueueWrite(
       () => isar.writeTxn(() async {
         // Write lock held. Save the modification (deduplicated by `op.opId`) and the last timestamp.
-        await isar.edgeOps.put(op);
-        if (op.replicaId == replicaId) await isar.graphDatas.put(data);
+        final latest = await isar.edgeOps.where().graphIdEdgeIdEqualTo(graphId, op.edgeId).findFirst();
+        if (latest == null || op.compareTo(latest) > 0) {
+          await isar.edgeOps.put(op);
+          if (op.replicaId == replicaId) await isar.graphDatas.put(data);
+        }
       }),
     );
   }
@@ -217,24 +223,4 @@ class Graph<A, E> {
   void registerEdge(Edge<E> edge, bool created) {}
   void unregisterEdge(Edge<E> edge, bool removed) {}
   void updateEdge(Edge<E> edge, int prevSrc, int currSrc, int prevDst, int currDst) {}
-
-  /// Used in custom queries to filter out only the lastest modification of each atom.
-  static Iterable<AtomOp> latestForEachAtomId(Iterable<AtomOp> ops) {
-    final Map<int, AtomOp> res = {};
-    for (final op in ops) {
-      final curr = res[op.atomId];
-      if (curr == null || op.compareTo(curr) > 0) res[op.atomId] = op;
-    }
-    return res.values;
-  }
-
-  /// Used in custom queries to filter out only the lastest modification of each edge.
-  static Iterable<EdgeOp> latestForEachEdgeId(Iterable<EdgeOp> ops) {
-    final Map<int, EdgeOp> res = {};
-    for (final op in ops) {
-      final curr = res[op.edgeId];
-      if (curr == null || op.compareTo(curr) > 0) res[op.edgeId] = op;
-    }
-    return res.values;
-  }
 }

@@ -118,11 +118,18 @@ class ActiveBacklink<T extends Model?> with Disposable, Source {
   Iterable<FutureOr<T>> get(Ref? ref) {
     assert(!isAbsent(null), 'Link must not be absent.');
     if (ref != null) addDependent(ref.sink);
-    return backlink.edges!.map((e) {
-      final found = repo.models[e.srcId];
-      if (found != null) return found as T;
-      return repo.load(e.srcId, dstLabel).then((value) => value as T);
-    });
+    List<FutureOr<T>> res = [];
+    for (final edge in backlink.edges!) {
+      if (!edge.removed) {
+        final found = repo.models[edge.srcId];
+        if (found != null) {
+          res.add(found as T);
+        } else {
+          res.add(repo.load(edge.srcId, dstLabel).then((value) => value as T));
+        }
+      }
+    }
+    return res;
   }
 }
 
