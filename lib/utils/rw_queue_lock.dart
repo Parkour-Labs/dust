@@ -29,10 +29,13 @@ class RWQueueLock {
   ///
   /// If a write operation is in progress, there will be a coroutine switch point
   /// between the caller and the beginning of [operation].
+  ///
+  /// After [operation] completes, the returned future immediately completes,
+  /// without running any other code synchronously (except releasing lock).
   Future<T> enqueueRead<T>(Future<T> Function() operation) async {
     // (Atomic) Push a `Completer` to the end of the queue.
     final prev = waitWrite();
-    final curr = Completer<void>.sync();
+    final curr = Completer<void>();
     _lastReads.add(curr.future);
     // Wait for the previous write in the queue to complete.
     // There should not be any errors as we never used `Completer.completeError()`.
@@ -52,10 +55,13 @@ class RWQueueLock {
   ///
   /// If lock is currently locked, there will be a coroutine switch point
   /// between the caller and the beginning of [operation].
+  ///
+  /// After [operation] completes, the returned future immediately completes,
+  /// without running any other code synchronously (except releasing lock).
   Future<T> enqueueWrite<T>(Future<T> Function() operation) async {
     // (Atomic) Push a `Completer` to the end of the queue.
     final prev = wait();
-    final curr = Completer<void>.sync();
+    final curr = Completer<void>();
     _lastWrite = curr.future;
     _lastReads.clear();
     // Wait for the previous tasks in the queue to complete.

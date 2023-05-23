@@ -109,3 +109,21 @@ class EdgeOp implements Comparable<EdgeOp> {
     return 0;
   }
 }
+
+/// Stable hash function for use in generating integer names from strings.
+/// See: https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
+int stableHash(String s) {
+  const int kFnv64Prime = 1099511628211;
+  const int kFnv64Basis = -3750763034362895579;
+  var res = kFnv64Basis;
+  for (final c in s.codeUnits) {
+    final high = c >> 8, low = c & 0xff;
+    res = (res * kFnv64Prime) ^ low;
+    res = (res * kFnv64Prime) ^ high;
+  }
+  assert(!_usedHashes.contains(res), 'Name $s was used multiple times.');
+  _usedHashes.add(res);
+  return res;
+}
+
+final Set<int> _usedHashes = {};

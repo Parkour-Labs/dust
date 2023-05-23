@@ -7,7 +7,7 @@ part of 'operation.dart';
 // **************************************************************************
 
 // coverage:ignore-file
-// ignore_for_file: duplicate_ignore, non_constant_identifier_names, constant_identifier_names, invalid_use_of_protected_member, unnecessary_cast, prefer_const_constructors, lines_longer_than_80_chars, require_trailing_commas, inference_failure_on_function_invocation, unnecessary_parenthesis, unnecessary_raw_strings, unnecessary_null_checks, join_return_with_assignment, prefer_final_locals, avoid_js_rounded_ints, avoid_positional_boolean_parameters
+// ignore_for_file: duplicate_ignore, non_constant_identifier_names, constant_identifier_names, invalid_use_of_protected_member, unnecessary_cast, prefer_const_constructors, lines_longer_than_80_chars, require_trailing_commas, inference_failure_on_function_invocation, unnecessary_parenthesis, unnecessary_raw_strings, unnecessary_null_checks, join_return_with_assignment, prefer_final_locals, avoid_js_rounded_ints, avoid_positional_boolean_parameters, always_specify_types
 
 extension GetGraphDataCollection on Isar {
   IsarCollection<GraphData> get graphDatas => this.collection();
@@ -39,7 +39,7 @@ const GraphDataSchema = CollectionSchema(
   getId: _graphDataGetId,
   getLinks: _graphDataGetLinks,
   attach: _graphDataAttach,
-  version: '3.0.5',
+  version: '3.1.0+1',
 );
 
 int _graphDataEstimateSize(
@@ -457,7 +457,7 @@ extension GraphDataQueryProperty
 }
 
 // coverage:ignore-file
-// ignore_for_file: duplicate_ignore, non_constant_identifier_names, constant_identifier_names, invalid_use_of_protected_member, unnecessary_cast, prefer_const_constructors, lines_longer_than_80_chars, require_trailing_commas, inference_failure_on_function_invocation, unnecessary_parenthesis, unnecessary_raw_strings, unnecessary_null_checks, join_return_with_assignment, prefer_final_locals, avoid_js_rounded_ints, avoid_positional_boolean_parameters
+// ignore_for_file: duplicate_ignore, non_constant_identifier_names, constant_identifier_names, invalid_use_of_protected_member, unnecessary_cast, prefer_const_constructors, lines_longer_than_80_chars, require_trailing_commas, inference_failure_on_function_invocation, unnecessary_parenthesis, unnecessary_raw_strings, unnecessary_null_checks, join_return_with_assignment, prefer_final_locals, avoid_js_rounded_ints, avoid_positional_boolean_parameters, always_specify_types
 
 extension GetAtomOpCollection on Isar {
   IsarCollection<AtomOp> get atomOps => this.collection();
@@ -584,7 +584,7 @@ const AtomOpSchema = CollectionSchema(
   getId: _atomOpGetId,
   getLinks: _atomOpGetLinks,
   attach: _atomOpAttach,
-  version: '3.0.5',
+  version: '3.1.0+1',
 );
 
 int _atomOpEstimateSize(
@@ -2400,7 +2400,7 @@ extension AtomOpQueryProperty on QueryBuilder<AtomOp, AtomOp, QQueryProperty> {
 }
 
 // coverage:ignore-file
-// ignore_for_file: duplicate_ignore, non_constant_identifier_names, constant_identifier_names, invalid_use_of_protected_member, unnecessary_cast, prefer_const_constructors, lines_longer_than_80_chars, require_trailing_commas, inference_failure_on_function_invocation, unnecessary_parenthesis, unnecessary_raw_strings, unnecessary_null_checks, join_return_with_assignment, prefer_final_locals, avoid_js_rounded_ints, avoid_positional_boolean_parameters
+// ignore_for_file: duplicate_ignore, non_constant_identifier_names, constant_identifier_names, invalid_use_of_protected_member, unnecessary_cast, prefer_const_constructors, lines_longer_than_80_chars, require_trailing_commas, inference_failure_on_function_invocation, unnecessary_parenthesis, unnecessary_raw_strings, unnecessary_null_checks, join_return_with_assignment, prefer_final_locals, avoid_js_rounded_ints, avoid_positional_boolean_parameters, always_specify_types
 
 extension GetEdgeOpCollection on Isar {
   IsarCollection<EdgeOp> get edgeOps => this.collection();
@@ -2527,7 +2527,7 @@ const EdgeOpSchema = CollectionSchema(
   getId: _edgeOpGetId,
   getLinks: _edgeOpGetLinks,
   attach: _edgeOpAttach,
-  version: '3.0.5',
+  version: '3.1.0+1',
 );
 
 int _edgeOpEstimateSize(

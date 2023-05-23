@@ -51,7 +51,7 @@ class ModelGraph extends Graph<Source?, Source?> {
 
   /// Loads all atoms and edges from a node with given [id].
   /// Returns asynchronously.
-  Future<Pair<List<Atom<Source?>>, List<Edge<Source?>>>> loadAtomsAndEdgesFrom(int id) async {
+  Future<Pair<List<Atom<Source?>>, List<Edge<Source?>>>> loadAtomsAndEdgesFrom(int id) {
     return lock.enqueueRead(() async {
       // Read lock held. Load latest modifications from database.
       final atomOps = await isar.atomOps.where().graphIdSrcIdEqualToAnyLabel(graphId, id).findAll();
@@ -66,7 +66,7 @@ class ModelGraph extends Graph<Source?, Source?> {
 
   /// Loads all edges ending at a node with given [id] and with label [label].
   /// Returns asynchronously.
-  Future<Set<Edge<Source?>>> loadEdgesToWithLabel(int id, int label) async {
+  Future<Set<Edge<Source?>>> loadEdgesToWithLabel(int id, int label) {
     return lock.enqueueRead(() async {
       // Read lock held. Load latest modifications from database.
       final ops = await isar.edgeOps.where().graphIdDstIdLabelEqualTo(graphId, id, label).findAll();

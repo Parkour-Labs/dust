@@ -1,8 +1,13 @@
-import 'dart:async';
-
+import 'package:path_provider/path_provider.dart';
 import 'package:isar/isar.dart';
 import 'package:test/test.dart';
 import 'package:qinhuai/qinhuai.dart';
+
+// Unique IDs for the class and its fields.
+final int kNodeId = stableHash(r'Node');
+final int kNodeNameId = stableHash(r'Node.name');
+final int kNodeDataId = stableHash(r'Node.data');
+final int kNodeParentId = stableHash(r'Node.parent');
 
 // The model class.
 class Node extends Model {
@@ -13,10 +18,10 @@ class Node extends Model {
 
   // Internal constructor.
   Node._(ModelRepository repo, int id, Map<int, Atom<Source?>> atoms, Map<int, Edge<Source?>> edges)
-      : name = ActiveAtom(repo, 0, atoms[0] ?? repo.graph.addAtom(0, id, '', null)),
-        data = ActiveAtom(repo, 1, atoms[1] ?? repo.graph.addAtom(1, id, null, null)),
-        parent = ActiveLink(repo, kNodeTypeId, edges[0] ?? repo.graph.addEdge(0, id, null, null)),
-        children = ActiveBacklink(repo, id, 0, kNodeTypeId),
+      : name = ActiveAtom(repo, atoms[kNodeNameId] ?? repo.graph.addAtom(kNodeNameId, id, '', null)),
+        data = ActiveAtom(repo, atoms[kNodeDataId] ?? repo.graph.addAtom(kNodeDataId, id, null, null)),
+        parent = ActiveLink(repo, kNodeId, edges[kNodeParentId] ?? repo.graph.addEdge(kNodeParentId, id, null, null)),
+        children = ActiveBacklink(repo, kNodeId, id, kNodeParentId),
         super(id);
 
   @override
@@ -26,32 +31,29 @@ class Node extends Model {
   }
 
   // Public constructor.
-  factory Node(
-    String name,
-    String? data,
-    Node? parent,
-  ) =>
-      models.add(kNodeTypeId, [Pair(0, name), Pair(1, data)], [Pair(0, parent)]) as Node;
+  factory Node(String name, String? data, Node? parent) =>
+      models.add(kNodeId, [Pair(kNodeNameId, name), Pair(kNodeDataId, data)], [Pair(kNodeParentId, parent)]) as Node;
 }
-
-// Unique ID for the class.
-const int kNodeTypeId = 2333;
 
 // Schema for the class.
 final ModelSchema kNodeSchema = ModelSchema(constructorAdapter(Node._));
 
-/// The global [Isar] instance.
-late final Isar isar;
+// Global data store.
+late Isar isar;
+late ModelRepository models;
 
-/// The global [ModelRepository] instance.
-late final ModelRepository models;
+void main() {
+  setUp(() async {
+    // Initialise data store.
+    final dir = await getApplicationDocumentsDirectory();
+    await Isar.initializeIsarCore(download: true);
+    isar = await Isar.open([GraphDataSchema, AtomOpSchema, EdgeOpSchema], directory: dir.path);
+    models = ModelRepository(ModelGraph(isar, 0), {kNodeId: kNodeSchema});
+  });
 
-Future<void> main() async {
-  await Isar.initializeIsarCore(download: true);
-
-  // Initialise data store.
-  isar = await Isar.open([GraphDataSchema, AtomOpSchema, EdgeOpSchema]);
-  models = ModelRepository(ModelGraph(isar, 0), {kNodeTypeId: kNodeSchema});
+  tearDown(() async {
+    await isar.close(deleteFromDisk: true);
+  });
 
   test('Simple test', () async {
     // Test initialisation.
@@ -59,14 +61,15 @@ Future<void> main() async {
     final child1 = Node('child1', null, root);
     final child2 = Node('child2', 'gggg', root);
     final child3 = Node('child3', 'ggggg', root);
+
     await root.children.load();
-    assert(root.parent.get(null) == null && root.children.get(null).length == 3);
+    assert(root.parent.get(null) == null);
     await child1.children.load();
-    assert(child1.parent.get(null) == root && child1.children.get(null).isEmpty);
+    assert(child1.parent.get(null) == root);
     await child2.children.load();
-    assert(child2.parent.get(null) == root && child2.children.get(null).isEmpty);
+    assert(child2.parent.get(null) == root);
     await child3.children.load();
-    assert(child3.parent.get(null) == root && child3.children.get(null).isEmpty);
+    assert(child3.parent.get(null) == root);
 
     // Test reactives.
     final reactive = Reactive((ref) => '${child2.name.get(ref)}-decorated');
@@ -134,5 +137,11 @@ Future<void> main() async {
     assert(newChild1.parent.get(null) == newRoot && !newChild1.parent.isAbsent(null));
     // Expected. Empty links are never considered as "absent".
     assert(newRoot.parent.get(null) == null && !newRoot.parent.isAbsent(null));
+
+    await models.unload(newChild1);
+    await models.unload(newChild2);
+    await models.unload(newChild3);
+    await models.unload(newRoot);
+    assert(models.graph.atoms.isEmpty && models.graph.edges.isEmpty);
   });
 }

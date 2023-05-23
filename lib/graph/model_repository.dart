@@ -14,10 +14,9 @@ class Model with Disposable {
 
 class ActiveAtom<T extends String?> with Disposable, Source {
   final ModelRepository repo;
-  final int label;
   final Atom<Source?> atom;
 
-  ActiveAtom(this.repo, this.label, this.atom) {
+  ActiveAtom(this.repo, this.atom) {
     assert(atom.payload == null, 'Only one source can be attached to an atom.');
     atom.payload = this;
   }
@@ -93,7 +92,7 @@ class ActiveBacklink<T extends Model?> with Disposable, Source {
   final int dstLabel;
   late final Backlink backlink;
 
-  ActiveBacklink(this.repo, int id, int label, this.dstLabel) {
+  ActiveBacklink(this.repo, this.dstLabel, int id, int label) {
     backlink = repo.graph.startTrackingBacklink(id, label, this);
   }
 

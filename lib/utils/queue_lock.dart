@@ -18,10 +18,13 @@ class QueueLock {
   ///
   /// If lock is currently locked, there will be a coroutine switch point
   /// between the caller and the beginning of [operation].
+  ///
+  /// After [operation] completes, the returned future immediately completes,
+  /// without running any other code synchronously (except releasing lock).
   Future<T> enqueue<T>(Future<T> Function() operation) async {
     // (Atomic) Push a `Completer` to the end of the queue.
     final prev = wait();
-    final curr = Completer<void>.sync();
+    final curr = Completer<void>();
     _last = curr.future;
     // Wait for the previous task in the queue to complete.
     // There should not be any errors as we never used `Completer.completeError()`.
