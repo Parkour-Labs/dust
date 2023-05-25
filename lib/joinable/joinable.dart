@@ -7,7 +7,7 @@
 ///
 /// ----------------------------------------------------------------------------
 
-/// An instance of `Basic<S, A>` is a "proof" that `(S, A)` forms a **state space**.
+/// An instance of [Basic] is a "proof" that `(S, A)` forms a **state space**.
 ///
 /// Implementation should satisfy the following properties:
 ///
@@ -16,64 +16,54 @@
 ///
 /// For performance reasons, arguments to `apply` and `comp` are considered to be **moved**
 /// (their values may be changed) and must be **non-overlapping**.
-abstract class Basic<S, A> {
-  S apply(S s, A a);
-  A id();
-  A comp(A a, A b);
-}
+class Basic<S, A> {
+  final S Function(S s, A a) apply;
+  final A Function() id;
+  final A Function(A a, A b) comp;
 
-/// Product of state spaces: `(S, A) × (T, B)`.
-class BasicProd<S, A, SA extends Basic<S, A>, T, B, TB extends Basic<T, B>> implements Basic<(S, T), (A, B)> {
-  final SA sa;
-  final TB tb;
+  const Basic({
+    required this.apply,
+    required this.id,
+    required this.comp,
+  });
 
-  const BasicProd(this.sa, this.tb);
-
-  @override
-  apply(s, a) => (sa.apply(s.$1, a.$1), tb.apply(s.$2, a.$2));
-
-  @override
-  id() => (sa.id(), tb.id());
-
-  @override
-  comp(a, b) => (sa.comp(a.$1, b.$1), tb.comp(a.$2, b.$2));
-}
-
-/// Iterated product of state spaces: `I → (S, A)`.
-///
-/// Since `I` can be very large, a default state `initial ∈ S` is assumed.
-class BasicPi<I, S, A, SA extends Basic<S, A>> implements Basic<Map<I, S>, Map<I, A>> {
-  final SA sa;
-  final S Function() initial;
-
-  const BasicPi(this.sa, this.initial);
-
-  @override
-  apply(s, a) {
-    for (final entry in a.entries) {
-      final i = entry.key;
-      final ai = entry.value;
-      s[i] = sa.apply(s[i] ?? initial(), ai);
-    }
-    return s;
+  /// Product of state spaces: `(S, A) × (T, B)`.
+  static Basic<(S, T), (A, B)> prod<S, A, T, B>(Basic<S, A> sa, Basic<T, B> tb) {
+    return Basic(
+      apply: (s, a) => (sa.apply(s.$1, a.$1), tb.apply(s.$2, a.$2)),
+      id: () => (sa.id(), tb.id()),
+      comp: (a, b) => (sa.comp(a.$1, b.$1), tb.comp(a.$2, b.$2)),
+    );
   }
 
-  @override
-  id() => {};
-
-  @override
-  comp(a, b) {
-    for (final entry in b.entries) {
-      final i = entry.key;
-      final ai = a[i];
-      final bi = entry.value;
-      a[i] = (ai == null) ? bi : sa.comp(ai, bi);
-    }
-    return a;
+  /// Iterated product of state spaces: `I → (S, A)`.
+  ///
+  /// Since `I` can be very large, a default state `initial ∈ S` is assumed.
+  static Basic<Map<I, S>, Map<I, A>> pi<I, S, A>(Basic<S, A> sa, S Function() initial) {
+    return Basic(
+      apply: (s, a) {
+        for (final entry in a.entries) {
+          final i = entry.key;
+          final ai = entry.value;
+          s[i] = sa.apply(s[i] ?? initial(), ai);
+        }
+        return s;
+      },
+      id: () => {},
+      comp: (a, b) {
+        for (final entry in b.entries) {
+          final i = entry.key;
+          final ai = a[i];
+          final bi = entry.value;
+          a[i] = (ai == null) ? bi : sa.comp(ai, bi);
+        }
+        return a;
+      },
+    );
   }
 }
 
-/// An instance of `Joinable<S, A>` is a "proof" that `(S, A)` forms a **joinable state space**.
+/// An instance of [Joinable] is a "proof" that `(S, A)` forms a **joinable state space**.
 ///
 /// Implementation should satisfy the following properties:
 ///
@@ -85,57 +75,65 @@ class BasicPi<I, S, A, SA extends Basic<S, A>> implements Basic<Map<I, S>, Map<I
 ///
 /// For performance reasons, arguments to `join` are considered to be **moved**
 /// (their values may be changed) and must be **non-overlapping**.
-abstract class Joinable<S, A> extends Basic<S, A> {
-  bool le(S s, S t);
-  S join(S s, S t);
-}
+class Joinable<S, A> extends Basic<S, A> {
+  final bool Function(S s, S t) le;
+  final S Function(S s, S t) join;
 
-/// Product of joinable state spaces: `(S, A) × (T, B)`.
-class JoinableProd<S, A, SA extends Joinable<S, A>, T, B, TB extends Joinable<T, B>>
-    extends BasicProd<S, A, SA, T, B, TB> implements Joinable<(S, T), (A, B)> {
-  const JoinableProd(super.sa, super.tb);
+  const Joinable({
+    required super.apply,
+    required super.id,
+    required super.comp,
+    required this.le,
+    required this.join,
+  });
 
-  @override
-  le(s, t) => sa.le(s.$1, t.$1) && tb.le(s.$2, t.$2);
-
-  @override
-  join(s, t) => (sa.join(s.$1, t.$1), tb.join(s.$2, t.$2));
-}
-
-/// Iterated product of joinable state spaces: `I → (S, A)`.
-///
-/// Since `I` can be very large, a default state `initial ∈ S` is assumed.
-/// This must be the **minimum element**:
-///
-/// - `∀ s ∈ S, initial ≤ s`
-class JoinablePi<I, S, A, SA extends Joinable<S, A>> extends BasicPi<I, S, A, SA>
-    implements Joinable<Map<I, S>, Map<I, A>> {
-  const JoinablePi(super.sa, super.initial);
-
-  @override
-  le(s, t) {
-    for (final entry in s.entries) {
-      final i = entry.key;
-      final si = entry.value;
-      final ti = t[i] ?? initial();
-      if (!sa.le(si, ti)) return false;
-    }
-    return true;
+  /// Product of joinable state spaces: `(S, A) × (T, B)`.
+  static Joinable<(S, T), (A, B)> prod<S, A, T, B>(Joinable<S, A> sa, Joinable<T, B> tb) {
+    final base = Basic.prod<S, A, T, B>(sa, tb);
+    return Joinable(
+      apply: base.apply,
+      id: base.id,
+      comp: base.comp,
+      le: (s, t) => sa.le(s.$1, t.$1) && tb.le(s.$2, t.$2),
+      join: (s, t) => (sa.join(s.$1, t.$1), tb.join(s.$2, t.$2)),
+    );
   }
 
-  @override
-  join(s, t) {
-    for (final entry in t.entries) {
-      final i = entry.key;
-      final si = s[i];
-      final ti = entry.value;
-      s[i] = (si == null) ? ti : sa.join(si, ti);
-    }
-    return s;
+  /// Iterated product of joinable state spaces: `I → (S, A)`.
+  ///
+  /// Since `I` can be very large, a default state `initial ∈ S` is assumed.
+  /// This must be the **minimum element**:
+  ///
+  /// - `∀ s ∈ S, initial ≤ s`
+  static Joinable<Map<I, S>, Map<I, A>> pi<I, S, A>(Joinable<S, A> sa, S Function() initial) {
+    final base = Basic.pi<I, S, A>(sa, initial);
+    return Joinable(
+      apply: base.apply,
+      id: base.id,
+      comp: base.comp,
+      le: (s, t) {
+        for (final entry in s.entries) {
+          final i = entry.key;
+          final si = entry.value;
+          final ti = t[i] ?? initial();
+          if (!sa.le(si, ti)) return false;
+        }
+        return true;
+      },
+      join: (s, t) {
+        for (final entry in t.entries) {
+          final i = entry.key;
+          final si = s[i];
+          final ti = entry.value;
+          s[i] = (si == null) ? ti : sa.join(si, ti);
+        }
+        return s;
+      },
+    );
   }
 }
 
-/// An instance of `DeltaJoinable<S, A>` is a "proof" that `(S, A)` forms a **Δ-joinable state space**.
+/// An instance of [DeltaJoinable] is a "proof" that `(S, A)` forms a **Δ-joinable state space**.
 ///
 /// Implementation should satisfy the following properties:
 ///
@@ -145,45 +143,62 @@ class JoinablePi<I, S, A, SA extends Joinable<S, A>> extends BasicPi<I, S, A, SA
 ///
 /// For performance reasons, arguments to `deltaJoin` are considered to be **moved**
 /// (their values may be changed) and must be **non-overlapping**.
-abstract class DeltaJoinable<S, A> extends Joinable<S, A> {
-  S deltaJoin(S s, A a, A b);
-}
+class DeltaJoinable<S, A> extends Joinable<S, A> {
+  final S Function(S s, A a, A b) deltaJoin;
 
-/// Product of Δ-joinable state spaces: `(S, A) × (T, B)`.
-class DeltaJoinableProd<S, A, SA extends DeltaJoinable<S, A>, T, B, TB extends DeltaJoinable<T, B>>
-    extends JoinableProd<S, A, SA, T, B, TB> implements DeltaJoinable<(S, T), (A, B)> {
-  const DeltaJoinableProd(super.sa, super.tb);
-  
-  @override
-  deltaJoin(s, a, b) => (sa.deltaJoin(s.$1, a.$1, b.$1), tb.deltaJoin(s.$2, a.$2, b.$2));
-}
+  const DeltaJoinable({
+    required super.apply,
+    required super.id,
+    required super.comp,
+    required super.le,
+    required super.join,
+    required this.deltaJoin,
+  });
 
-/// Iterated product of Δ-joinable state spaces: `I → (S, A)`.
-class DeltaJoinablePi<I, S, A, SA extends DeltaJoinable<S, A>> extends JoinablePi<I, S, A, SA>
-    implements DeltaJoinable<Map<I, S>, Map<I, A>> {
-  const DeltaJoinablePi(super.sa, super.initial);
+  /// Product of Δ-joinable state spaces: `(S, A) × (T, B)`.
+  static DeltaJoinable<(S, T), (A, B)> prod<S, A, T, B>(DeltaJoinable<S, A> sa, DeltaJoinable<T, B> tb) {
+    final base = Joinable.prod<S, A, T, B>(sa, tb);
+    return DeltaJoinable(
+      apply: base.apply,
+      id: base.id,
+      comp: base.comp,
+      le: base.le,
+      join: base.join,
+      deltaJoin: (s, a, b) => (sa.deltaJoin(s.$1, a.$1, b.$1), tb.deltaJoin(s.$2, a.$2, b.$2)),
+    );
+  }
 
-  @override
-  deltaJoin(s, a, b) {
-    for (final entry in a.entries) {
-      final i = entry.key;
-      final ai = entry.value;
-      final bi = b[i] ?? sa.id();
-      final si = s[i] ?? initial();
-      s[i] = sa.deltaJoin(si, ai, bi);
-    }
-    for (final entry in b.entries) {
-      final i = entry.key;
-      if (a.containsKey(i)) continue;
-      final bi = entry.value;
-      final si = s[i] ?? initial();
-      s[i] = sa.apply(si, bi);
-    }
-    return s;
+  /// Iterated product of Δ-joinable state spaces: `I → (S, A)`.
+  static DeltaJoinable<Map<I, S>, Map<I, A>> pi<I, S, A>(DeltaJoinable<S, A> sa, S Function() initial) {
+    final base = Joinable.pi<I, S, A>(sa, initial);
+    return DeltaJoinable(
+      apply: base.apply,
+      id: base.id,
+      comp: base.comp,
+      le: base.le,
+      join: base.join,
+      deltaJoin: (s, a, b) {
+        for (final entry in a.entries) {
+          final i = entry.key;
+          final ai = entry.value;
+          final bi = b[i] ?? sa.id();
+          final si = s[i] ?? initial();
+          s[i] = sa.deltaJoin(si, ai, bi);
+        }
+        for (final entry in b.entries) {
+          final i = entry.key;
+          if (a.containsKey(i)) continue;
+          final bi = entry.value;
+          final si = s[i] ?? initial();
+          s[i] = sa.apply(si, bi);
+        }
+        return s;
+      },
+    );
   }
 }
 
-/// An instance of `GammaJoinable<S, A>` is a "proof" that `(S, A)` forms a **Γ-joinable state space**.
+/// An instance of [GammaJoinable] is a "proof" that `(S, A)` forms a **Γ-joinable state space**.
 ///
 /// Implementation should satisfy the following properties:
 ///
@@ -193,32 +208,49 @@ class DeltaJoinablePi<I, S, A, SA extends DeltaJoinable<S, A>> extends JoinableP
 ///
 /// For performance reasons, arguments to `gammaJoin` are considered to be **moved**
 /// (their values may be changed) and must be **non-overlapping**.
-abstract class GammaJoinable<S, A> extends Joinable<S, A> {
-  S gammaJoin(S s, A a);
-}
+class GammaJoinable<S, A> extends Joinable<S, A> {
+  final S Function(S s, A a) gammaJoin;
 
-/// Product of Γ-joinable state spaces: `(S, A) × (T, B)`.
-class GammaJoinableProd<S, A, SA extends GammaJoinable<S, A>, T, B, TB extends GammaJoinable<T, B>>
-    extends JoinableProd<S, A, SA, T, B, TB> implements GammaJoinable<(S, T), (A, B)> {
-  GammaJoinableProd(super.sa, super.tb);
-  
-  @override
-  gammaJoin(s, a) => (sa.gammaJoin(s.$1, a.$1), tb.gammaJoin(s.$2, a.$2));
-}
+  const GammaJoinable({
+    required super.apply,
+    required super.id,
+    required super.comp,
+    required super.le,
+    required super.join,
+    required this.gammaJoin,
+  });
 
-/// Iterated product of Γ-joinable state spaces: `I → (S, A)`.
-class GammaJoinablePi<I, S, A, SA extends GammaJoinable<S, A>> extends JoinablePi<I, S, A, SA>
-    implements GammaJoinable<Map<I, S>, Map<I, A>> {
-  GammaJoinablePi(super.sa, super.initial);
-  
-  @override
-  gammaJoin(s, a) {
-    for (final entry in a.entries) {
-      final i = entry.key;
-      final ai = entry.value;
-      final si = s[i] ?? initial();
-      s[i] = sa.gammaJoin(si, ai);
-    }
-    return s;
+  /// Product of Γ-joinable state spaces: `(S, A) × (T, B)`.
+  static GammaJoinable<(S, T), (A, B)> prod<S, A, T, B>(GammaJoinable<S, A> sa, GammaJoinable<T, B> tb) {
+    final base = Joinable.prod<S, A, T, B>(sa, tb);
+    return GammaJoinable(
+      apply: base.apply,
+      id: base.id,
+      comp: base.comp,
+      le: base.le,
+      join: base.join,
+      gammaJoin: (s, a) => (sa.gammaJoin(s.$1, a.$1), tb.gammaJoin(s.$2, a.$2)),
+    );
+  }
+
+  /// Iterated product of Γ-joinable state spaces: `I → (S, A)`.
+  static GammaJoinable<Map<I, S>, Map<I, A>> pi<I, S, A>(GammaJoinable<S, A> sa, S Function() initial) {
+    final base = Joinable.pi<I, S, A>(sa, initial);
+    return GammaJoinable(
+      apply: base.apply,
+      id: base.id,
+      comp: base.comp,
+      le: base.le,
+      join: base.join,
+      gammaJoin: (s, a) {
+        for (final entry in a.entries) {
+          final i = entry.key;
+          final ai = entry.value;
+          final si = s[i] ?? initial();
+          s[i] = sa.gammaJoin(si, ai);
+        }
+        return s;
+      },
+    );
   }
 }

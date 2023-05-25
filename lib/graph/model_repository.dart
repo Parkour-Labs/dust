@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import '../utils/pair.dart';
 import '../reactive/reactive.dart';
 import 'operation.dart';
 import 'graph.dart';
@@ -149,8 +148,7 @@ class ModelRepository {
   /// Returns asynchronously.
   Future<Model?> load(int id, int label) async {
     final res = await graph.loadAtomsAndEdgesFrom(id);
-    final atoms = res.first;
-    final edges = res.second;
+    final (atoms, edges) = res;
     final model = models[id] ?? schemas[label]!.constructor(this, id, atoms, edges);
     if (model == null) {
       assert(atoms.isEmpty && edges.isEmpty, 'Data exist but are not well-formed.');
@@ -188,10 +186,10 @@ class ModelRepository {
 
   /// Creates a new model with given parameters, or `null` if creation failed / parameters are not well-formed.
   /// Returns synchronously. Async write operations are queued.
-  Model? add(int label, List<Pair<int, String?>> labelValues, List<Pair<int, Model?>> labelDsts) {
+  Model? add(int label, List<(int, String?)> labelValues, List<(int, Model?)> labelDsts) {
     final id = Identifier.random();
-    final atoms = labelValues.map((e) => graph.addAtom(e.first, id, e.second, null)).toList();
-    final edges = labelDsts.map((e) => graph.addEdge(e.first, id, e.second?.id, null)).toList();
+    final atoms = labelValues.map((e) => graph.addAtom(e.$1, id, e.$2, null)).toList();
+    final edges = labelDsts.map((e) => graph.addEdge(e.$1, id, e.$2?.id, null)).toList();
     final model = schemas[label]!.constructor(this, id, atoms, edges);
     if (model == null) {
       assert(false, 'Data passed in from constructor are not well-formed.');

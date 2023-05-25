@@ -32,7 +32,7 @@ class Node extends Model {
 
   // Public constructor.
   factory Node(String name, String? data, Node? parent) =>
-      models.add(kNodeId, [Pair(kNodeNameId, name), Pair(kNodeDataId, data)], [Pair(kNodeParentId, parent)]) as Node;
+      models.add(kNodeId, [(kNodeNameId, name), (kNodeDataId, data)], [(kNodeParentId, parent)]) as Node;
 }
 
 // Schema for the class.

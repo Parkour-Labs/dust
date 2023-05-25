@@ -1,7 +1,7 @@
 import 'package:meta/meta.dart';
 
-import '../utils/disposable.dart';
-export '../utils/disposable.dart';
+import '../basic/disposable.dart';
+export '../basic/disposable.dart';
 
 @immutable
 class Ref {

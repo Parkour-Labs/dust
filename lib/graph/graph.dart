@@ -3,7 +3,7 @@ import 'dart:math';
 
 import 'package:isar/isar.dart';
 
-import '../utils/rw_queue_lock.dart';
+import '../basic/rw_queue_lock.dart';
 import 'operation.dart';
 
 /// A string value associated with some node.

@@ -1,7 +1,6 @@
 import 'package:isar/isar.dart';
 
-import '../utils/pair.dart';
-import '../utils/multi_map.dart';
+import '../basic/multi_map.dart';
 import '../reactive/reactive.dart';
 import 'operation.dart';
 import 'graph.dart';
@@ -45,19 +44,19 @@ class ModelGraph extends Graph<Source?, Source?> {
   final MultiMap<int, Atom<Source?>> atomsOf = MultiMap();
   final MultiMap<int, Edge<Source?>> edgesFrom = MultiMap();
   final MultiMap<int, Edge<Source?>> edgesTo = MultiMap();
-  final Map<Pair<int, int>, Backlink> edgesToWithLabel = {};
+  final Map<(int, int), Backlink> edgesToWithLabel = {};
 
   ModelGraph(super.isar, super.graphId);
 
   /// Loads all atoms and edges from a node with given [id].
   /// Returns asynchronously.
-  Future<Pair<List<Atom<Source?>>, List<Edge<Source?>>>> loadAtomsAndEdgesFrom(int id) {
+  Future<(List<Atom<Source?>>, List<Edge<Source?>>)> loadAtomsAndEdgesFrom(int id) {
     return lock.enqueueRead(() async {
       // Read lock held. Load latest modifications from database.
       final atomOps = await isar.atomOps.where().graphIdSrcIdEqualToAnyLabel(graphId, id).findAll();
       final edgeOps = await isar.edgeOps.where().graphIdSrcIdEqualToAnyLabel(graphId, id).findAll();
       // Check if already loaded (in which case memory data is newer than database).
-      return Pair(
+      return (
         atomOps.map((e) => atoms[e.atomId] ?? loadAtom(e, null)).toList(),
         edgeOps.map((e) => edges[e.edgeId] ?? loadEdge(e, null)).toList(),
       );
@@ -79,21 +78,21 @@ class ModelGraph extends Graph<Source?, Source?> {
         if (edge.label == label) res.add(edge);
       }
       // Establish exhaustive backlink.
-      edgesToWithLabel[Pair(id, label)]?.load(res);
+      edgesToWithLabel[(id, label)]?.load(res);
       return res;
     });
   }
 
   /// Starts tracking backlink. Note that this does not actually load the link.
   Backlink startTrackingBacklink(int id, int label, Source source) {
-    final key = Pair(id, label);
+    final key = (id, label);
     assert(!edgesToWithLabel.containsKey(key));
     return edgesToWithLabel[key] = Backlink(id, label, source);
   }
 
   /// Stops tracking backlink.
   void stopTrackingBacklink(Backlink backlink) {
-    final key = Pair(backlink.id, backlink.label);
+    final key = (backlink.id, backlink.label);
     assert(edgesToWithLabel.containsKey(key));
     edgesToWithLabel.remove(key);
   }
@@ -119,7 +118,7 @@ class ModelGraph extends Graph<Source?, Source?> {
   void registerEdge(Edge<Source?> edge, bool created) {
     edgesFrom.add(edge.srcId, edge);
     edgesTo.add(edge.dstId, edge);
-    edgesToWithLabel[Pair(edge.dstId, edge.label)]?.add(edge);
+    edgesToWithLabel[(edge.dstId, edge.label)]?.add(edge);
     if (created) edge.payload?.notify();
   }
 
@@ -127,9 +126,9 @@ class ModelGraph extends Graph<Source?, Source?> {
   void unregisterEdge(Edge<Source?> edge, bool removed) {
     edgesFrom.remove(edge.srcId, edge);
     edgesTo.remove(edge.dstId, edge);
-    edgesToWithLabel[Pair(edge.dstId, edge.label)]?.remove(edge);
+    edgesToWithLabel[(edge.dstId, edge.label)]?.remove(edge);
     // Unloading an edge causes backlink to be no longer exhaustive.
-    if (!removed) edgesToWithLabel[Pair(edge.dstId, edge.label)]?.unload();
+    if (!removed) edgesToWithLabel[(edge.dstId, edge.label)]?.unload();
     if (removed) edge.payload?.notify();
   }
 
@@ -142,8 +141,8 @@ class ModelGraph extends Graph<Source?, Source?> {
     if (prevDst != currDst) {
       edgesTo.remove(prevDst, edge);
       edgesTo.add(currDst, edge);
-      edgesToWithLabel[Pair(prevDst, edge.label)]?.remove(edge);
-      edgesToWithLabel[Pair(currDst, edge.label)]?.add(edge);
+      edgesToWithLabel[(prevDst, edge.label)]?.remove(edge);
+      edgesToWithLabel[(currDst, edge.label)]?.add(edge);
     }
     edge.payload?.notify();
   }
