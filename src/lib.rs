@@ -1,4 +1,7 @@
-mod joinable;
+//! TODO: remove
+
+pub mod joinable;
+pub mod reactive;
 
 pub fn add(left: usize, right: usize) -> usize {
   left + right
