@@ -7,8 +7,10 @@
 //!
 //! ----------------------------------------------------------------------------
 
-pub mod graph;
+pub mod basic;
+pub mod counter;
 pub mod register;
+pub mod set;
 
 use std::cmp::Eq;
 use std::collections::hash_map::Entry;
@@ -22,34 +24,58 @@ use std::mem;
 ///
 /// - `∀ s ∈ Self, apply(s, id()) == s`
 /// - `∀ s ∈ Self, ∀ a b ∈ A, apply(apply(s, a), b) == apply(s, comp(a, b))`
-///
-/// For performance reasons, arguments to `apply` and `comp` are considered to be **moved**
-/// (their values may be changed) and must be **non-overlapping**.
-pub trait Basic<A> {
+pub trait State<A> {
+  fn initial() -> Self;
   fn apply(s: Self, a: &A) -> Self;
   fn id() -> A;
   fn comp(a: A, b: A) -> A;
 }
 
-/// Product of state spaces: `(S, A) × (T, B)`.
-impl<S: Basic<A>, T: Basic<B>, A, B> Basic<(A, B)> for (S, T) {
-  fn apply(s: (S, T), a: &(A, B)) -> (S, T) {
-    (S::apply(s.0, &a.0), T::apply(s.1, &a.1))
-  }
-  fn id() -> (A, B) {
-    (S::id(), T::id())
-  }
-  fn comp(a: (A, B), b: (A, B)) -> (A, B) {
-    (S::comp(a.0, b.0), T::comp(a.1, b.1))
-  }
+/// An instance of [Joinable] is a "proof" that `(Self, A)` forms a **joinable state space**.
+///
+/// Implementation should satisfy the following properties:
+///
+/// - `(Self, ≼)` is semilattice
+/// - `∀ s ∈ Self, initial() ≼ s`
+/// - `∀ s ∈ Self, ∀ a ∈ A, s ≼ apply(s, a)`
+/// - `∀ s t ∈ Self, join(s, t)` is the least upper bound of `s` and `t`
+///
+/// in addition to the properties of state spaces.
+pub trait Joinable<A>: State<A> {
+  fn preq(s: &Self, t: &Self) -> bool;
+  fn join(s: Self, t: Self) -> Self;
 }
 
-/*
+/// An instance of [DeltaJoinable] is a "proof" that `(Self, A)` forms a **Δ-joinable state space**.
+///
+/// Implementation should satisfy the following properties:
+///
+/// - `∀ s ∈ Self, ∀ a b ∈ A, delta_join(s, a, b) == join(apply(s, a), apply(s, b))`
+///
+/// in addition to the properties of joinable state spaces.
+pub trait DeltaJoinable<A>: Joinable<A> {
+  fn delta_join(s: Self, a: &A, b: &A) -> Self;
+}
+
+/// An instance of [GammaJoinable] is a "proof" that `(Self, A)` forms a **Γ-joinable state space**.
+///
+/// Implementation should satisfy the following properties:
+///
+/// - `∀ s ∈ Self, ∀ a b ∈ A, gamma_join(apply(s, a), b) == join(apply(s, a), apply(s, b))`
+///
+/// in addition to the properties of joinable state spaces.
+pub trait GammaJoinable<A>: Joinable<A> {
+  fn gamma_join(s: Self, a: &A) -> Self;
+}
+
 /// Product of state spaces: `(S1, A1) × ... × (Sn, An)`.
-macro_rules! basic_product_variadic {
+macro_rules! impl_state_product {
   ( $($i:tt),* ; $($S:ident),* ; $($A:ident),* ) => {
-    impl< $($S: Basic<$A>),* , $($A),* > Basic<( $($A),* )> for ( $($S),* ) {
-      fn apply(s: ( $($S),* ), a: &( $($A),* )) -> ( $($S),* ) {
+    impl< $($S: State<$A>),* , $($A),* > State<( $($A),* )> for ( $($S),* ) {
+      fn initial() -> Self {
+        ( $($S::initial()),* )
+      }
+      fn apply(s: Self, a: &( $($A),* )) -> Self {
         ( $($S::apply(s.$i, &a.$i)),* )
       }
       fn id() -> ( $($A),* ) {
@@ -61,90 +87,93 @@ macro_rules! basic_product_variadic {
     }
   };
 }
-basic_product_variadic!(0, 1; S0, S1; A0, A1);
-basic_product_variadic!(0, 1, 2; S0, S1, S2; A0, A1, A2);
-basic_product_variadic!(0, 1, 2, 3; S0, S1, S2, S3; A0, A1, A2, A3);
-basic_product_variadic!(0, 1, 2, 3, 4; S0, S1, S2, S3, S4; A0, A1, A2, A3, A4);
-basic_product_variadic!(0, 1, 2, 3, 4, 5; S0, S1, S2, S3, S4, S5; A0, A1, A2, A3, A4, A5);
-basic_product_variadic!(0, 1, 2, 3, 4, 5, 6; S0, S1, S2, S3, S4, S5, S6; A0, A1, A2, A3, A4, A5, A6);
-basic_product_variadic!(0, 1, 2, 3, 4, 5, 6, 7; S0, S1, S2, S3, S4, S5, S6, S7; A0, A1, A2, A3, A4, A5, A6, A7);
-*/
+
+/// Product of joinable state spaces: `(S1, A1) × ... × (Sn, An)`.
+macro_rules! impl_joinable_product {
+  ( $($i:tt),* ; $($S:ident),* ; $($A:ident),* ) => {
+    impl< $($S: Joinable<$A>),* , $($A),* > Joinable<( $($A),* )> for ( $($S),* ) {
+      fn preq(s: &Self, t: &Self) -> bool {
+        ( $($S::preq(&s.$i, &t.$i))&&* )
+      }
+      fn join(s: Self, t: Self) -> Self {
+        ( $($S::join(s.$i, t.$i)),* )
+      }
+    }
+  };
+}
+
+/// Product of Δ-joinable state spaces: `(S1, A1) × ... × (Sn, An)`.
+macro_rules! impl_delta_joinable_product {
+  ( $($i:tt),* ; $($S:ident),* ; $($A:ident),* ) => {
+    impl< $($S: DeltaJoinable<$A>),* , $($A),* > DeltaJoinable<( $($A),* )> for ( $($S),* ) {
+      fn delta_join(s: Self, a: &( $($A),* ), b: &( $($A),* )) -> Self {
+        ( $($S::delta_join(s.$i, &a.$i, &b.$i)),* )
+      }
+    }
+  };
+}
+
+/// Product of Γ-joinable state spaces: `(S1, A1) × ... × (Sn, An)`.
+macro_rules! impl_gamma_joinable_product {
+  ( $($i:tt),* ; $($S:ident),* ; $($A:ident),* ) => {
+    impl< $($S: GammaJoinable<$A>),* , $($A),* > GammaJoinable<( $($A),* )> for ( $($S),* ) {
+      fn gamma_join(s: Self, a: &( $($A),* )) -> Self {
+        ( $($S::gamma_join(s.$i, &a.$i)),* )
+      }
+    }
+  };
+}
+
+impl_state_product!(0, 1; S0, S1; A0, A1);
+impl_state_product!(0, 1, 2; S0, S1, S2; A0, A1, A2);
+impl_state_product!(0, 1, 2, 3; S0, S1, S2, S3; A0, A1, A2, A3);
+
+impl_joinable_product!(0, 1; S0, S1; A0, A1);
+impl_joinable_product!(0, 1, 2; S0, S1, S2; A0, A1, A2);
+impl_joinable_product!(0, 1, 2, 3; S0, S1, S2, S3; A0, A1, A2, A3);
+
+impl_delta_joinable_product!(0, 1; S0, S1; A0, A1);
+impl_delta_joinable_product!(0, 1, 2; S0, S1, S2; A0, A1, A2);
+impl_delta_joinable_product!(0, 1, 2, 3; S0, S1, S2, S3; A0, A1, A2, A3);
+
+impl_gamma_joinable_product!(0, 1; S0, S1; A0, A1);
+impl_gamma_joinable_product!(0, 1, 2; S0, S1, S2; A0, A1, A2);
+impl_gamma_joinable_product!(0, 1, 2, 3; S0, S1, S2, S3; A0, A1, A2, A3);
 
 /// Iterated product of state spaces: `I → (S, A)`.
-///
-/// Since `I` can be very large, a default state `default ∈ S` is assumed.
-impl<I: Copy + Eq + Hash, S: Default + Basic<A>, A> Basic<HashMap<I, A>> for HashMap<I, S> {
-  fn apply(mut s: HashMap<I, S>, a: &HashMap<I, A>) -> HashMap<I, S> {
+impl<I: Copy + Eq + Hash, S: State<A>, A> State<Vec<(I, A)>> for HashMap<I, S> {
+  fn initial() -> Self {
+    HashMap::new()
+  }
+  fn apply(mut s: HashMap<I, S>, a: &Vec<(I, A)>) -> HashMap<I, S> {
     for (i, ai) in a {
       match s.entry(*i) {
         Entry::Occupied(mut entry) => {
-          let si = mem::take(entry.get_mut()); // See: https://github.com/rust-lang/rfcs/pull/1736
+          let si = mem::replace(entry.get_mut(), S::initial());
           entry.insert(S::apply(si, ai));
         }
         Entry::Vacant(entry) => {
-          entry.insert(S::apply(S::default(), ai));
+          entry.insert(S::apply(S::initial(), ai));
         }
       };
     }
     s
   }
-  fn id() -> HashMap<I, A> {
-    HashMap::new()
+  fn id() -> Vec<(I, A)> {
+    Vec::new()
   }
-  fn comp(mut a: HashMap<I, A>, b: HashMap<I, A>) -> HashMap<I, A> {
-    for (i, bi) in b {
-      match a.entry(i) {
-        Entry::Occupied(mut entry) => {
-          let ai = mem::replace(entry.get_mut(), S::id());
-          entry.insert(S::comp(ai, bi));
-        }
-        Entry::Vacant(entry) => {
-          entry.insert(bi);
-        }
-      }
-    }
+  fn comp(mut a: Vec<(I, A)>, mut b: Vec<(I, A)>) -> Vec<(I, A)> {
+    a.append(&mut b);
     a
   }
 }
 
-/// An instance of [Joinable] is a "proof" that `(Self, A)` forms a **joinable state space**.
-///
-/// Implementation should satisfy the following properties:
-///
-/// - `(Self, ≼)` is semilattice
-/// - `∀ s ∈ Self, ∀ a ∈ A, s ≼ f(s)`
-/// - `∀ s t ∈ Self, join(s, t)` is the least upper bound of `s` and `t`
-///
-/// in addition to the properties of state spaces.
-///
-/// For performance reasons, arguments to `join` are considered to be **moved**
-/// (their values may be changed) and must be **non-overlapping**.
-pub trait Joinable<A>: Basic<A> {
-  fn preq(s: &Self, t: &Self) -> bool;
-  fn join(s: Self, t: Self) -> Self;
-}
-
-/// Product of joinable state spaces: `(S, A) × (T, B)`.
-impl<S: Joinable<A>, T: Joinable<B>, A, B> Joinable<(A, B)> for (S, T) {
-  fn preq(s: &(S, T), t: &(S, T)) -> bool {
-    S::preq(&s.0, &t.0) && T::preq(&s.1, &t.1)
-  }
-  fn join(s: (S, T), t: (S, T)) -> (S, T) {
-    (S::join(s.0, t.0), T::join(s.1, t.1))
-  }
-}
-
 /// Iterated product of joinable state spaces: `I → (S, A)`.
-///
-/// Since `I` can be very large, a default state `default ∈ S` is assumed.
-/// This must be the **minimum element**:
-///
-/// - `∀ s ∈ S, default ≼ s`
-impl<I: Copy + Eq + Hash, S: Default + Joinable<A>, A> Joinable<HashMap<I, A>> for HashMap<I, S> {
+impl<I: Copy + Eq + Hash, S: Joinable<A>, A> Joinable<Vec<(I, A)>> for HashMap<I, S> {
   fn preq(s: &HashMap<I, S>, t: &HashMap<I, S>) -> bool {
-    let default = S::default();
+    let initial = S::initial();
     for (i, si) in s {
-      let ti = t.get(i).unwrap_or(&default);
+      let ti = t.get(i).unwrap_or(&initial);
       if !S::preq(si, ti) {
         return false;
       }
@@ -155,7 +184,7 @@ impl<I: Copy + Eq + Hash, S: Default + Joinable<A>, A> Joinable<HashMap<I, A>> f
     for (i, ti) in t {
       match s.entry(i) {
         Entry::Occupied(mut entry) => {
-          let si = mem::take(entry.get_mut());
+          let si = mem::replace(entry.get_mut(), S::initial());
           entry.insert(S::join(si, ti));
         }
         Entry::Vacant(entry) => {
@@ -167,54 +196,41 @@ impl<I: Copy + Eq + Hash, S: Default + Joinable<A>, A> Joinable<HashMap<I, A>> f
   }
 }
 
-/// An instance of [DeltaJoinable] is a "proof" that `(Self, A)` forms a **Δ-joinable state space**.
-///
-/// Implementation should satisfy the following properties:
-///
-/// - `∀ s ∈ Self, ∀ a b ∈ A, delta_join(s, a, b) == join(apply(s, a), apply(s, b))`
-///
-/// in addition to the properties of joinable state spaces.
-///
-/// For performance reasons, arguments to `delta_join` are considered to be **moved**
-/// (their values may be changed) and must be **non-overlapping**.
-pub trait DeltaJoinable<A>: Joinable<A> {
-  fn delta_join(s: Self, a: &A, b: &A) -> Self;
-}
-
-/// Product of Δ-joinable state spaces: `(S, A) × (T, B)`.
-impl<S: DeltaJoinable<A>, T: DeltaJoinable<B>, A, B> DeltaJoinable<(A, B)> for (S, T) {
-  fn delta_join(s: (S, T), a: &(A, B), b: &(A, B)) -> (S, T) {
-    (S::delta_join(s.0, &a.0, &b.0), T::delta_join(s.1, &a.1, &b.1))
-  }
-}
-
 /// Iterated product of Δ-joinable state spaces: `I → (S, A)`.
-impl<I: Copy + Eq + Hash, S: Default + DeltaJoinable<A>, A> DeltaJoinable<HashMap<I, A>> for HashMap<I, S> {
-  fn delta_join(mut s: HashMap<I, S>, a: &HashMap<I, A>, b: &HashMap<I, A>) -> HashMap<I, S> {
+impl<I: Copy + Eq + Hash, S: DeltaJoinable<A>, A> DeltaJoinable<Vec<(I, A)>> for HashMap<I, S> {
+  fn delta_join(mut s: HashMap<I, S>, a: &Vec<(I, A)>, b: &Vec<(I, A)>) -> HashMap<I, S> {
+    let mut ma = HashMap::<I, &A>::new();
+    let mut mb = HashMap::<I, &A>::new();
+    for (i, ai) in a {
+      ma.insert(*i, ai);
+    }
+    for (i, bi) in b {
+      mb.insert(*i, bi);
+    }
     let id = S::id();
     for (i, ai) in a {
-      let bi = b.get(i).unwrap_or(&id);
+      let bi = *mb.get(i).unwrap_or(&&id);
       match s.entry(*i) {
         Entry::Occupied(mut entry) => {
-          let si = mem::take(entry.get_mut());
+          let si = mem::replace(entry.get_mut(), S::initial());
           entry.insert(S::delta_join(si, ai, bi));
         }
         Entry::Vacant(entry) => {
-          entry.insert(S::delta_join(S::default(), ai, bi));
+          entry.insert(S::delta_join(S::initial(), ai, bi));
         }
       }
     }
     for (i, bi) in b {
-      if a.contains_key(i) {
+      if ma.contains_key(i) {
         continue;
       }
       match s.entry(*i) {
         Entry::Occupied(mut entry) => {
-          let si = mem::take(entry.get_mut());
+          let si = mem::replace(entry.get_mut(), S::initial());
           entry.insert(S::delta_join(si, &id, bi));
         }
         Entry::Vacant(entry) => {
-          entry.insert(S::delta_join(S::default(), &id, bi));
+          entry.insert(S::delta_join(S::initial(), &id, bi));
         }
       }
     }
@@ -222,38 +238,17 @@ impl<I: Copy + Eq + Hash, S: Default + DeltaJoinable<A>, A> DeltaJoinable<HashMa
   }
 }
 
-/// An instance of [GammaJoinable] is a "proof" that `(Self, A)` forms a **Γ-joinable state space**.
-///
-/// Implementation should satisfy the following properties:
-///
-/// - `∀ s ∈ Self, ∀ a b ∈ A, gamma_join(apply(s, a), b) == join(apply(s, a), apply(s, b))`
-///
-/// in addition to the properties of joinable state spaces.
-///
-/// For performance reasons, arguments to `gamma_join` are considered to be **moved**
-/// (their values may be changed) and must be **non-overlapping**.
-pub trait GammaJoinable<A>: Joinable<A> {
-  fn gamma_join(s: Self, a: &A) -> Self;
-}
-
-/// Product of Γ-joinable state spaces: `(S, A) × (T, B)`.
-impl<S: GammaJoinable<A>, T: GammaJoinable<B>, A, B> GammaJoinable<(A, B)> for (S, T) {
-  fn gamma_join(s: (S, T), a: &(A, B)) -> (S, T) {
-    (S::gamma_join(s.0, &a.0), T::gamma_join(s.1, &a.1))
-  }
-}
-
 /// Iterated product of Γ-joinable state spaces: `I → (S, A)`.
-impl<I: Copy + Eq + Hash, S: Default + GammaJoinable<A>, A> GammaJoinable<HashMap<I, A>> for HashMap<I, S> {
-  fn gamma_join(mut s: HashMap<I, S>, a: &HashMap<I, A>) -> HashMap<I, S> {
+impl<I: Copy + Eq + Hash, S: GammaJoinable<A>, A> GammaJoinable<Vec<(I, A)>> for HashMap<I, S> {
+  fn gamma_join(mut s: HashMap<I, S>, a: &Vec<(I, A)>) -> HashMap<I, S> {
     for (i, ai) in a {
       match s.entry(*i) {
         Entry::Occupied(mut entry) => {
-          let si = mem::take(entry.get_mut());
+          let si = mem::replace(entry.get_mut(), S::initial());
           entry.insert(S::gamma_join(si, ai));
         }
         Entry::Vacant(entry) => {
-          entry.insert(S::gamma_join(S::default(), ai));
+          entry.insert(S::gamma_join(S::initial(), ai));
         }
       }
     }
