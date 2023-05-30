@@ -1,9 +1,8 @@
 use std::collections::HashMap;
-use std::hash::Hash;
 
-use super::joinable::basic::*;
-use super::joinable::register::*;
-use super::joinable::*;
+use super::basic::*;
+use super::register::*;
+use super::*;
 
 type Inner<I, V, A, E> = (
   HashMap<I, Register<Option<V>>>,
@@ -25,7 +24,7 @@ type Action<I, V, A, E> = (
 #[derive(Clone, PartialEq, Eq)]
 pub struct Graph<I, V, A, E>(Inner<I, V, A, E>)
 where
-  I: Copy + Ord + Hash,
+  I: Index + Ord,
   V: Clone + Ord,
   A: Clone + Ord,
   E: Clone + Ord;
@@ -33,7 +32,7 @@ where
 #[allow(clippy::type_complexity)]
 impl<I, V, A, E> Graph<I, V, A, E>
 where
-  I: Copy + Ord + Hash,
+  I: Index + Ord,
   V: Clone + Ord,
   A: Clone + Ord,
   E: Clone + Ord,
@@ -47,12 +46,10 @@ where
   fn edges(&self) -> &HashMap<I, Register<Option<(I, I, E)>>> {
     &self.0 .2
   }
-
   /// Creates an empty graph.
   pub fn new() -> Self {
     Self::initial()
   }
-
   /// Obtains reference to vertex value.
   pub fn vertex(&self, index: &I) -> Option<&V> {
     match &self.vertices().get(index)?.get() {
@@ -60,7 +57,6 @@ where
       None => None,
     }
   }
-
   /// Obtains reference to atom value.
   pub fn atom(&self, index: &I) -> Option<&(I, A)> {
     match &self.atoms().get(index)?.get() {
@@ -68,7 +64,6 @@ where
       None => None,
     }
   }
-
   /// Obtains reference to edge value.
   pub fn edge(&self, index: &I) -> Option<&(I, I, E)> {
     match &self.edges().get(index)?.get() {
@@ -76,17 +71,14 @@ where
       None => None,
     }
   }
-
   /// Makes modification of vertex value.
   pub fn make_vertex_mod(index: I, value: Option<V>, clock: Clock) -> Action<I, V, A, E> {
     (vec![(index, Register::make_mod(value, clock))], vec![], vec![])
   }
-
   /// Makes modification of atom value.
   pub fn make_atom_mod(index: I, value: Option<(I, A)>, clock: Clock) -> Action<I, V, A, E> {
     (vec![], vec![(index, Register::make_mod(value, clock))], vec![])
   }
-
   /// Makes modification of edge value.
   pub fn make_edge_mod(index: I, value: Option<(I, I, E)>, clock: Clock) -> Action<I, V, A, E> {
     (vec![], vec![], vec![(index, Register::make_mod(value, clock))])
@@ -99,7 +91,7 @@ where
 
 impl<I, V, A, E> Default for Graph<I, V, A, E>
 where
-  I: Copy + Ord + Hash,
+  I: Index + Ord,
   V: Clone + Ord,
   A: Clone + Ord,
   E: Clone + Ord,
@@ -111,7 +103,7 @@ where
 
 impl<I, V, A, E> State<Action<I, V, A, E>> for Graph<I, V, A, E>
 where
-  I: Copy + Ord + Hash,
+  I: Index + Ord,
   V: Clone + Ord,
   A: Clone + Ord,
   E: Clone + Ord,
@@ -132,7 +124,7 @@ where
 
 impl<I, V, A, E> Joinable<Action<I, V, A, E>> for Graph<I, V, A, E>
 where
-  I: Copy + Ord + Hash,
+  I: Index + Ord,
   V: Clone + Ord,
   A: Clone + Ord,
   E: Clone + Ord,
@@ -147,7 +139,7 @@ where
 
 impl<I, V, A, E> DeltaJoinable<Action<I, V, A, E>> for Graph<I, V, A, E>
 where
-  I: Copy + Ord + Hash,
+  I: Index + Ord,
   V: Clone + Ord,
   A: Clone + Ord,
   E: Clone + Ord,
@@ -159,7 +151,7 @@ where
 
 impl<I, V, A, E> GammaJoinable<Action<I, V, A, E>> for Graph<I, V, A, E>
 where
-  I: Copy + Ord + Hash,
+  I: Index + Ord,
   V: Clone + Ord,
   A: Clone + Ord,
   E: Clone + Ord,

@@ -45,7 +45,10 @@ impl<T: Clone + Minimum> State<Self> for Register<T> {
     s.max(a.clone())
   }
   fn id() -> Self {
-    Self::new()
+    Self {
+      clock: Clock::minimum(),
+      value: T::minimum(),
+    }
   }
   fn comp(a: Self, b: Self) -> Self {
     a.max(b)

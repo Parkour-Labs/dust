@@ -10,9 +10,9 @@ type Action<I> = Vec<(I, u64)>;
 /// - [Counter] is an instance of [DeltaJoinable] state space.
 /// - [Counter] is an instance of [GammaJoinable] state space.
 #[derive(Clone, PartialEq, Eq)]
-pub struct Counter<I: Copy + Ord + Hash>(Inner<I>);
+pub struct Counter<I: Index>(Inner<I>);
 
-impl<I: Copy + Ord + Hash> Counter<I> {
+impl<I: Index> Counter<I> {
   /// Creates a zero counter.
   pub fn new() -> Self {
     Self::initial()
@@ -23,8 +23,7 @@ impl<I: Copy + Ord + Hash> Counter<I> {
   }
   /// Makes increment.
   pub fn make_mod(&self, index: I, increment: u64) -> Action<I> {
-    let value = self.0.get(&index).unwrap_or(&0) + increment;
-    vec![(index, value)]
+    vec![(index, self.0.get(&index).unwrap_or(&0) + increment)]
   }
 }
 
@@ -32,13 +31,13 @@ impl<I: Copy + Ord + Hash> Counter<I> {
 // Boilerplate for transporting trait instances.
 // -----------------------------------------------------------------------------
 
-impl<I: Copy + Ord + Hash> Default for Counter<I> {
+impl<I: Index> Default for Counter<I> {
   fn default() -> Self {
     Self::initial()
   }
 }
 
-impl<I: Copy + Ord + Hash> State<Action<I>> for Counter<I> {
+impl<I: Index> State<Action<I>> for Counter<I> {
   fn initial() -> Self {
     Self(Inner::<I>::initial())
   }
@@ -53,7 +52,7 @@ impl<I: Copy + Ord + Hash> State<Action<I>> for Counter<I> {
   }
 }
 
-impl<I: Copy + Ord + Hash> Joinable<Action<I>> for Counter<I> {
+impl<I: Index> Joinable<Action<I>> for Counter<I> {
   fn preq(s: &Self, t: &Self) -> bool {
     Inner::<I>::preq(&s.0, &t.0)
   }
@@ -62,13 +61,13 @@ impl<I: Copy + Ord + Hash> Joinable<Action<I>> for Counter<I> {
   }
 }
 
-impl<I: Copy + Ord + Hash> DeltaJoinable<Action<I>> for Counter<I> {
+impl<I: Index> DeltaJoinable<Action<I>> for Counter<I> {
   fn delta_join(s: Self, a: &Action<I>, b: &Action<I>) -> Self {
     Self(Inner::<I>::delta_join(s.0, a, b))
   }
 }
 
-impl<I: Copy + Ord + Hash> GammaJoinable<Action<I>> for Counter<I> {
+impl<I: Index> GammaJoinable<Action<I>> for Counter<I> {
   fn gamma_join(s: Self, a: &Action<I>) -> Self {
     Self(Inner::<I>::gamma_join(s.0, a))
   }

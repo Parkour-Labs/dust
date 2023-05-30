@@ -3,6 +3,9 @@ use uuid::Uuid;
 
 use super::*;
 
+/// Trait alias for hash map indices.
+pub trait Index: Copy + Eq + Hash {}
+
 /// Total order with a minimum element.
 ///
 /// Implementation should satisfy the following properties:
@@ -13,6 +16,7 @@ pub trait Minimum: Ord {
   fn minimum() -> Self;
 }
 
+/// [Option] of totally-ordered types are instances of [Minimum].
 /// See: https://doc.rust-lang.org/stable/core/option/index.html#comparison-operators
 impl<T: Ord> Minimum for Option<T> {
   fn minimum() -> Self {
@@ -20,6 +24,7 @@ impl<T: Ord> Minimum for Option<T> {
   }
 }
 
+/// Integer numerics are instances of [Minimum].
 macro_rules! impl_minimum_numeric {
   ( $T:ty ) => {
     impl Minimum for $T {
@@ -85,6 +90,12 @@ impl<T: Clone + Minimum> GammaJoinable<Self> for T {
 pub struct Id(u128);
 
 impl Id {
+  pub fn get(&self) -> u128 {
+    self.0
+  }
+  pub fn new(value: u128) -> Self {
+    Self(value)
+  }
   pub fn random() -> Self {
     Self(rand::thread_rng().gen())
   }

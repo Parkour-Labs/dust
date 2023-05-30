@@ -2,8 +2,9 @@
 
 use std::sync::mpsc;
 
-pub mod graph;
+pub mod controller;
 pub mod joinable;
+pub mod persistent;
 pub mod reactive;
 
 pub fn add(left: usize, right: usize) -> usize {
