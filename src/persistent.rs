@@ -1,27 +1,12 @@
-pub mod graph;
+pub mod controller;
+pub mod lazy_graph;
+pub mod lazy_graph_store;
+pub mod store;
 
-pub trait ValueStore<V> {
-  fn get(&mut self) -> Option<V>;
-  fn set(&mut self, value: Option<&V>);
+pub trait Persistent<Store, Provider> {
+  fn load(store: Store, providers: Vec<Provider>) -> Self;
+  fn save(&mut self);
+  fn sync(&mut self);
+  fn set_auto_save(&mut self, value: bool);
+  fn set_auto_sync(&mut self, value: bool);
 }
-
-pub trait KeyValueStore<K, V> {
-  fn get(&mut self, key: K) -> Option<V>;
-  fn set(&mut self, key: K, value: Option<&V>);
-}
-
-pub trait KeyIndexValueStore<K, I, V>: KeyValueStore<K, (I, V)> {
-  fn get_by_index(&mut self, index: I) -> Vec<(K, (I, V))>;
-}
-
-pub trait KeyBiIndexValueStore<K, I1, I2, V>: KeyValueStore<K, (I1, I2, V)> {
-  fn get_by_index_1(&mut self, index: I1) -> Vec<(K, (I1, I2, V))>;
-  fn get_by_index_2(&mut self, index: I2) -> Vec<(K, (I1, I2, V))>;
-}
-
-// Will be useful later.
-pub trait KeyBiIndexRangeStore<K, I1, I2, V: Ord>: KeyBiIndexValueStore<K, I1, I2, V> {
-  fn get_by_index_2_value_range(&mut self, index: I2, lower: &V, upper: &V) -> Vec<(K, (I1, I2, V))>;
-}
-
-// Transactions might be needed in far future (OT strategies have atomicity requirements).

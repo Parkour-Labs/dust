@@ -45,6 +45,8 @@ $$
 \textcolor{blue}{\rule{600px}{1.0pt}}
 $$
 
+## Joinable state spaces
+
 - **(State spaces)**
   $\def$ $(S, A)$ is state space
     $\deflr$ (i)   $S, A$ are countable sets;
@@ -74,27 +76,37 @@ $$
 - **(Products of joinable state spaces)**
   $(S, A)$ is joinable,
   $(T, B)$ is joinable,
-  $\conc$ $(S, A)\times (T, B)$ is joinable by $(s_1, t_1), (s_2, t_2) \mapsto (s_1 \wedge s_2, t_1 \wedge t_2)$.
+  $\conc$ $(S, A)\times (T, B)$ is joinable by $(s_1, t_1), (s_2, t_2) \mapsto (s_1 \wedge s_2,\ t_1 \wedge t_2)$.
   *-- Check axioms (using partial order $(s_1,t_1)\leq (s_2,t_2)$ $:\lr$ $s_1\leq s_2$ and $t_1\leq t_2$).*
   *-- Corollary: for any finite index set $I$, if (forall $i\in I$, $(S_i, A_i)$ is joinable), then so is the iterated product $\prod_{i\in I} (S_i, A_i)$.*
   *-- Remark: to join is to join independent parts separately.*
 - **(Delta- and gamma-joinability)**
   $(S, A)$ is joinable,
   $\def$ $(S, A)$ is delta-joinable by $\Delta: S\times A\times A\to S$
-    $\deflr$ forall $s\in S$ and $f,g\in A$, $\Delta(s,f,g) = f(s)\wedge g(s)$.
+    $\deflr$ forall $s\in S$ and $f,g\in A$, $\Delta(s,f,g) = (f(s)\wedge g(s))$.
   *-- "Three-way merge" using common ancestor and changes.*
-  *-- For many data structures, such $\Delta$ can be implemented more efficiently than $\wedge$. However, this will require storing the state snapshot $s$ in some form.*
+  *-- Remark: it is easy to see that joinability implies delta-joinability (simply implement $\Delta$ by first applying changes and then joining), so the new definition is mathematically "meaningless". Practically, however, it is possible to have more efficient direct implementations for $\Delta$. (In mathematics, we think "extensionally" equal functions to be "the same"; in programming, it makes sense to consider their "intensional" difference.)*
+  *-- Remark: in order for this to be actually useful, we must be able to "revert" the local state to a previous snapshot $s$, while separating later actions.*
   $\def$ $(S, A)$ is gamma-joinable by $\Gamma: S\times A\to S$
-    $\deflr$ forall $s\in S$ and $f,g\in A$, $\Gamma(f(s), g) = f(s)\wedge g(s)$.
+    $\deflr$ forall $s\in S$ and $f,g\in A$, $\Gamma(f(s), g) = (f(s)\wedge g(s))$.
   *-- "Asymmetric merge" using "our" state and "their" changes.*
-  *-- For some data structures, such $\Gamma$ is possible to implement. If this is true, then there is no need to retain older state snapshots. A history of actions is still needed.*
-  *-- Remark: it is easy to see that joinability implies delta- and gamma-joinability (simply implement $\Delta$ and $\Gamma$ by first applying changes and then joining), so the two definitions are mathematically "meaningless". Practically, however, it is possible to have more efficient direct implementations for $\Delta$ and $\Gamma$. (In mathematics, we think "extensionally" equal functions to be "the same"; in programming, it makes sense to consider their "intensional" difference.)*
+  *-- Remark: gamma-joinability is a stronger condition than joinability. For some data structures, such $\Gamma$ is possible to implement. If this is true, then there is no need to retain older state snapshots. A history of actions is still needed.*
+- **(Properties of gamma-joinable spaces)**
+  $(S, A)$ is gamma-joinable by $\Gamma$,
+  $\conc$ $\Gamma = (s, f) \mapsto f(s)$. *-- $\Gamma$ is same as `apply`.*
+  *-- For any $s\in S$ and $f\in A$, $\Gamma(s, f) = \Gamma(\text{id}(s), f) = (\text{id}(s)\wedge f(s)) = (s\wedge f(s)) = f(s)$.*
+  *-- Corollary: a joinable space is gamma-joinable **if and only if** forall $s\in S$ and $f,g\in A$, $g(f(s)) = (f(s)\wedge g(s))$.*
+  $\conc$ for any $s\in S$ and $f\in A$, $f(f(s)) = f(s)$. *-- Idempotence.*
+  *-- Calculate $f(f(s)) = (f(s)\wedge f(s)) = f(s)$.*
+  $\conc$ for any $s\in S$ and $f,g\in A$, $g(f(s)) = f(g(s))$. *-- Commutativity.*
+  *-- Calculate $g(f(s)) = (f(s)\wedge g(s)) = (g(s)\wedge f(s)) = f(g(s))$.*
+  *-- Remark: if $A$ is generated from a set of "atomic actions" $\{f_i,\ldots\}_{i\in\N}$, then every element $f\in A$ corresponds to a finite set $\{f_{k_1},\ldots,f_{k_n}\}$ such that $f = f_{k_1}\circ\ldots\circ f_{k_n}$ (i.e. duplicates and ordering do not matter).*
 - **(LWW-registers are gamma-joinable)**
   $X$ is totally ordered set, *-- The set of possible values.*
   $S := (\R\cup\{-\infty,+\infty\})\times X$, *-- The set of timestamped values.*
   $A := \{s \mapsto \max\{s, (t, x)\} \mid t\in\R\cup\{-\infty,+\infty\},\ x\in X\}$, *-- The set of timestamped actions.* 
   $\def$ $\text{Reg}(X)$ $\defeq$ $(S, A)$.
-  $\conc$ $\text{Reg}(X)$ is gamma-joinable by $(s,f)\mapsto f(s)$.
+  $\conc$ $\text{Reg}(X)$ is gamma-joinable.
   *-- Easy to check (using the "natural" total order on $S$).*
 - **(LWW-graphs are gamma-joinable)**
   $V, E$ are finite sets, *-- Index sets of vertices and edges.*
@@ -103,3 +115,8 @@ $$
   $\conc$ $\text{Graph}(V,E,X,Y)$ is gamma-joinable.
   *-- By previous results (products of joinable state spaces are joinable, so are gamma-joinable; although more efficient implementation exists).*
   *-- Remark: a LWW-graph is just a product of many LWW-registers. A special value $\bot$ is used to indicate absence of a particular vertex or edge. In case an edge has a normal value but one of its endpoints has value $\bot$ (i.e. marked as absent), the edge is disregarded.*
+
+## Quotient of histories
+
+- TODO: spell out the theory of (decentralised) OT
+- TODO: derive CP1 and CP2 from well-definedness of functions on quotient structures

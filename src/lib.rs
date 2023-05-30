@@ -2,7 +2,6 @@
 
 use std::sync::mpsc;
 
-pub mod controller;
 pub mod joinable;
 pub mod persistent;
 pub mod reactive;

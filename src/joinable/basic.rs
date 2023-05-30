@@ -5,6 +5,7 @@ use super::*;
 
 /// Trait alias for hash map indices.
 pub trait Index: Copy + Eq + Hash {}
+impl<T: Copy + Eq + Hash> Index for T {}
 
 /// Total order with a minimum element.
 ///

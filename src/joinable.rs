@@ -19,7 +19,7 @@ use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::mem;
 
-use self::basic::Index;
+use basic::Index;
 
 /// An instance of [State] is a "proof" that `(Self, A)` forms a **state space**.
 ///
