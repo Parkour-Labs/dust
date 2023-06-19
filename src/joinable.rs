@@ -19,85 +19,155 @@ use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::mem;
 
-use basic::Index;
+use basic::{Index, Newtype};
 
-/// An instance of [State] is a "proof" that `(Self, A)` forms a **state space**.
+/// An instance of [`State`] is a "proof" that `(Self, Action)` forms a **state space**.
 ///
 /// Implementation should satisfy the following properties:
 ///
 /// - `∀ s ∈ Self, apply(s, id()) == s`
-/// - `∀ s ∈ Self, ∀ a b ∈ A, apply(apply(s, a), b) == apply(s, comp(a, b))`
-pub trait State<A> {
+/// - `∀ s ∈ Self, ∀ a b ∈ Action, apply(apply(s, a), b) == apply(s, comp(a, b))`
+pub trait State {
+  type Action;
   fn initial() -> Self;
-  fn apply(s: Self, a: &A) -> Self;
-  fn id() -> A;
-  fn comp(a: A, b: A) -> A;
+  fn apply(s: Self, a: &Self::Action) -> Self;
+  fn id() -> Self::Action;
+  fn comp(a: Self::Action, b: Self::Action) -> Self::Action;
 }
 
-/// An instance of [Joinable] is a "proof" that `(Self, A)` forms a **joinable state space**.
+/// An instance of [Joinable] is a "proof" that `(Self, Action)` forms a **joinable state space**.
 ///
 /// Implementation should satisfy the following properties:
 ///
 /// - `(Self, ≼)` is semilattice
 /// - `∀ s ∈ Self, initial() ≼ s`
-/// - `∀ s ∈ Self, ∀ a ∈ A, s ≼ apply(s, a)`
+/// - `∀ s ∈ Self, ∀ a ∈ Action, s ≼ apply(s, a)`
 /// - `∀ s t ∈ Self, join(s, t)` is the least upper bound of `s` and `t`
 ///
 /// in addition to the properties of state spaces.
-pub trait Joinable<A>: State<A> {
+pub trait Joinable: State {
   fn preq(s: &Self, t: &Self) -> bool;
   fn join(s: Self, t: Self) -> Self;
 }
 
-/// An instance of [DeltaJoinable] is a "proof" that `(Self, A)` forms a **Δ-joinable state space**.
+/// An instance of [DeltaJoinable] is a "proof" that `(Self, Action)` forms a **Δ-joinable state space**.
 ///
 /// Implementation should satisfy the following properties:
 ///
-/// - `∀ s ∈ Self, ∀ a b ∈ A, delta_join(s, a, b) == join(apply(s, a), apply(s, b))`
+/// - `∀ s ∈ Self, ∀ a b ∈ Action, delta_join(s, a, b) == join(apply(s, a), apply(s, b))`
 ///
 /// in addition to the properties of joinable state spaces.
-pub trait DeltaJoinable<A>: Joinable<A> {
-  fn delta_join(s: Self, a: &A, b: &A) -> Self;
+pub trait DeltaJoinable: Joinable {
+  fn delta_join(s: Self, a: &Self::Action, b: &Self::Action) -> Self;
 }
 
-/// An instance of [GammaJoinable] is a "proof" that `(Self, A)` forms a **Γ-joinable state space**.
+/// An instance of [GammaJoinable] is a "proof" that `(Self, Action)` forms a **Γ-joinable state space**.
 ///
 /// Implementation should satisfy the following properties:
 ///
-/// - `∀ s ∈ Self, ∀ a b ∈ A, gamma_join(apply(s, a), b) == join(apply(s, a), apply(s, b))`
+/// - `∀ s ∈ Self, ∀ a b ∈ Action, gamma_join(apply(s, a), b) == join(apply(s, a), apply(s, b))`
 ///
 /// in addition to the properties of joinable state spaces.
-pub trait GammaJoinable<A>: Joinable<A> {
-  fn gamma_join(s: Self, a: &A) -> Self;
+pub trait GammaJoinable: Joinable {
+  fn gamma_join(s: Self, a: &Self::Action) -> Self;
 }
 
-/// An instance of [Restorable] is a "proof" that `(Self, A)` forms a **restorable state space**.
+/// An instance of [Restorable] is a "proof" that `(Self, Action)` forms a **restorable state space**.
 ///
 /// Implementation should satisfy the following properties:
 ///
-/// - `∀ s ∈ Self, ∀ a ∈ A, restore(apply(s, a), mark(s)) = (a, s)`
+/// - `∀ s ∈ Self, ∀ a ∈ Action, restore(apply(s, a), mark(s)) = (a, s)`
 ///
 /// in addition to the properties of state spaces.
-pub trait Restorable<A>: State<A> {
-  type Mark;
-  fn mark(s: &Self) -> Self::Mark;
-  fn restore(s: Self, m: Self::Mark) -> (A, Self);
+pub trait Restorable: State {
+  type RestorePoint;
+  fn mark(s: &Self) -> Self::RestorePoint;
+  fn restore(s: Self, m: Self::RestorePoint) -> (Self::Action, Self);
+}
+
+/// Newtype of state spaces.
+impl<T: Newtype> State for T
+where
+  T::Inner: State,
+{
+  type Action = <<T as Newtype>::Inner as State>::Action;
+  fn initial() -> Self {
+    T::Inner::initial().into()
+  }
+  fn apply(s: Self, a: &Self::Action) -> Self {
+    T::Inner::apply(s.into(), a).into()
+  }
+  fn id() -> Self::Action {
+    T::Inner::id()
+  }
+  fn comp(a: Self::Action, b: Self::Action) -> Self::Action {
+    T::Inner::comp(a, b)
+  }
+}
+
+/// Newtype of joinable state spaces.
+impl<T: Newtype> Joinable for T
+where
+  T::Inner: Joinable,
+{
+  fn preq(s: &Self, t: &Self) -> bool {
+    T::Inner::preq(s.as_ref(), t.as_ref())
+  }
+  fn join(s: Self, t: Self) -> Self {
+    T::Inner::join(s.into(), t.into()).into()
+  }
+}
+
+/// Newtype of delta-joinable state spaces.
+impl<T: Newtype> DeltaJoinable for T
+where
+  T::Inner: DeltaJoinable,
+{
+  fn delta_join(s: Self, a: &Self::Action, b: &Self::Action) -> Self {
+    T::Inner::delta_join(s.into(), a, b).into()
+  }
+}
+
+/// Newtype of gamma-joinable state spaces.
+impl<T: Newtype> GammaJoinable for T
+where
+  T::Inner: GammaJoinable,
+{
+  fn gamma_join(s: Self, a: &Self::Action) -> Self {
+    T::Inner::gamma_join(s.into(), a).into()
+  }
+}
+
+/// Newtype of restorable state spaces.
+impl<T: Newtype> Restorable for T
+where
+  T::Inner: Restorable,
+{
+  type RestorePoint = <T::Inner as Restorable>::RestorePoint;
+  fn mark(s: &Self) -> Self::RestorePoint {
+    T::Inner::mark(s.as_ref())
+  }
+  fn restore(s: Self, m: Self::RestorePoint) -> (Self::Action, Self) {
+    let (a, s) = T::Inner::restore(s.into(), m);
+    (a, s.into())
+  }
 }
 
 /// Product of state spaces: `(S1, A1) × ... × (Sn, An)`.
 macro_rules! impl_state_product {
-  ( $($i:tt),* ; $($S:ident),* ; $($A:ident),* ) => {
-    impl< $($S: State<$A>),* , $($A),* > State<( $($A),* )> for ( $($S),* ) {
+  ( $($i:tt),* ; $($S:ident),* ) => {
+    impl< $($S: State),* > State for ( $($S),* ) {
+      type Action = ( $($S::Action),* );
       fn initial() -> Self {
         ( $($S::initial()),* )
       }
-      fn apply(s: Self, a: &( $($A),* )) -> Self {
+      fn apply(s: Self, a: &Self::Action) -> Self {
         ( $($S::apply(s.$i, &a.$i)),* )
       }
-      fn id() -> ( $($A),* ) {
+      fn id() -> Self::Action {
         ( $($S::id()),* )
       }
-      fn comp(a: ( $($A),* ), b: ( $($A),* )) -> ( $($A),* ) {
+      fn comp(a: Self::Action, b: Self::Action) -> Self::Action {
         ( $($S::comp(a.$i, b.$i)),* )
       }
     }
@@ -106,8 +176,8 @@ macro_rules! impl_state_product {
 
 /// Product of joinable state spaces: `(S1, A1) × ... × (Sn, An)`.
 macro_rules! impl_joinable_product {
-  ( $($i:tt),* ; $($S:ident),* ; $($A:ident),* ) => {
-    impl< $($S: Joinable<$A>),* , $($A),* > Joinable<( $($A),* )> for ( $($S),* ) {
+  ( $($i:tt),* ; $($S:ident),* ) => {
+    impl< $($S: Joinable),* > Joinable for ( $($S),* ) {
       fn preq(s: &Self, t: &Self) -> bool {
         ( $($S::preq(&s.$i, &t.$i))&&* )
       }
@@ -120,9 +190,9 @@ macro_rules! impl_joinable_product {
 
 /// Product of Δ-joinable state spaces: `(S1, A1) × ... × (Sn, An)`.
 macro_rules! impl_delta_joinable_product {
-  ( $($i:tt),* ; $($S:ident),* ; $($A:ident),* ) => {
-    impl< $($S: DeltaJoinable<$A>),* , $($A),* > DeltaJoinable<( $($A),* )> for ( $($S),* ) {
-      fn delta_join(s: Self, a: &( $($A),* ), b: &( $($A),* )) -> Self {
+  ( $($i:tt),* ; $($S:ident),* ) => {
+    impl< $($S: DeltaJoinable),* > DeltaJoinable for ( $($S),* ) {
+      fn delta_join(s: Self, a: &Self::Action, b: &Self::Action) -> Self {
         ( $($S::delta_join(s.$i, &a.$i, &b.$i)),* )
       }
     }
@@ -131,9 +201,9 @@ macro_rules! impl_delta_joinable_product {
 
 /// Product of Γ-joinable state spaces: `(S1, A1) × ... × (Sn, An)`.
 macro_rules! impl_gamma_joinable_product {
-  ( $($i:tt),* ; $($S:ident),* ; $($A:ident),* ) => {
-    impl< $($S: GammaJoinable<$A>),* , $($A),* > GammaJoinable<( $($A),* )> for ( $($S),* ) {
-      fn gamma_join(s: Self, a: &( $($A),* )) -> Self {
+  ( $($i:tt),* ; $($S:ident),* ) => {
+    impl< $($S: GammaJoinable),* > GammaJoinable for ( $($S),* ) {
+      fn gamma_join(s: Self, a: &Self::Action) -> Self {
         ( $($S::gamma_join(s.$i, &a.$i)),* )
       }
     }
@@ -142,13 +212,13 @@ macro_rules! impl_gamma_joinable_product {
 
 /// Product of restorable state spaces: `(S1, A1) × ... × (Sn, An)`.
 macro_rules! impl_restorable_product {
-  ( $($i:tt),* ; $($S:ident),* ; $($A:ident),* ) => {
-    impl< $($S: Restorable<$A>),* , $($A),* > Restorable<( $($A),* )> for ( $($S),* ) {
-      type Mark = ( $($S::Mark),* );
-      fn mark(s: &Self) -> Self::Mark {
+  ( $($i:tt),* ; $($S:ident),* ) => {
+    impl< $($S: Restorable),* > Restorable for ( $($S),* ) {
+      type RestorePoint = ( $($S::RestorePoint),* );
+      fn mark(s: &Self) -> Self::RestorePoint {
         ( $($S::mark(&s.$i)),* )
       }
-      fn restore(s: Self, m: Self::Mark) -> (( $($A),* ), Self) {
+      fn restore(s: Self, m: Self::RestorePoint) -> (Self::Action, Self) {
         let pairs = ( $($S::restore(s.$i, m.$i)),* );
         (( $(pairs.$i.0),* ), ( $(pairs.$i.1),* ))
       }
@@ -156,32 +226,33 @@ macro_rules! impl_restorable_product {
   };
 }
 
-impl_state_product!(0, 1; S0, S1; A0, A1);
-impl_state_product!(0, 1, 2; S0, S1, S2; A0, A1, A2);
-impl_state_product!(0, 1, 2, 3; S0, S1, S2, S3; A0, A1, A2, A3);
+impl_state_product!(0, 1; S0, S1);
+impl_state_product!(0, 1, 2; S0, S1, S2);
+impl_state_product!(0, 1, 2, 3; S0, S1, S2, S3);
 
-impl_joinable_product!(0, 1; S0, S1; A0, A1);
-impl_joinable_product!(0, 1, 2; S0, S1, S2; A0, A1, A2);
-impl_joinable_product!(0, 1, 2, 3; S0, S1, S2, S3; A0, A1, A2, A3);
+impl_joinable_product!(0, 1; S0, S1);
+impl_joinable_product!(0, 1, 2; S0, S1, S2);
+impl_joinable_product!(0, 1, 2, 3; S0, S1, S2, S3);
 
-impl_delta_joinable_product!(0, 1; S0, S1; A0, A1);
-impl_delta_joinable_product!(0, 1, 2; S0, S1, S2; A0, A1, A2);
-impl_delta_joinable_product!(0, 1, 2, 3; S0, S1, S2, S3; A0, A1, A2, A3);
+impl_delta_joinable_product!(0, 1; S0, S1);
+impl_delta_joinable_product!(0, 1, 2; S0, S1, S2);
+impl_delta_joinable_product!(0, 1, 2, 3; S0, S1, S2, S3);
 
-impl_gamma_joinable_product!(0, 1; S0, S1; A0, A1);
-impl_gamma_joinable_product!(0, 1, 2; S0, S1, S2; A0, A1, A2);
-impl_gamma_joinable_product!(0, 1, 2, 3; S0, S1, S2, S3; A0, A1, A2, A3);
+impl_gamma_joinable_product!(0, 1; S0, S1);
+impl_gamma_joinable_product!(0, 1, 2; S0, S1, S2);
+impl_gamma_joinable_product!(0, 1, 2, 3; S0, S1, S2, S3);
 
-impl_restorable_product!(0, 1; S0, S1; A0, A1);
-impl_restorable_product!(0, 1, 2; S0, S1, S2; A0, A1, A2);
-impl_restorable_product!(0, 1, 2, 3; S0, S1, S2, S3; A0, A1, A2, A3);
+impl_restorable_product!(0, 1; S0, S1);
+impl_restorable_product!(0, 1, 2; S0, S1, S2);
+impl_restorable_product!(0, 1, 2, 3; S0, S1, S2, S3);
 
 /// Iterated product of state spaces: `I → (S, A)`.
-impl<I: Index, S: State<A>, A> State<Vec<(I, A)>> for HashMap<I, S> {
+impl<I: Index, S: State> State for HashMap<I, S> {
+  type Action = Vec<(I, S::Action)>;
   fn initial() -> Self {
     HashMap::new()
   }
-  fn apply(mut s: HashMap<I, S>, a: &Vec<(I, A)>) -> HashMap<I, S> {
+  fn apply(mut s: HashMap<I, S>, a: &Self::Action) -> HashMap<I, S> {
     for (i, ai) in a {
       match s.entry(*i) {
         Entry::Occupied(mut entry) => {
@@ -195,17 +266,17 @@ impl<I: Index, S: State<A>, A> State<Vec<(I, A)>> for HashMap<I, S> {
     }
     s
   }
-  fn id() -> Vec<(I, A)> {
+  fn id() -> Self::Action {
     Vec::new()
   }
-  fn comp(mut a: Vec<(I, A)>, mut b: Vec<(I, A)>) -> Vec<(I, A)> {
+  fn comp(mut a: Self::Action, mut b: Self::Action) -> Self::Action {
     a.append(&mut b);
     a
   }
 }
 
 /// Iterated product of joinable state spaces: `I → (S, A)`.
-impl<I: Index, S: Joinable<A>, A> Joinable<Vec<(I, A)>> for HashMap<I, S> {
+impl<I: Index, S: Joinable> Joinable for HashMap<I, S> {
   fn preq(s: &HashMap<I, S>, t: &HashMap<I, S>) -> bool {
     let initial = S::initial();
     for (i, si) in s {
@@ -233,10 +304,10 @@ impl<I: Index, S: Joinable<A>, A> Joinable<Vec<(I, A)>> for HashMap<I, S> {
 }
 
 /// Iterated product of Δ-joinable state spaces: `I → (S, A)`.
-impl<I: Index, S: DeltaJoinable<A>, A> DeltaJoinable<Vec<(I, A)>> for HashMap<I, S> {
-  fn delta_join(mut s: HashMap<I, S>, a: &Vec<(I, A)>, b: &Vec<(I, A)>) -> HashMap<I, S> {
-    let mut ma = HashMap::<I, &A>::new();
-    let mut mb = HashMap::<I, &A>::new();
+impl<I: Index, S: DeltaJoinable> DeltaJoinable for HashMap<I, S> {
+  fn delta_join(mut s: HashMap<I, S>, a: &Self::Action, b: &Self::Action) -> HashMap<I, S> {
+    let mut ma = HashMap::<I, &S::Action>::new();
+    let mut mb = HashMap::<I, &S::Action>::new();
     for (i, ai) in a {
       ma.insert(*i, ai);
     }
@@ -275,8 +346,8 @@ impl<I: Index, S: DeltaJoinable<A>, A> DeltaJoinable<Vec<(I, A)>> for HashMap<I,
 }
 
 /// Iterated product of Γ-joinable state spaces: `I → (S, A)`.
-impl<I: Index, S: GammaJoinable<A>, A> GammaJoinable<Vec<(I, A)>> for HashMap<I, S> {
-  fn gamma_join(mut s: HashMap<I, S>, a: &Vec<(I, A)>) -> HashMap<I, S> {
+impl<I: Index, S: GammaJoinable> GammaJoinable for HashMap<I, S> {
+  fn gamma_join(mut s: HashMap<I, S>, a: &Self::Action) -> HashMap<I, S> {
     for (i, ai) in a {
       match s.entry(*i) {
         Entry::Occupied(mut entry) => {
@@ -293,12 +364,12 @@ impl<I: Index, S: GammaJoinable<A>, A> GammaJoinable<Vec<(I, A)>> for HashMap<I,
 }
 
 /// Iterated product of restorable state spaces: `I → (S, A)`.
-impl<I: Index, S: Restorable<A>, A> Restorable<Vec<(I, A)>> for HashMap<I, S> {
-  type Mark = Vec<(I, S::Mark)>;
-  fn mark(s: &Self) -> Self::Mark {
+impl<I: Index, S: Restorable> Restorable for HashMap<I, S> {
+  type RestorePoint = Vec<(I, S::RestorePoint)>;
+  fn mark(s: &Self) -> Self::RestorePoint {
     s.iter().map(|(i, si)| (*i, S::mark(si))).collect()
   }
-  fn restore(mut s: Self, m: Self::Mark) -> (Vec<(I, A)>, Self) {
+  fn restore(mut s: Self, m: Self::RestorePoint) -> (Self::Action, Self) {
     let mut a = Vec::new();
     let mut is: HashSet<I> = s.keys().copied().collect();
     for (i, mi) in m {
