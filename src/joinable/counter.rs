@@ -5,10 +5,11 @@ use super::*;
 
 /// A grow-only counter.
 ///
-/// - [Counter] is an instance of [State] space.
-/// - [Counter] is an instance of [Joinable] state space.
-/// - [Counter] is an instance of [DeltaJoinable] state space.
-/// - [Counter] is an instance of [GammaJoinable] state space.
+/// - [`Counter`] is an instance of [`State`] space.
+/// - [`Counter`] is an instance of [`Joinable`] state space.
+/// - [`Counter`] is an instance of [`DeltaJoinable`] state space.
+/// - [`Counter`] is an instance of [`GammaJoinable`] state space.
+#[repr(transparent)]
 #[derive(From, Into, AsRef, AsMut)]
 pub struct Counter<I: Index> {
   inner: HashMap<I, ByMinimum<u64>>,

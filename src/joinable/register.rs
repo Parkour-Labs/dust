@@ -3,10 +3,10 @@ use super::*;
 
 /// A last-writer-win register.
 ///
-/// - [Register] is an instance of [State] space.
-/// - [Register] is an instance of [Joinable] state space.
-/// - [Register] is an instance of [DeltaJoinable] state space.
-/// - [Register] is an instance of [GammaJoinable] state space.
+/// - [`Register`] is an instance of [`State`] space.
+/// - [`Register`] is an instance of [`Joinable`] state space.
+/// - [`Register`] is an instance of [`DeltaJoinable`] state space.
+/// - [`Register`] is an instance of [`GammaJoinable`] state space.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Register<T: Clone + Minimum> {
   clock: Clock,

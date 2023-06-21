@@ -1,4 +1,3 @@
-use derive_more::Add;
 use rand::Rng;
 use uuid::Uuid;
 
@@ -23,7 +22,7 @@ pub trait Minimum: Ord {
   fn minimum() -> Self;
 }
 
-/// [Option] of totally-ordered types are instances of [Minimum].
+/// [`Option`] of totally-ordered types are instances of [`Minimum`].
 /// See: https://doc.rust-lang.org/stable/core/option/index.html#comparison-operators
 impl<T: Ord> Minimum for Option<T> {
   fn minimum() -> Self {
@@ -31,7 +30,7 @@ impl<T: Ord> Minimum for Option<T> {
   }
 }
 
-/// Integer numerics are instances of [Minimum].
+/// Integer numerics are instances of [`Minimum`].
 macro_rules! impl_minimum_numeric {
   ( $T:ty ) => {
     impl Minimum for $T {
@@ -65,6 +64,7 @@ impl_minimum_numeric!(usize);
 /// and is also a common practice in Lean Mathlib (e.g. pairs are partially
 /// ordered by default, but the `Lex` type constructor creates a new type from
 /// the pair type which is lexicographically ordered).
+#[repr(transparent)]
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ByMinimum<T: Clone + Minimum> {
   pub inner: T,
@@ -108,6 +108,7 @@ impl<T: Clone + Minimum> GammaJoinable for ByMinimum<T> {
 }
 
 /// Newtype for identifiers.
+#[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Id(u128);
 
@@ -127,6 +128,7 @@ impl Id {
 }
 
 /// Newtype for time stamps.
+#[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Clock(u64);
 

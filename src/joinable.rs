@@ -35,7 +35,7 @@ pub trait State {
   fn comp(a: Self::Action, b: Self::Action) -> Self::Action;
 }
 
-/// An instance of [Joinable] is a "proof" that `(Self, Action)` forms a **joinable state space**.
+/// An instance of [`Joinable`] is a "proof" that `(Self, Action)` forms a **joinable state space**.
 ///
 /// Implementation should satisfy the following properties:
 ///
@@ -50,7 +50,7 @@ pub trait Joinable: State {
   fn join(s: Self, t: Self) -> Self;
 }
 
-/// An instance of [DeltaJoinable] is a "proof" that `(Self, Action)` forms a **Δ-joinable state space**.
+/// An instance of [`DeltaJoinable`] is a "proof" that `(Self, Action)` forms a **Δ-joinable state space**.
 ///
 /// Implementation should satisfy the following properties:
 ///
@@ -61,7 +61,7 @@ pub trait DeltaJoinable: Joinable {
   fn delta_join(s: Self, a: &Self::Action, b: &Self::Action) -> Self;
 }
 
-/// An instance of [GammaJoinable] is a "proof" that `(Self, Action)` forms a **Γ-joinable state space**.
+/// An instance of [`GammaJoinable`] is a "proof" that `(Self, Action)` forms a **Γ-joinable state space**.
 ///
 /// Implementation should satisfy the following properties:
 ///
@@ -72,7 +72,7 @@ pub trait GammaJoinable: Joinable {
   fn gamma_join(s: Self, a: &Self::Action) -> Self;
 }
 
-/// An instance of [Restorable] is a "proof" that `(Self, Action)` forms a **restorable state space**.
+/// An instance of [`Restorable`] is a "proof" that `(Self, Action)` forms a **restorable state space**.
 ///
 /// Implementation should satisfy the following properties:
 ///

@@ -6,10 +6,11 @@ use super::*;
 
 /// A last-writer-win element set.
 ///
-/// - [Set] is an instance of [State] space.
-/// - [Set] is an instance of [Joinable] state space.
-/// - [Set] is an instance of [DeltaJoinable] state space.
-/// - [Set] is an instance of [GammaJoinable] state space.
+/// - [`Set`] is an instance of [`State`] space.
+/// - [`Set`] is an instance of [`Joinable`] state space.
+/// - [`Set`] is an instance of [`DeltaJoinable`] state space.
+/// - [`Set`] is an instance of [`GammaJoinable`] state space.
+#[repr(transparent)]
 #[derive(From, Into, AsRef, AsMut)]
 pub struct Set<I: Index, T: Clone + Ord> {
   inner: HashMap<I, Register<Option<T>>>,
