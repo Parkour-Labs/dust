@@ -4,10 +4,8 @@
 //! (Sorry, I have almost surely made this way too formal...)
 
 use std::cmp::Eq;
-use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
-use std::mem;
 
 use rand::Rng;
 use uuid::Uuid;
@@ -29,21 +27,23 @@ impl<T: Copy + Eq + Hash> Index for T {}
 
 /// An instance of [`State`] is a "proof" that `(Self, Action)` forms a **state space**.
 ///
-/// Implementation should satisfy the following properties:
+/// Implementation should satisfy the following properties
+/// (where return values refer to the in-out parameters):
 ///
 /// - `∀ s ∈ Self, apply(s, id()) == s`
 /// - `∀ s ∈ Self, ∀ a b ∈ Action, apply(apply(s, a), b) == apply(s, comp(a, b))`
 pub trait State {
   type Action;
   fn initial() -> Self;
-  fn apply(s: Self, a: &Self::Action) -> Self;
+  fn apply(&mut self, a: &Self::Action);
   fn id() -> Self::Action;
   fn comp(a: Self::Action, b: Self::Action) -> Self::Action;
 }
 
 /// An instance of [`Joinable`] is a "proof" that `(Self, Action)` forms a **joinable state space**.
 ///
-/// Implementation should satisfy the following properties:
+/// Implementation should satisfy the following properties
+/// (where return values refer to the in-out parameters):
 ///
 /// - `(Self, ≼)` is semilattice
 /// - `∀ s ∈ Self, initial() ≼ s`
@@ -52,43 +52,46 @@ pub trait State {
 ///
 /// in addition to the properties of state spaces.
 pub trait Joinable: State {
-  fn preq(s: &Self, t: &Self) -> bool;
-  fn join(s: Self, t: Self) -> Self;
+  fn preq(&self, t: &Self) -> bool;
+  fn join(&mut self, t: Self);
 }
 
 /// An instance of [`DeltaJoinable`] is a "proof" that `(Self, Action)` forms a **Δ-joinable state space**.
 ///
-/// Implementation should satisfy the following properties:
+/// Implementation should satisfy the following properties
+/// (where return values refer to the in-out parameters):
 ///
 /// - `∀ s ∈ Self, ∀ a b ∈ Action, delta_join(s, a, b) == join(apply(s, a), apply(s, b))`
 ///
 /// in addition to the properties of joinable state spaces.
 pub trait DeltaJoinable: Joinable {
-  fn delta_join(s: Self, a: &Self::Action, b: &Self::Action) -> Self;
+  fn delta_join(&mut self, a: &Self::Action, b: &Self::Action);
 }
 
 /// An instance of [`GammaJoinable`] is a "proof" that `(Self, Action)` forms a **Γ-joinable state space**.
 ///
-/// Implementation should satisfy the following properties:
+/// Implementation should satisfy the following properties
+/// (where return values refer to the in-out parameters):
 ///
 /// - `∀ s ∈ Self, ∀ a b ∈ Action, gamma_join(apply(s, a), b) == join(apply(s, a), apply(s, b))`
 ///
 /// in addition to the properties of joinable state spaces.
 pub trait GammaJoinable: Joinable {
-  fn gamma_join(s: Self, a: &Self::Action) -> Self;
+  fn gamma_join(&mut self, a: &Self::Action);
 }
 
 /// An instance of [`Restorable`] is a "proof" that `(Self, Action)` forms a **restorable state space**.
 ///
-/// Implementation should satisfy the following properties:
+/// Implementation should satisfy the following properties
+/// (where return values refer to the in-out parameters):
 ///
-/// - `∀ s ∈ Self, ∀ a ∈ Action, restore(apply(s, a), mark(s)) = (a, s)`
+/// - `∀ s ∈ Self, ∀ a ∈ Action, restore(apply(s, a), mark(s)) = (s, a)`
 ///
 /// in addition to the properties of state spaces.
 pub trait Restorable: State {
   type RestorePoint;
-  fn mark(s: &Self) -> Self::RestorePoint;
-  fn restore(s: Self, m: Self::RestorePoint) -> (Self::Action, Self);
+  fn mark(&self) -> Self::RestorePoint;
+  fn restore(&mut self, m: Self::RestorePoint) -> Self::Action;
 }
 
 /// Total order with a minimum element.

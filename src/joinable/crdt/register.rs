@@ -1,5 +1,7 @@
 //! A last-writer-win register.
 
+use std::mem::{drop, replace};
+
 use super::*;
 
 /// A last-writer-win register.
@@ -19,8 +21,8 @@ impl<T: Clone + Minimum> State for Register<T> {
   fn initial() -> Self {
     Self { clock: Clock::minimum(), value: T::minimum() }
   }
-  fn apply(s: Self, a: &Self) -> Self {
-    s.max(a.clone())
+  fn apply(&mut self, a: &Self) {
+    drop(replace(self, self.clone().max(a.clone())));
   }
   fn id() -> Self {
     Self { clock: Clock::minimum(), value: T::minimum() }
@@ -31,23 +33,23 @@ impl<T: Clone + Minimum> State for Register<T> {
 }
 
 impl<T: Clone + Minimum> Joinable for Register<T> {
-  fn preq(s: &Self, t: &Self) -> bool {
-    s <= t
+  fn preq(&self, t: &Self) -> bool {
+    self <= t
   }
-  fn join(s: Self, t: Self) -> Self {
-    s.max(t)
+  fn join(&mut self, t: Self) {
+    drop(replace(self, self.clone().max(t)));
   }
 }
 
 impl<T: Clone + Minimum> DeltaJoinable for Register<T> {
-  fn delta_join(s: Self, a: &Self, b: &Self) -> Self {
-    s.max(a.clone()).max(b.clone())
+  fn delta_join(&mut self, a: &Self, b: &Self) {
+    drop(replace(self, self.clone().max(a.clone()).max(b.clone())));
   }
 }
 
 impl<T: Clone + Minimum> GammaJoinable for Register<T> {
-  fn gamma_join(s: Self, a: &Self) -> Self {
-    s.max(a.clone())
+  fn gamma_join(&mut self, a: &Self) {
+    drop(replace(self, self.clone().max(a.clone())));
   }
 }
 

@@ -9,8 +9,8 @@ where
   fn initial() -> Self {
     T::Inner::initial().into()
   }
-  fn apply(s: Self, a: &Self::Action) -> Self {
-    T::Inner::apply(s.into(), a).into()
+  fn apply(&mut self, a: &Self::Action) {
+    T::Inner::apply(self.as_mut(), a)
   }
   fn id() -> Self::Action {
     T::Inner::id()
@@ -25,11 +25,11 @@ impl<T: Newtype> Joinable for T
 where
   T::Inner: Joinable,
 {
-  fn preq(s: &Self, t: &Self) -> bool {
-    T::Inner::preq(s.as_ref(), t.as_ref())
+  fn preq(&self, t: &Self) -> bool {
+    T::Inner::preq(self.as_ref(), t.as_ref())
   }
-  fn join(s: Self, t: Self) -> Self {
-    T::Inner::join(s.into(), t.into()).into()
+  fn join(&mut self, t: Self) {
+    T::Inner::join(self.as_mut(), t.into())
   }
 }
 
@@ -38,8 +38,8 @@ impl<T: Newtype> DeltaJoinable for T
 where
   T::Inner: DeltaJoinable,
 {
-  fn delta_join(s: Self, a: &Self::Action, b: &Self::Action) -> Self {
-    T::Inner::delta_join(s.into(), a, b).into()
+  fn delta_join(&mut self, a: &Self::Action, b: &Self::Action) {
+    T::Inner::delta_join(self.as_mut(), a, b)
   }
 }
 
@@ -48,8 +48,8 @@ impl<T: Newtype> GammaJoinable for T
 where
   T::Inner: GammaJoinable,
 {
-  fn gamma_join(s: Self, a: &Self::Action) -> Self {
-    T::Inner::gamma_join(s.into(), a).into()
+  fn gamma_join(&mut self, a: &Self::Action) {
+    T::Inner::gamma_join(self.as_mut(), a)
   }
 }
 
@@ -59,12 +59,11 @@ where
   T::Inner: Restorable,
 {
   type RestorePoint = <T::Inner as Restorable>::RestorePoint;
-  fn mark(s: &Self) -> Self::RestorePoint {
-    T::Inner::mark(s.as_ref())
+  fn mark(&self) -> Self::RestorePoint {
+    T::Inner::mark(self.as_ref())
   }
-  fn restore(s: Self, m: Self::RestorePoint) -> (Self::Action, Self) {
-    let (a, s) = T::Inner::restore(s.into(), m);
-    (a, s.into())
+  fn restore(&mut self, m: Self::RestorePoint) -> Self::Action {
+    T::Inner::restore(self.as_mut(), m)
   }
 }
 
@@ -76,8 +75,8 @@ macro_rules! impl_state_product {
       fn initial() -> Self {
         ( $($S::initial()),* )
       }
-      fn apply(s: Self, a: &Self::Action) -> Self {
-        ( $($S::apply(s.$i, &a.$i)),* )
+      fn apply(&mut self, a: &Self::Action) {
+        $($S::apply(&mut self.$i, &a.$i);)*
       }
       fn id() -> Self::Action {
         ( $($S::id()),* )
@@ -93,11 +92,11 @@ macro_rules! impl_state_product {
 macro_rules! impl_joinable_product {
   ( $($i:tt),* ; $($S:ident),* ) => {
     impl< $($S: Joinable),* > Joinable for ( $($S),* ) {
-      fn preq(s: &Self, t: &Self) -> bool {
-        ( $($S::preq(&s.$i, &t.$i))&&* )
+      fn preq(&self, t: &Self) -> bool {
+        $($S::preq(&self.$i, &t.$i))&&*
       }
-      fn join(s: Self, t: Self) -> Self {
-        ( $($S::join(s.$i, t.$i)),* )
+      fn join(&mut self, t: Self) {
+        $($S::join(&mut self.$i, t.$i);)*
       }
     }
   };
@@ -107,8 +106,8 @@ macro_rules! impl_joinable_product {
 macro_rules! impl_delta_joinable_product {
   ( $($i:tt),* ; $($S:ident),* ) => {
     impl< $($S: DeltaJoinable),* > DeltaJoinable for ( $($S),* ) {
-      fn delta_join(s: Self, a: &Self::Action, b: &Self::Action) -> Self {
-        ( $($S::delta_join(s.$i, &a.$i, &b.$i)),* )
+      fn delta_join(&mut self, a: &Self::Action, b: &Self::Action) {
+        $($S::delta_join(&mut self.$i, &a.$i, &b.$i);)*
       }
     }
   };
@@ -118,8 +117,8 @@ macro_rules! impl_delta_joinable_product {
 macro_rules! impl_gamma_joinable_product {
   ( $($i:tt),* ; $($S:ident),* ) => {
     impl< $($S: GammaJoinable),* > GammaJoinable for ( $($S),* ) {
-      fn gamma_join(s: Self, a: &Self::Action) -> Self {
-        ( $($S::gamma_join(s.$i, &a.$i)),* )
+      fn gamma_join(&mut self, a: &Self::Action) {
+        $($S::gamma_join(&mut self.$i, &a.$i);)*
       }
     }
   };
@@ -130,12 +129,11 @@ macro_rules! impl_restorable_product {
   ( $($i:tt),* ; $($S:ident),* ) => {
     impl< $($S: Restorable),* > Restorable for ( $($S),* ) {
       type RestorePoint = ( $($S::RestorePoint),* );
-      fn mark(s: &Self) -> Self::RestorePoint {
-        ( $($S::mark(&s.$i)),* )
+      fn mark(&self) -> Self::RestorePoint {
+        ( $($S::mark(&self.$i)),* )
       }
-      fn restore(s: Self, m: Self::RestorePoint) -> (Self::Action, Self) {
-        let pairs = ( $($S::restore(s.$i, m.$i)),* );
-        (( $(pairs.$i.0),* ), ( $(pairs.$i.1),* ))
+      fn restore(&mut self, m: Self::RestorePoint) -> Self::Action {
+        ( $($S::restore(&mut self.$i, m.$i)),* )
       }
     }
   };
@@ -167,19 +165,10 @@ impl<I: Index, S: State> State for HashMap<I, S> {
   fn initial() -> Self {
     HashMap::new()
   }
-  fn apply(mut s: HashMap<I, S>, a: &Self::Action) -> HashMap<I, S> {
+  fn apply(&mut self, a: &Self::Action) {
     for (i, ai) in a {
-      match s.entry(*i) {
-        Entry::Occupied(mut entry) => {
-          let si = mem::replace(entry.get_mut(), S::initial());
-          entry.insert(S::apply(si, ai));
-        }
-        Entry::Vacant(entry) => {
-          entry.insert(S::apply(S::initial(), ai));
-        }
-      };
+      S::apply(self.entry(*i).or_insert(S::initial()), ai);
     }
-    s
   }
   fn id() -> Self::Action {
     Vec::new()
@@ -192,9 +181,9 @@ impl<I: Index, S: State> State for HashMap<I, S> {
 
 /// Iterated product of joinable state spaces: `I → (S, A)`.
 impl<I: Index, S: Joinable> Joinable for HashMap<I, S> {
-  fn preq(s: &HashMap<I, S>, t: &HashMap<I, S>) -> bool {
+  fn preq(&self, t: &HashMap<I, S>) -> bool {
     let initial = S::initial();
-    for (i, si) in s {
+    for (i, si) in self {
       let ti = t.get(i).unwrap_or(&initial);
       if !S::preq(si, ti) {
         return false;
@@ -202,25 +191,16 @@ impl<I: Index, S: Joinable> Joinable for HashMap<I, S> {
     }
     true
   }
-  fn join(mut s: HashMap<I, S>, t: HashMap<I, S>) -> HashMap<I, S> {
+  fn join(&mut self, t: HashMap<I, S>) {
     for (i, ti) in t {
-      match s.entry(i) {
-        Entry::Occupied(mut entry) => {
-          let si = mem::replace(entry.get_mut(), S::initial());
-          entry.insert(S::join(si, ti));
-        }
-        Entry::Vacant(entry) => {
-          entry.insert(ti);
-        }
-      }
+      S::join(self.entry(i).or_insert(S::initial()), ti);
     }
-    s
   }
 }
 
 /// Iterated product of Δ-joinable state spaces: `I → (S, A)`.
 impl<I: Index, S: DeltaJoinable> DeltaJoinable for HashMap<I, S> {
-  fn delta_join(mut s: HashMap<I, S>, a: &Self::Action, b: &Self::Action) -> HashMap<I, S> {
+  fn delta_join(&mut self, a: &Self::Action, b: &Self::Action) {
     let mut ma = HashMap::<I, &S::Action>::new();
     let mut mb = HashMap::<I, &S::Action>::new();
     for (i, ai) in a {
@@ -231,86 +211,48 @@ impl<I: Index, S: DeltaJoinable> DeltaJoinable for HashMap<I, S> {
     }
     let id = S::id();
     for (i, ai) in a {
-      let bi = *mb.get(i).unwrap_or(&&id);
-      match s.entry(*i) {
-        Entry::Occupied(mut entry) => {
-          let si = mem::replace(entry.get_mut(), S::initial());
-          entry.insert(S::delta_join(si, ai, bi));
-        }
-        Entry::Vacant(entry) => {
-          entry.insert(S::delta_join(S::initial(), ai, bi));
-        }
+      if let Some(bi) = mb.get(i) {
+        S::delta_join(self.entry(*i).or_insert(S::initial()), ai, bi);
+      } else {
+        S::delta_join(self.entry(*i).or_insert(S::initial()), ai, &id);
       }
     }
     for (i, bi) in b {
-      if ma.contains_key(i) {
-        continue;
-      }
-      match s.entry(*i) {
-        Entry::Occupied(mut entry) => {
-          let si = mem::replace(entry.get_mut(), S::initial());
-          entry.insert(S::delta_join(si, &id, bi));
-        }
-        Entry::Vacant(entry) => {
-          entry.insert(S::delta_join(S::initial(), &id, bi));
-        }
+      if !ma.contains_key(i) {
+        S::delta_join(self.entry(*i).or_insert(S::initial()), &id, bi);
       }
     }
-    s
   }
 }
 
 /// Iterated product of Γ-joinable state spaces: `I → (S, A)`.
 impl<I: Index, S: GammaJoinable> GammaJoinable for HashMap<I, S> {
-  fn gamma_join(mut s: HashMap<I, S>, a: &Self::Action) -> HashMap<I, S> {
+  fn gamma_join(&mut self, a: &Self::Action) {
     for (i, ai) in a {
-      match s.entry(*i) {
-        Entry::Occupied(mut entry) => {
-          let si = mem::replace(entry.get_mut(), S::initial());
-          entry.insert(S::gamma_join(si, ai));
-        }
-        Entry::Vacant(entry) => {
-          entry.insert(S::gamma_join(S::initial(), ai));
-        }
-      }
+      S::gamma_join(self.entry(*i).or_insert(S::initial()), ai);
     }
-    s
   }
 }
 
 /// Iterated product of restorable state spaces: `I → (S, A)`.
 impl<I: Index, S: Restorable> Restorable for HashMap<I, S> {
   type RestorePoint = Vec<(I, S::RestorePoint)>;
-  fn mark(s: &Self) -> Self::RestorePoint {
-    s.iter().map(|(i, si)| (*i, S::mark(si))).collect()
+  fn mark(&self) -> Self::RestorePoint {
+    self.iter().map(|(i, si)| (*i, S::mark(si))).collect()
   }
-  fn restore(mut s: Self, m: Self::RestorePoint) -> (Self::Action, Self) {
+  fn restore(&mut self, m: Self::RestorePoint) -> Self::Action {
+    let mut indices: HashSet<I> = self.keys().copied().collect();
     let mut a = Vec::new();
-    let mut is: HashSet<I> = s.keys().copied().collect();
     for (i, mi) in m {
-      match s.entry(i) {
-        Entry::Occupied(mut entry) => {
-          let si = mem::replace(entry.get_mut(), S::initial());
-          let (ai, si) = S::restore(si, mi);
-          a.push((i, ai));
-          entry.insert(si);
-        }
-        Entry::Vacant(entry) => {
-          let (ai, si) = S::restore(S::initial(), mi);
-          a.push((i, ai));
-          entry.insert(si);
-        }
-      }
-      is.remove(&i);
+      a.push((i, S::restore(self.entry(i).or_insert(S::initial()), mi)));
+      indices.remove(&i);
     }
-    let initial = S::initial();
-    for i in is {
-      if let Some(si) = s.remove(&i) {
-        let (ai, _) = S::restore(si, S::mark(&initial));
-        a.push((i, ai));
+    for i in indices {
+      if let Some(mut si) = self.remove(&i) {
+        a.push((i, S::restore(&mut si, S::mark(&S::initial()))));
       }
     }
-    (a, s)
+    a
   }
 }
 
@@ -359,8 +301,8 @@ impl<T: Clone + Minimum> State for ByMinimum<T> {
   fn initial() -> Self {
     Self { inner: T::minimum() }
   }
-  fn apply(s: Self, a: &T) -> Self {
-    Self { inner: s.inner.max(a.clone()) }
+  fn apply(&mut self, a: &T) {
+    self.inner = self.inner.clone().max(a.clone())
   }
   fn id() -> T {
     T::minimum()
@@ -371,22 +313,22 @@ impl<T: Clone + Minimum> State for ByMinimum<T> {
 }
 
 impl<T: Clone + Minimum> Joinable for ByMinimum<T> {
-  fn preq(s: &Self, t: &Self) -> bool {
-    s.inner <= t.inner
+  fn preq(&self, t: &Self) -> bool {
+    self.inner <= t.inner
   }
-  fn join(s: Self, t: Self) -> Self {
-    Self { inner: s.inner.max(t.inner) }
+  fn join(&mut self, t: Self) {
+    self.inner = self.inner.clone().max(t.inner)
   }
 }
 
 impl<T: Clone + Minimum> DeltaJoinable for ByMinimum<T> {
-  fn delta_join(s: Self, a: &T, b: &T) -> Self {
-    Self { inner: s.inner.max(a.clone()).max(b.clone()) }
+  fn delta_join(&mut self, a: &T, b: &T) {
+    self.inner = self.inner.clone().max(a.clone()).max(b.clone())
   }
 }
 
 impl<T: Clone + Minimum> GammaJoinable for ByMinimum<T> {
-  fn gamma_join(s: Self, a: &T) -> Self {
-    Self { inner: s.inner.max(a.clone()) }
+  fn gamma_join(&mut self, a: &T) {
+    self.inner = self.inner.clone().max(a.clone())
   }
 }
