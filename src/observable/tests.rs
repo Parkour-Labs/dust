@@ -41,8 +41,8 @@ fn simple() {
 fn multi_change() {
   let updates = RefCell::new(0);
 
-  // Rust does not think that elements of a `Vec` are dropped before the
-  // `Vec` itself is dropped, so closure dependencies must outlive the `Vec`.
+  // Rust does not drop the elements of a `Vec` before the `Vec` itself is
+  // dropped, so closure dependencies must outlive the `Vec`.
   let wa;
   let wb;
 

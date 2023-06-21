@@ -1,6 +1,4 @@
 pub mod controller;
-pub mod lazy_graph;
-pub mod lazy_graph_store;
 pub mod store;
 
 pub trait Persistent<Store, Provider> {

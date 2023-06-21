@@ -1,6 +1,7 @@
+//! A last-writer-win element set.
+
 use derive_more::{AsMut, AsRef, From, Into};
 
-use super::basic::*;
 use super::register::*;
 use super::*;
 

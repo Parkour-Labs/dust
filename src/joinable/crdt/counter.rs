@@ -1,6 +1,7 @@
+//! A grow-only counter.
+
 use derive_more::{AsMut, AsRef, From, Into};
 
-use super::basic::*;
 use super::*;
 
 /// A grow-only counter.

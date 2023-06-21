@@ -1,17 +1,4 @@
-use std::{
-  cell::Cell,
-  rc::{Rc, Weak},
-};
-
-#[cfg(test)]
-mod tests;
-
-#[derive(Default)]
-pub struct Node {
-  out: Cell<Vec<Weak<Node>>>,
-  dirty: Cell<bool>,
-  notify: Cell<Option<Box<dyn FnMut()>>>,
-}
+use super::*;
 
 /// Marks all upstream nodes as `dirty`, triggers upstream `notify` functions
 /// and clears all out-edges.
@@ -29,20 +16,6 @@ fn dfs(u: &Node) {
       }
     }
   }
-}
-
-/// Common part of [`Active`] and [`Reactive`].
-pub trait Observable<T: Copy> {
-  fn register(&self, observer: &Weak<Node>);
-  fn notify(&self);
-  fn peek(&self) -> T;
-  fn get(&self, observer: &Weak<Node>) -> T;
-}
-
-/// An [`Active`] value can be listened on.
-pub struct Active<T: Copy> {
-  out: Cell<Vec<Weak<Node>>>,
-  value: Cell<T>,
 }
 
 impl<T: Copy> Observable<T> for Active<T> {
@@ -84,15 +57,6 @@ impl<T: Copy> Active<T> {
   }
 }
 
-/// A [`Reactive`] value is like an [`Active`] value that automatically updates
-/// whenever some [`Active`] or [`Reactive`] value it listens on is modified.
-#[allow(clippy::type_complexity)]
-pub struct Reactive<'a, T: Copy> {
-  node: Rc<Node>,
-  value: Cell<T>,
-  recompute: Cell<Option<Box<dyn FnMut(&Weak<Node>) -> T + 'a>>>,
-}
-
 impl<'a, T: Copy> Observable<T> for Reactive<'a, T> {
   /// Registers an observer (direct upstream node).
   fn register(&self, observer: &Weak<Node>) {
@@ -126,6 +90,7 @@ impl<'a, T: Copy> Observable<T> for Reactive<'a, T> {
 
 impl<'a, T: Copy> Reactive<'a, T> {
   /// Creates a new [`Reactive`] value.
+  /// This will invoke `recompute` **immediately**.
   pub fn new(mut recompute: impl FnMut(&Weak<Node>) -> T + 'a) -> Self {
     let node = Default::default();
     let value = Cell::new(recompute(&Rc::downgrade(&node)));

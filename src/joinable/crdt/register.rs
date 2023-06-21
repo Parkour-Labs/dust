@@ -1,4 +1,5 @@
-use super::basic::*;
+//! A last-writer-win register.
+
 use super::*;
 
 /// A last-writer-win register.

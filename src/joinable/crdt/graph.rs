@@ -1,7 +1,8 @@
+//! A last-writer-win graph.
+
 use derive_more::{AsMut, AsRef, From, Into};
 use std::collections::HashMap;
 
-use super::basic::*;
 use super::register::*;
 use super::*;
 
