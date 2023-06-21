@@ -38,7 +38,7 @@ fn simple() {
 }
 
 #[test]
-fn multi_change() {
+fn dynamic_dependencies() {
   let updates = RefCell::new(0);
 
   // Rust does not drop the elements of a `Vec` before the `Vec` itself is
@@ -104,4 +104,45 @@ fn multi_change() {
   assert_eq!(a.borrow()[a.borrow().len() - 1].peek(), 32768);
   assert_eq!(b.borrow()[b.borrow().len() - 1].peek(), 32768);
   assert_eq!(*updates.borrow(), 64);
+}
+
+#[test]
+fn simple_ref() {
+  let a = [ActiveRef::new(1), ActiveRef::new(2), ActiveRef::new(3), ActiveRef::new(4)];
+  let b = [
+    ReactiveRef::new(|r| *a[0].get(r) + *a[1].get(r)),
+    ReactiveRef::new(|r| *a[1].get(r) + *a[2].get(r)),
+    ReactiveRef::new(|r| *a[2].get(r) + *a[3].get(r)),
+    ReactiveRef::new(|r| *a[3].get(r) + *a[0].get(r)),
+  ];
+  let c = [
+    ReactiveRef::new(|r| *a[0].get(r) + *a[1].get(r)),
+    ReactiveRef::new(|r| *a[1].get(r) + *a[2].get(r)),
+    ReactiveRef::new(|r| *a[2].get(r) + *a[3].get(r)),
+    ReactiveRef::new(|r| *a[3].get(r) + *a[0].get(r)),
+  ];
+  let d = [
+    ReactiveRef::new(|r| (*c[0].get(r) + *c[1].get(r)).to_string()),
+    ReactiveRef::new(|r| (*c[1].get(r) + *c[2].get(r)).to_string()),
+    ReactiveRef::new(|r| (*c[2].get(r) + *c[3].get(r)).to_string()),
+    ReactiveRef::new(|r| (*c[3].get(r) + *c[0].get(r)).to_string()),
+  ];
+  let sum = ReactiveRef::new(|r| {
+    (d[0].get(r).parse::<i32>().unwrap()
+      + d[1].get(r).parse::<i32>().unwrap()
+      + d[2].get(r).parse::<i32>().unwrap()
+      + d[3].get(r).parse::<i32>().unwrap())
+    .to_string()
+  });
+  assert_eq!(*sum.peek(), 40.to_string());
+
+  c[0].set(|r| *b[0].get(r) + *b[1].get(r));
+  c[1].set(|r| *b[1].get(r) + *b[2].get(r));
+  c[2].set(|r| *b[2].get(r) + *b[3].get(r));
+  c[3].set(|r| *b[3].get(r) + *b[0].get(r));
+  assert_eq!(*sum.peek(), 80.to_string());
+
+  *a[0].peek_mut() = 233;
+  assert_eq!(*sum.peek(), (80 + 8 * 232).to_string());
+  assert_eq!(*c[3].peek(), 8 + 2 * 232);
 }
