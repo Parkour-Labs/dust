@@ -16,5 +16,3 @@ pub trait KeyBiIndexValueStore<K, I1, I2, V>: KeyValueStore<K, (I1, I2, V)> {
   fn get_by_index_1(&mut self, index: I1) -> Vec<(K, (I1, I2, V))>;
   fn get_by_index_2(&mut self, index: I2) -> Vec<(K, (I1, I2, V))>;
 }
-
-// Transactions might be needed in far future (OT strategies have atomicity requirements).

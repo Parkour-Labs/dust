@@ -51,7 +51,11 @@ impl<T: Clone + Minimum> GammaJoinable for Register<T> {
 }
 
 impl<T: Clone + Minimum> Observable<T> for Register<T> {
-  fn register(&self, observer: &Weak<Node>) {}
+  fn register(&self, observer: &Weak<Node>) {
+    let mut out = self.out.take();
+    out.push(observer.clone());
+    self.out.replace(out);
+  }
   fn notify(&self) {
     todo!()
   }
@@ -59,6 +63,7 @@ impl<T: Clone + Minimum> Observable<T> for Register<T> {
     todo!()
   }
   fn get(&self, observer: &Weak<Node>) -> T {
+    self.register(observer);
     todo!()
   }
 }

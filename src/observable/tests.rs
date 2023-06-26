@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use super::*;
 
 #[test]
-fn simple() {
+fn active_reactive_simple() {
   let a = [Active::new(1), Active::new(2), Active::new(3), Active::new(4)];
   let b = [
     Reactive::new(|r| a[0].get(r) + a[1].get(r)),
@@ -38,7 +38,7 @@ fn simple() {
 }
 
 #[test]
-fn simple_ref() {
+fn active_ref_reactive_ref_simple() {
   let a = [ActiveRef::new(1), ActiveRef::new(2), ActiveRef::new(3), ActiveRef::new(4)];
   let b = [
     ReactiveRef::new(|r| *a[0].get(r) + *a[1].get(r)),
@@ -79,7 +79,7 @@ fn simple_ref() {
 }
 
 #[test]
-fn dynamic_dependencies() {
+fn dynamic_dependencies_simple() {
   let updates = RefCell::new(0);
 
   // Rust does not drop the elements of a `Vec` before the `Vec` itself is

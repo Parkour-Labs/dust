@@ -8,12 +8,11 @@
 //! ordered by default, but the `Lex` type constructor creates a new type from
 //! the pair type which is lexicographically ordered).
 
+use rand::Rng;
 use std::cmp::Eq;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::time::{SystemTime, UNIX_EPOCH};
-
-use rand::Rng;
 
 pub mod crdt;
 pub mod impls;
@@ -140,6 +139,18 @@ pub struct ByMin<T: Clone + Maximum> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Id {
   inner: u128,
+}
+
+impl From<u128> for Id {
+  fn from(value: u128) -> Self {
+    Self { inner: value }
+  }
+}
+
+impl From<Id> for u128 {
+  fn from(value: Id) -> Self {
+    value.inner
+  }
 }
 
 /// Implementation of the [hybrid logical clock](https://muratbuffalo.blogspot.com/2014/07/hybrid-logical-clocks.html)

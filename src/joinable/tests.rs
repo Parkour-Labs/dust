@@ -35,7 +35,7 @@ fn rand_string(len: usize) -> String {
 pub fn assert_joinable<T: Joinable + Debug + Clone>(
   mut rand_state: impl FnMut() -> T,
   mut rand_action: impl FnMut() -> T::Action,
-  eq: impl Fn(T, T) -> bool,
+  state_eq: impl Fn(T, T) -> bool,
   count: usize,
 ) where
   T::Action: Clone,
@@ -48,8 +48,8 @@ pub fn assert_joinable<T: Joinable + Debug + Clone>(
     let b = rand_action();
 
     // Properties of state spaces.
-    assert!(eq(apply(s.clone(), &T::id()), s.clone()));
-    assert!(eq(apply(apply(s.clone(), &a), &b), apply(s.clone(), &T::comp(a.clone(), b.clone()))));
+    assert!(state_eq(apply(s.clone(), &T::id()), s.clone()));
+    assert!(state_eq(apply(apply(s.clone(), &a), &b), apply(s.clone(), &T::comp(a.clone(), b.clone()))));
 
     // Properties of joinable state spaces.
     assert!(T::preq(&T::initial(), &s));
@@ -62,17 +62,17 @@ pub fn assert_joinable<T: Joinable + Debug + Clone>(
     }
 
     // Properties of joinable state spaces (equivalent, algebraic definition of semilattices).
-    assert!(eq(join(s.clone(), join(t.clone(), u.clone())), join(join(s.clone(), t.clone()), u.clone())));
-    assert!(eq(join(s.clone(), t.clone()), join(t.clone(), s.clone())));
-    assert!(eq(join(s.clone(), s.clone()), s.clone()));
-    assert_eq!(T::preq(&s, &t), eq(t.clone(), join(s.clone(), t.clone())));
+    assert!(state_eq(join(s.clone(), join(t.clone(), u.clone())), join(join(s.clone(), t.clone()), u.clone())));
+    assert!(state_eq(join(s.clone(), t.clone()), join(t.clone(), s.clone())));
+    assert!(state_eq(join(s.clone(), s.clone()), s.clone()));
+    assert_eq!(T::preq(&s, &t), state_eq(t.clone(), join(s.clone(), t.clone())));
   }
 }
 
 pub fn assert_delta_joinable<T: DeltaJoinable + Debug + Clone + Eq>(
   mut rand_state: impl FnMut() -> T,
   mut rand_action: impl FnMut() -> T::Action,
-  eq: impl Fn(T, T) -> bool,
+  state_eq: impl Fn(T, T) -> bool,
   count: usize,
 ) where
   T::Action: Clone,
@@ -83,14 +83,14 @@ pub fn assert_delta_joinable<T: DeltaJoinable + Debug + Clone + Eq>(
     let b = rand_action();
 
     // Properties of Δ-joinable state spaces.
-    assert!(eq(delta_join(s.clone(), &a, &b), join(apply(s.clone(), &a), apply(s.clone(), &b))));
+    assert!(state_eq(delta_join(s.clone(), &a, &b), join(apply(s.clone(), &a), apply(s.clone(), &b))));
   }
 }
 
 pub fn assert_gamma_joinable<T: GammaJoinable + Debug + Clone + Eq>(
   mut rand_state: impl FnMut() -> T,
   mut rand_action: impl FnMut() -> T::Action,
-  eq: impl Fn(T, T) -> bool,
+  state_eq: impl Fn(T, T) -> bool,
   count: usize,
 ) where
   T::Action: Clone,
@@ -101,18 +101,18 @@ pub fn assert_gamma_joinable<T: GammaJoinable + Debug + Clone + Eq>(
     let b = rand_action();
 
     // Properties of Γ-joinable state spaces.
-    assert!(eq(gamma_join(apply(s.clone(), &a), &b), join(apply(s.clone(), &a), apply(s.clone(), &b))));
+    assert!(state_eq(gamma_join(apply(s.clone(), &a), &b), join(apply(s.clone(), &a), apply(s.clone(), &b))));
   }
 }
 
 #[test]
-fn minimum_maximum_u64() {
+fn minimum_maximum_u64_simple() {
   assert_eq!(u64::minimum(), 0);
   assert_eq!(u64::maximum(), (Wrapping(0u64) - Wrapping(1)).0);
 }
 
 #[test]
-fn by_max_u64() {
+fn by_max_u64_random() {
   type T = ByMax<u64>;
   fn rand_state() -> T {
     ByMax { inner: rand::thread_rng().gen() }
@@ -127,7 +127,7 @@ fn by_max_u64() {
 }
 
 #[test]
-fn joinable_prod2() {
+fn joinable_prod2_random() {
   type T = (ByMax<i8>, ByMax<u32>);
   fn rand_state() -> T {
     let mut rng = rand::thread_rng();
@@ -144,7 +144,7 @@ fn joinable_prod2() {
 }
 
 #[test]
-fn joinable_prod3() {
+fn joinable_prod3_random() {
   type T = (ByMax<String>, ByMax<i8>, ByMax<u32>);
   fn rand_state() -> T {
     let mut rng = rand::thread_rng();
@@ -161,7 +161,7 @@ fn joinable_prod3() {
 }
 
 #[test]
-fn joinable_prod4() {
+fn joinable_prod4_random() {
   type T = (ByMax<Option<()>>, ByMax<String>, ByMax<i8>, ByMax<u32>);
   fn rand_state() -> T {
     let mut rng = rand::thread_rng();
@@ -186,7 +186,7 @@ fn joinable_prod4() {
 }
 
 #[test]
-fn joinable_pi() {
+fn joinable_pi_random() {
   type T = HashMap<u8, ByMax<u8>>;
   fn rand_state() -> T {
     let mut rng = rand::thread_rng();
@@ -204,7 +204,7 @@ fn joinable_pi() {
     }
     res
   }
-  fn eq(mut s: T, mut t: T) -> bool {
+  fn state_eq(mut s: T, mut t: T) -> bool {
     for key in s.keys() {
       if !t.contains_key(key) {
         t.insert(*key, State::initial());
@@ -217,8 +217,8 @@ fn joinable_pi() {
     }
     s == t
   }
-  assert!(eq(T::initial(), HashMap::from([(233, State::initial())])));
-  assert_joinable::<T>(rand_state, rand_action, eq, 10);
-  assert_delta_joinable::<T>(rand_state, rand_action, eq, 10);
-  assert_gamma_joinable::<T>(rand_state, rand_action, eq, 10);
+  assert!(state_eq(T::initial(), HashMap::from([(233, State::initial())])));
+  assert_joinable::<T>(rand_state, rand_action, state_eq, 10);
+  assert_delta_joinable::<T>(rand_state, rand_action, state_eq, 10);
+  assert_gamma_joinable::<T>(rand_state, rand_action, state_eq, 10);
 }
