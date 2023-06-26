@@ -2,7 +2,7 @@
 
 use std::mem::{drop, replace};
 
-use super::*;
+use crate::joinable::{Clock, DeltaJoinable, GammaJoinable, Joinable, Minimum, State};
 
 /// A last-writer-win register.
 ///
@@ -10,7 +10,7 @@ use super::*;
 /// - [`Register`] is an instance of [`Joinable`] state space.
 /// - [`Register`] is an instance of [`DeltaJoinable`] state space.
 /// - [`Register`] is an instance of [`GammaJoinable`] state space.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Register<T: Clone + Minimum> {
   clock: Clock,
   value: T,

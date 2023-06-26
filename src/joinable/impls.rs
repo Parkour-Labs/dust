@@ -68,7 +68,7 @@ where
 }
 
 /// Product of state spaces: `(S1, A1) × ... × (Sn, An)`.
-macro_rules! impl_state_product {
+macro_rules! impl_state_for_product {
   ( $($i:tt),* ; $($S:ident),* ) => {
     impl< $($S: State),* > State for ( $($S),* ) {
       type Action = ( $($S::Action),* );
@@ -89,7 +89,7 @@ macro_rules! impl_state_product {
 }
 
 /// Product of joinable state spaces: `(S1, A1) × ... × (Sn, An)`.
-macro_rules! impl_joinable_product {
+macro_rules! impl_joinable_for_product {
   ( $($i:tt),* ; $($S:ident),* ) => {
     impl< $($S: Joinable),* > Joinable for ( $($S),* ) {
       fn preq(&self, t: &Self) -> bool {
@@ -103,7 +103,7 @@ macro_rules! impl_joinable_product {
 }
 
 /// Product of Δ-joinable state spaces: `(S1, A1) × ... × (Sn, An)`.
-macro_rules! impl_delta_joinable_product {
+macro_rules! impl_delta_joinable_for_product {
   ( $($i:tt),* ; $($S:ident),* ) => {
     impl< $($S: DeltaJoinable),* > DeltaJoinable for ( $($S),* ) {
       fn delta_join(&mut self, a: &Self::Action, b: &Self::Action) {
@@ -114,7 +114,7 @@ macro_rules! impl_delta_joinable_product {
 }
 
 /// Product of Γ-joinable state spaces: `(S1, A1) × ... × (Sn, An)`.
-macro_rules! impl_gamma_joinable_product {
+macro_rules! impl_gamma_joinable_for_product {
   ( $($i:tt),* ; $($S:ident),* ) => {
     impl< $($S: GammaJoinable),* > GammaJoinable for ( $($S),* ) {
       fn gamma_join(&mut self, a: &Self::Action) {
@@ -125,7 +125,7 @@ macro_rules! impl_gamma_joinable_product {
 }
 
 /// Product of restorable state spaces: `(S1, A1) × ... × (Sn, An)`.
-macro_rules! impl_restorable_product {
+macro_rules! impl_restorable_for_product {
   ( $($i:tt),* ; $($S:ident),* ) => {
     impl< $($S: Restorable),* > Restorable for ( $($S),* ) {
       type RestorePoint = ( $($S::RestorePoint),* );
@@ -139,29 +139,29 @@ macro_rules! impl_restorable_product {
   };
 }
 
-impl_state_product!(0, 1; S0, S1);
-impl_state_product!(0, 1, 2; S0, S1, S2);
-impl_state_product!(0, 1, 2, 3; S0, S1, S2, S3);
+impl_state_for_product!(0, 1; S0, S1);
+impl_state_for_product!(0, 1, 2; S0, S1, S2);
+impl_state_for_product!(0, 1, 2, 3; S0, S1, S2, S3);
 
-impl_joinable_product!(0, 1; S0, S1);
-impl_joinable_product!(0, 1, 2; S0, S1, S2);
-impl_joinable_product!(0, 1, 2, 3; S0, S1, S2, S3);
+impl_joinable_for_product!(0, 1; S0, S1);
+impl_joinable_for_product!(0, 1, 2; S0, S1, S2);
+impl_joinable_for_product!(0, 1, 2, 3; S0, S1, S2, S3);
 
-impl_delta_joinable_product!(0, 1; S0, S1);
-impl_delta_joinable_product!(0, 1, 2; S0, S1, S2);
-impl_delta_joinable_product!(0, 1, 2, 3; S0, S1, S2, S3);
+impl_delta_joinable_for_product!(0, 1; S0, S1);
+impl_delta_joinable_for_product!(0, 1, 2; S0, S1, S2);
+impl_delta_joinable_for_product!(0, 1, 2, 3; S0, S1, S2, S3);
 
-impl_gamma_joinable_product!(0, 1; S0, S1);
-impl_gamma_joinable_product!(0, 1, 2; S0, S1, S2);
-impl_gamma_joinable_product!(0, 1, 2, 3; S0, S1, S2, S3);
+impl_gamma_joinable_for_product!(0, 1; S0, S1);
+impl_gamma_joinable_for_product!(0, 1, 2; S0, S1, S2);
+impl_gamma_joinable_for_product!(0, 1, 2, 3; S0, S1, S2, S3);
 
-impl_restorable_product!(0, 1; S0, S1);
-impl_restorable_product!(0, 1, 2; S0, S1, S2);
-impl_restorable_product!(0, 1, 2, 3; S0, S1, S2, S3);
+impl_restorable_for_product!(0, 1; S0, S1);
+impl_restorable_for_product!(0, 1, 2; S0, S1, S2);
+impl_restorable_for_product!(0, 1, 2, 3; S0, S1, S2, S3);
 
 /// Iterated product of state spaces: `I → (S, A)`.
 impl<I: Index, S: State> State for HashMap<I, S> {
-  type Action = Vec<(I, S::Action)>;
+  type Action = HashMap<I, S::Action>;
   fn initial() -> Self {
     HashMap::new()
   }
@@ -171,10 +171,13 @@ impl<I: Index, S: State> State for HashMap<I, S> {
     }
   }
   fn id() -> Self::Action {
-    Vec::new()
+    HashMap::new()
   }
-  fn comp(mut a: Self::Action, mut b: Self::Action) -> Self::Action {
-    a.append(&mut b);
+  fn comp(mut a: Self::Action, b: Self::Action) -> Self::Action {
+    for (i, bi) in b {
+      let curr = S::comp(a.remove(&i).unwrap_or(S::id()), bi);
+      a.insert(i, curr);
+    }
     a
   }
 }
@@ -236,23 +239,30 @@ impl<I: Index, S: GammaJoinable> GammaJoinable for HashMap<I, S> {
 
 /// Iterated product of restorable state spaces: `I → (S, A)`.
 impl<I: Index, S: Restorable> Restorable for HashMap<I, S> {
-  type RestorePoint = Vec<(I, S::RestorePoint)>;
+  type RestorePoint = HashMap<I, S::RestorePoint>;
   fn mark(&self) -> Self::RestorePoint {
     self.iter().map(|(i, si)| (*i, S::mark(si))).collect()
   }
   fn restore(&mut self, m: Self::RestorePoint) -> Self::Action {
-    let mut indices: HashSet<I> = self.keys().copied().collect();
-    let mut a = Vec::new();
+    let mut keys: HashSet<I> = self.keys().copied().collect();
+    let mut res = HashMap::new();
     for (i, mi) in m {
-      a.push((i, S::restore(self.entry(i).or_insert(S::initial()), mi)));
-      indices.remove(&i);
+      res.insert(i, S::restore(self.entry(i).or_insert(S::initial()), mi));
+      keys.remove(&i);
     }
-    for i in indices {
+    for i in keys {
       if let Some(mut si) = self.remove(&i) {
-        a.push((i, S::restore(&mut si, S::mark(&S::initial()))));
+        res.insert(i, S::restore(&mut si, S::mark(&S::initial())));
       }
     }
-    a
+    res
+  }
+}
+
+/// [`String`] is instance of [`Minimum`].
+impl Minimum for String {
+  fn minimum() -> Self {
+    String::new()
   }
 }
 
@@ -265,7 +275,7 @@ impl<T: Ord> Minimum for Option<T> {
 }
 
 /// Integer numerics are instances of [`Minimum`].
-macro_rules! impl_minimum_numeric {
+macro_rules! impl_minimum_for_numeric {
   ( $T:ty ) => {
     impl Minimum for $T {
       fn minimum() -> Self {
@@ -275,44 +285,76 @@ macro_rules! impl_minimum_numeric {
   };
 }
 
-impl_minimum_numeric!(i8);
-impl_minimum_numeric!(i16);
-impl_minimum_numeric!(i32);
-impl_minimum_numeric!(i64);
-impl_minimum_numeric!(i128);
-impl_minimum_numeric!(isize);
+/// Integer numerics are instances of [`Maximum`].
+macro_rules! impl_maximum_for_numeric {
+  ( $T:ty ) => {
+    impl Maximum for $T {
+      fn maximum() -> Self {
+        Self::MAX
+      }
+    }
+  };
+}
 
-impl_minimum_numeric!(u8);
-impl_minimum_numeric!(u16);
-impl_minimum_numeric!(u32);
-impl_minimum_numeric!(u64);
-impl_minimum_numeric!(u128);
-impl_minimum_numeric!(usize);
+impl_minimum_for_numeric!(i8);
+impl_minimum_for_numeric!(i16);
+impl_minimum_for_numeric!(i32);
+impl_minimum_for_numeric!(i64);
+impl_minimum_for_numeric!(i128);
+impl_minimum_for_numeric!(isize);
+
+impl_minimum_for_numeric!(u8);
+impl_minimum_for_numeric!(u16);
+impl_minimum_for_numeric!(u32);
+impl_minimum_for_numeric!(u64);
+impl_minimum_for_numeric!(u128);
+impl_minimum_for_numeric!(usize);
+
+impl_maximum_for_numeric!(i8);
+impl_maximum_for_numeric!(i16);
+impl_maximum_for_numeric!(i32);
+impl_maximum_for_numeric!(i64);
+impl_maximum_for_numeric!(i128);
+impl_maximum_for_numeric!(isize);
+
+impl_maximum_for_numeric!(u8);
+impl_maximum_for_numeric!(u16);
+impl_maximum_for_numeric!(u32);
+impl_maximum_for_numeric!(u64);
+impl_maximum_for_numeric!(u128);
+impl_maximum_for_numeric!(usize);
 
 /// [`Clock`] is instance of [`Minimum`].
 impl Minimum for Clock {
   fn minimum() -> Self {
-    Self(u64::minimum())
+    Self { measured: Minimum::minimum(), count: Minimum::minimum(), random: Minimum::minimum() }
   }
 }
 
-impl<T: Clone + Minimum> State for ByMinimum<T> {
+/// [`Clock`] is instance of [`Maximum`].
+impl Maximum for Clock {
+  fn maximum() -> Self {
+    Self { measured: Maximum::maximum(), count: Maximum::maximum(), random: Maximum::maximum() }
+  }
+}
+
+impl<T: Clone + Minimum> State for ByMax<T> {
   type Action = T;
   fn initial() -> Self {
-    Self { inner: T::minimum() }
+    Self { inner: Minimum::minimum() }
   }
   fn apply(&mut self, a: &T) {
     self.inner = self.inner.clone().max(a.clone())
   }
   fn id() -> T {
-    T::minimum()
+    Minimum::minimum()
   }
   fn comp(a: T, b: T) -> T {
     a.max(b)
   }
 }
 
-impl<T: Clone + Minimum> Joinable for ByMinimum<T> {
+impl<T: Clone + Minimum> Joinable for ByMax<T> {
   fn preq(&self, t: &Self) -> bool {
     self.inner <= t.inner
   }
@@ -321,13 +363,13 @@ impl<T: Clone + Minimum> Joinable for ByMinimum<T> {
   }
 }
 
-impl<T: Clone + Minimum> DeltaJoinable for ByMinimum<T> {
+impl<T: Clone + Minimum> DeltaJoinable for ByMax<T> {
   fn delta_join(&mut self, a: &T, b: &T) {
     self.inner = self.inner.clone().max(a.clone()).max(b.clone())
   }
 }
 
-impl<T: Clone + Minimum> GammaJoinable for ByMinimum<T> {
+impl<T: Clone + Minimum> GammaJoinable for ByMax<T> {
   fn gamma_join(&mut self, a: &T) {
     self.inner = self.inner.clone().max(a.clone())
   }

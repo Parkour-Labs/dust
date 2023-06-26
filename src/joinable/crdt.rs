@@ -1,6 +1,11 @@
-use super::*;
-
 pub mod counter;
-pub mod graph;
+pub use counter::Counter;
+
+pub mod object_graph;
+pub use object_graph::ObjectGraph;
+
 pub mod register;
+pub use register::Register;
+
 pub mod set;
+pub use set::Set;

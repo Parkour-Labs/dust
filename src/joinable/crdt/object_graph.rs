@@ -1,23 +1,23 @@
-//! A last-writer-win graph.
+//! A last-writer-win object graph.
 
 use derive_more::{AsMut, AsRef, From, Into};
 use std::collections::HashMap;
 
-use super::register::*;
-use super::*;
+use super::Register;
+use crate::joinable::{Clock, Index, Newtype, State};
 
 type Inner<I, V, A, E> =
   (HashMap<I, Register<Option<V>>>, HashMap<I, Register<Option<(I, A)>>>, HashMap<I, Register<Option<(I, I, E)>>>);
 
-/// A last-writer-win graph.
+/// A last-writer-win object graph.
 ///
-/// - [`Graph`] is an instance of [`State`] space.
-/// - [`Graph`] is an instance of [`Joinable`] state space.
-/// - [`Graph`] is an instance of [`DeltaJoinable`] state space.
-/// - [`Graph`] is an instance of [`GammaJoinable`] state space.
+/// - [`ObjectGraph`] is an instance of [`State`] space.
+/// - [`ObjectGraph`] is an instance of [`Joinable`] state space.
+/// - [`ObjectGraph`] is an instance of [`DeltaJoinable`] state space.
+/// - [`ObjectGraph`] is an instance of [`GammaJoinable`] state space.
 #[repr(transparent)]
-#[derive(From, Into, AsRef, AsMut)]
-pub struct Graph<I, V, A, E>
+#[derive(Debug, From, Into, AsRef, AsMut)]
+pub struct ObjectGraph<I, V, A, E>
 where
   I: Index + Ord,
   V: Clone + Ord,
@@ -28,7 +28,7 @@ where
 }
 
 /// Show that this is a newtype (so that related instances can be synthesised).
-impl<I, V, A, E> Newtype for Graph<I, V, A, E>
+impl<I, V, A, E> Newtype for ObjectGraph<I, V, A, E>
 where
   I: Index + Ord,
   V: Clone + Ord,
@@ -38,7 +38,7 @@ where
   type Inner = Inner<I, V, A, E>;
 }
 
-impl<I, V, A, E> Default for Graph<I, V, A, E>
+impl<I, V, A, E> Default for ObjectGraph<I, V, A, E>
 where
   I: Index + Ord,
   V: Clone + Ord,
@@ -51,7 +51,7 @@ where
 }
 
 #[allow(clippy::type_complexity)]
-impl<I, V, A, E> Graph<I, V, A, E>
+impl<I, V, A, E> ObjectGraph<I, V, A, E>
 where
   I: Index + Ord,
   V: Clone + Ord,
@@ -94,14 +94,14 @@ where
   }
   /// Makes modification of vertex value.
   pub fn make_vertex_mod(index: I, value: Option<V>, clock: Clock) -> <Self as State>::Action {
-    (vec![(index, Register::make_mod(value, clock))], vec![], vec![])
+    (HashMap::from([(index, Register::make_mod(value, clock))]), HashMap::new(), HashMap::new())
   }
   /// Makes modification of atom value.
   pub fn make_atom_mod(index: I, value: Option<(I, A)>, clock: Clock) -> <Self as State>::Action {
-    (vec![], vec![(index, Register::make_mod(value, clock))], vec![])
+    (HashMap::new(), HashMap::from([(index, Register::make_mod(value, clock))]), HashMap::new())
   }
   /// Makes modification of edge value.
   pub fn make_edge_mod(index: I, value: Option<(I, I, E)>, clock: Clock) -> <Self as State>::Action {
-    (vec![], vec![], vec![(index, Register::make_mod(value, clock))])
+    (HashMap::new(), HashMap::new(), HashMap::from([(index, Register::make_mod(value, clock))]))
   }
 }

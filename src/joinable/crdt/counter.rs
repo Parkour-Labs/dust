@@ -1,8 +1,9 @@
 //! A grow-only counter.
 
 use derive_more::{AsMut, AsRef, From, Into};
+use std::collections::HashMap;
 
-use super::*;
+use crate::joinable::{ByMax, Index, Newtype, State};
 
 /// A grow-only counter.
 ///
@@ -11,14 +12,14 @@ use super::*;
 /// - [`Counter`] is an instance of [`DeltaJoinable`] state space.
 /// - [`Counter`] is an instance of [`GammaJoinable`] state space.
 #[repr(transparent)]
-#[derive(From, Into, AsRef, AsMut)]
+#[derive(Debug, From, Into, AsRef, AsMut)]
 pub struct Counter<I: Index> {
-  inner: HashMap<I, ByMinimum<u64>>,
+  inner: HashMap<I, ByMax<u64>>,
 }
 
 /// Show that this is a newtype (so that related instances can be synthesised).
 impl<I: Index> Newtype for Counter<I> {
-  type Inner = HashMap<I, ByMinimum<u64>>;
+  type Inner = HashMap<I, ByMax<u64>>;
 }
 
 impl<I: Index> Default for Counter<I> {
@@ -38,6 +39,6 @@ impl<I: Index> Counter<I> {
   }
   /// Makes increment.
   pub fn make_mod(&self, index: I, increment: u64) -> <Self as State>::Action {
-    vec![(index, self.inner.get(&index).map_or(0, |e| e.inner) + increment)]
+    HashMap::from([(index, self.inner.get(&index).map_or(0, |e| e.inner) + increment)])
   }
 }

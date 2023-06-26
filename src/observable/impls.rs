@@ -19,10 +19,10 @@ fn dfs(u: &Node) {
       notify();
     }
     u.notify.set(option);
-    for weak in u.out.take() {
-      if let Some(v) = weak.upgrade() {
-        dfs(&v);
-      }
+  }
+  for weak in u.out.take() {
+    if let Some(v) = weak.upgrade() {
+      dfs(&v);
     }
   }
 }

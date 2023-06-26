@@ -1,9 +1,10 @@
 //! A last-writer-win element set.
 
 use derive_more::{AsMut, AsRef, From, Into};
+use std::collections::HashMap;
 
-use super::register::*;
-use super::*;
+use super::Register;
+use crate::joinable::{Clock, Index, Newtype, State};
 
 /// A last-writer-win element set.
 ///
@@ -12,7 +13,7 @@ use super::*;
 /// - [`Set`] is an instance of [`DeltaJoinable`] state space.
 /// - [`Set`] is an instance of [`GammaJoinable`] state space.
 #[repr(transparent)]
-#[derive(From, Into, AsRef, AsMut)]
+#[derive(Debug, From, Into, AsRef, AsMut)]
 pub struct Set<I: Index, T: Clone + Ord> {
   inner: HashMap<I, Register<Option<T>>>,
 }
@@ -42,6 +43,6 @@ impl<I: Index, T: Clone + Ord> Set<I, T> {
   }
   /// Makes modification of element.
   pub fn make_mod(index: I, value: Option<T>, clock: Clock) -> <Self as State>::Action {
-    vec![(index, Register::make_mod(value, clock))]
+    HashMap::from([(index, Register::make_mod(value, clock))])
   }
 }

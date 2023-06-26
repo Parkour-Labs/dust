@@ -7,8 +7,8 @@ State management all-in-one.
 This library can be divided into four components:
 
 - [x] **The "joinable" framework:** provides [general abstractions](docs/state-management-theory.pdf) for [CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type) and [OT](https://en.wikipedia.org/wiki/Operational_transformation)-based synchronisation strategies.
-- [ ] **The "observable" framework:** provides abstractions for propagating changes from joinable structures to external states like UI content (i.e. the [observer pattern](https://en.wikipedia.org/wiki/Observer_pattern)).
 - [ ] **The "persistent" framework:** provides abstractions for storing joinable structures into local databases, synchronises with remote sources, and garbage-collects modification histories.
+- [ ] **The "observable" framework:** provides abstractions for propagating changes from joinable structures to external states like UI content (i.e. the [observer pattern](https://en.wikipedia.org/wiki/Observer_pattern)).
 - [ ] **The object graph:** a "joinable", "persistent" and "observable" graph for storing arbitrary `struct`s, and macros for transforming `struct` definitions to objects linked to the graph (i.e. the [active record pattern](https://en.wikipedia.org/wiki/Active_record_pattern)).
 
 Hopefully this will enable us to develop countless mobile apps (with seamless data persistence and synchronisation) quickly, without any special effort on state management!
@@ -17,7 +17,7 @@ Hopefully this will enable us to develop countless mobile apps (with seamless da
 
 ## Implementing new CRDTs
 
-> Within this document, the term _CRDT_ refers to _convergent replicated data types_ (i.e. _CvRDT_ in literature. The other variant, _CmRDT_, is not a suitable model for collaborative editing).
+> Within this document, the term _CRDT_ refers to _convergent replicated data types_ (i.e. _CvRDT_ in literature) by default. The other variant, _CmRDT_, is not _by itself_ a suitable model for collaborative editing; they can, however, be _modelled_ as CvRDT by using "event logs" (which are instances of CvRDT).
 
 1. Design an internal state representation for your data type.
 2. Implement the `joinable::{State, Joinable}` traits. They generalise all CRDTs and OTDTs.
