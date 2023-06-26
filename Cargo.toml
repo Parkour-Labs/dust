@@ -1,5 +1,5 @@
 [package]
-name = "statecore"
+name = "beacons"
 version = "0.1.0"
 edition = "2021"
 

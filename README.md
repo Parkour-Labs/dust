@@ -1,6 +1,6 @@
-# Statecore
+# Beacons
 
-State management all-in-one.
+State management core framework.
 
 ## Project outline
 
