@@ -14,7 +14,7 @@
 //!    - On recv new knowledge from any peer: `Γ`-join, update `T`, if updated then broadcast (can omit the originator);
 //! Invariant: every known mod is sent to every peer, and mods for the same replica are sent in causal order.
 
-pub mod store;
+pub mod database;
 pub mod vector_history;
 
 #[cfg(test)]
