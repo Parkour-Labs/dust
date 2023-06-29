@@ -19,16 +19,6 @@ struct ReplicaHistory<T: State> {
   latest: Option<Clock>,
 }
 
-/// Database interface for [`VectorHistory`].
-pub trait VectorHistoryStore<T: State> {
-  fn get_replicas(&self) -> Vec<u64>;
-  fn put_replica(&mut self, replica: u64);
-  /// Left open, right closed, sorted by clock in ascending order.
-  fn get_by_replica_clock_range(&self, replica: u64, lower: Option<Clock>, upper: Clock) -> Vec<(Clock, T::Action)>;
-  fn get_by_replica_clock_max(&self, replica: u64) -> Option<(Clock, T::Action)>;
-  fn put_by_replica(&mut self, replica: u64, item: (Clock, T::Action));
-}
-
 impl<T: State, S: VectorHistoryStore<T>> VectorHistory<T, S>
 where
   T::Action: Clone,
@@ -160,4 +150,14 @@ where
     }
     res
   }
+}
+
+/// Database interface for [`VectorHistory`].
+pub trait VectorHistoryStore<T: State> {
+  fn get_replicas(&self) -> Vec<u64>;
+  fn put_replica(&mut self, replica: u64);
+  /// Left open, right closed, sorted by clock in ascending order.
+  fn get_by_replica_clock_range(&self, replica: u64, lower: Option<Clock>, upper: Clock) -> Vec<(Clock, T::Action)>;
+  fn get_by_replica_clock_max(&self, replica: u64) -> Option<(Clock, T::Action)>;
+  fn put_by_replica(&mut self, replica: u64, item: (Clock, T::Action));
 }

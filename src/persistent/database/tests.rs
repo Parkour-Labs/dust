@@ -1,8 +1,8 @@
-use super::{Database, Order};
+use super::{sqlite::SqliteDatabase, Database, Order, Select, Transaction};
 
 #[test]
 fn crud_simple() {
-  let mut db = Database::open_in_memory();
+  let mut db = SqliteDatabase::open_in_memory();
   let table = db.table("test", ["a", "b", "c"], []);
   let txn = db.transaction();
 
@@ -24,7 +24,7 @@ fn crud_simple() {
 
 #[test]
 fn indices_simple() {
-  let mut db = Database::open_in_memory();
+  let mut db = SqliteDatabase::open_in_memory();
   let table = db.table(
     "test",
     ["a", "b", "c"],
@@ -75,11 +75,11 @@ fn indices_simple() {
 
   // Query range.
   assert_eq!(
-    sel.query_sorted_range(5, [], Order::Asc, Some(&[2]), Some(&[5])).into_iter().map(|(id, _)| id).collect::<Vec<_>>(),
+    sel.query_sorted_range(5, [], Order::Asc, Some(&[2]), Some(&[4])).into_iter().map(|(id, _)| id).collect::<Vec<_>>(),
     vec![ids[1], ids[7], ids[2], ids[8], ids[3], ids[9]]
   );
   assert_eq!(
-    sel.query_sorted_range(5, [], Order::Desc, None, Some(&[3])).into_iter().map(|(id, _)| id).collect::<Vec<_>>(),
+    sel.query_sorted_range(5, [], Order::Desc, None, Some(&[2])).into_iter().map(|(id, _)| id).collect::<Vec<_>>(),
     vec![ids[7], ids[1], ids[6], ids[0]]
   );
   assert_eq!(
