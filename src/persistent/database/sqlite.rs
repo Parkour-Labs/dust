@@ -204,7 +204,7 @@ impl<'a, const N: usize, const M: usize> Select<'a, SqliteDatabase, N, M> for Sq
         Ok((row.get_unwrap(ROWID), self.table.columns.map(|name| row.get_unwrap(name))))
       })
       .unwrap()
-      .map(|elem| elem.unwrap())
+      .map(Result::unwrap)
       .collect()
   }
 
@@ -290,7 +290,7 @@ impl<'a, const N: usize, const M: usize> Select<'a, SqliteDatabase, N, M> for Sq
         Ok((row.get_unwrap(ROWID), self.table.columns.map(|name| row.get_unwrap(name))))
       })
       .unwrap()
-      .map(|elem| elem.unwrap())
+      .map(Result::unwrap)
       .collect()
   }
 
@@ -330,7 +330,7 @@ impl<'a, const N: usize, const M: usize> Select<'a, SqliteDatabase, N, M> for Sq
         Ok((row.get_unwrap(ROWID), self.table.columns.map(|name| row.get_unwrap(name))))
       })
       .unwrap()
-      .map(|elem| elem.unwrap())
+      .map(Result::unwrap)
       .collect()
   }
 }

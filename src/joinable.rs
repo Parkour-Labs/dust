@@ -134,25 +134,6 @@ pub struct ByMin<T: Clone + Maximum> {
   pub inner: T,
 }
 
-/// Newtype for identifiers.
-#[repr(transparent)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Id {
-  inner: u128,
-}
-
-impl From<u128> for Id {
-  fn from(value: u128) -> Self {
-    Self { inner: value }
-  }
-}
-
-impl From<Id> for u128 {
-  fn from(value: Id) -> Self {
-    value.inner
-  }
-}
-
 /// Implementation of the [hybrid logical clock](https://muratbuffalo.blogspot.com/2014/07/hybrid-logical-clocks.html)
 /// enhanced with a random part (so that it serves as a unique identifier as well).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -177,19 +158,23 @@ impl Clock {
     }
     Self { measured: pair.0, count: pair.1, random: rand::thread_rng().gen() }
   }
-}
 
-impl From<Id> for Clock {
-  fn from(value: Id) -> Self {
-    let measured = (value.inner >> 64) as u64;
-    let count = (value.inner >> 32) as u32;
-    let random = value.inner as u32;
+  pub fn from_u128(value: u128) -> Self {
+    let measured = (value >> 64) as u64;
+    let count = (value >> 32) as u32;
+    let random = value as u32;
     Self { measured, count, random }
   }
-}
 
-impl From<Clock> for Id {
-  fn from(value: Clock) -> Self {
-    Self { inner: ((value.measured as u128) << 64) ^ ((value.count as u128) << 32) ^ (value.random as u128) }
+  pub fn to_u128(&self) -> u128 {
+    ((self.measured as u128) << 64) ^ ((self.count as u128) << 32) ^ (self.random as u128)
+  }
+
+  pub fn from_be_bytes(value: [u8; 16]) -> Self {
+    Self::from_u128(u128::from_be_bytes(value))
+  }
+
+  pub fn to_be_bytes(&self) -> [u8; 16] {
+    self.to_u128().to_be_bytes()
   }
 }
