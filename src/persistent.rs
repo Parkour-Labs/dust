@@ -14,6 +14,7 @@
 //!    - On recv new knowledge from any peer: `Γ`-join, update `T`, if updated then broadcast (can omit the originator);
 //! Invariant: every known mod is sent to every peer, and mods for the same replica are sent in causal order.
 
+pub mod crdt;
 pub mod database;
 pub mod vector_history;
 
@@ -21,6 +22,12 @@ pub mod vector_history;
 mod tests;
 
 use crate::joinable::{Clock, GammaJoinable, Joinable, State};
+
+/// A type implementing [`Persistent<T>`] uses `T` as its backing store.
+///
+/// `T` is the type of database transaction handles, which should be passed by
+/// reference to all methods (read or write) of `Self`.
+pub trait Persistent<T> {}
 
 pub trait Synchronizable<T: Joinable> {
   fn state(&self) -> (Clock, T);

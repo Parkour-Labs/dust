@@ -14,35 +14,35 @@ use crate::joinable::{Clock, Index, Newtype, State};
 /// - [`Set`] is an instance of [`GammaJoinable`] state space.
 #[repr(transparent)]
 #[derive(Debug, From, Into, AsRef, AsMut)]
-pub struct Set<I: Index, T: Clone + Ord> {
+pub struct Map<I: Index, T: Ord> {
   inner: HashMap<I, Register<Option<T>>>,
 }
 
 /// Show that this is a newtype (so that related instances can be synthesised).
-impl<I: Index, T: Clone + Ord> Newtype for Set<I, T> {
+impl<I: Index, T: Ord> Newtype for Map<I, T> {
   type Inner = HashMap<I, Register<Option<T>>>;
 }
 
-impl<I: Index, T: Clone + Ord> Default for Set<I, T> {
+impl<I: Index, T: Ord> Default for Map<I, T> {
   fn default() -> Self {
     Self::initial()
   }
 }
 
-impl<I: Index, T: Clone + Ord> Set<I, T> {
+impl<I: Index, T: Ord> Map<I, T> {
   /// Creates an empty set.
   pub fn new() -> Self {
     Self::initial()
   }
   /// Obtains reference to element.
   pub fn get(&self, index: &I) -> Option<&T> {
-    match &self.inner.get(index)?.get() {
+    match &self.inner.get(index)?.value() {
       Some(s) => Some(s),
       None => None,
     }
   }
   /// Makes modification of element.
-  pub fn make_mod(index: I, value: Option<T>, clock: Clock) -> <Self as State>::Action {
-    HashMap::from([(index, Register::make_mod(value, clock))])
+  pub fn action(clock: Clock, index: I, value: Option<T>) -> <Self as State>::Action {
+    HashMap::from([(index, Register::action(clock, value))])
   }
 }

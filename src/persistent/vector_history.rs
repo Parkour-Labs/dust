@@ -17,7 +17,7 @@ use crate::joinable::Maximum;
 /// A [`VectorHistory`] stores an action history for each replica.
 pub struct VectorHistory<T: State, S: VectorHistoryStore<T>> {
   data: HashMap<u64, ReplicaHistory<T>>,
-  _s: PhantomData<S>,
+  _store: PhantomData<S>,
 }
 
 /// Action history and metadata for one replica.
@@ -54,13 +54,14 @@ where
 
   /// Creates a vector history from a backing store.
   pub fn new(store: &S) -> Self {
+    store.init();
     let mut data = HashMap::new();
     for replica in store.get_replicas() {
       let latest = store.get_by_replica_clock_max(replica).map(|(clock, _)| clock);
       let entry = ReplicaHistory { actions: VecDeque::new(), begin: latest, latest };
       data.insert(replica, entry);
     }
-    Self { data, _s: Default::default() }
+    Self { data, _store: Default::default() }
   }
 
   /// Returns the latest clock values for each replica.
@@ -154,6 +155,7 @@ where
 
 /// Database interface for [`VectorHistory`].
 pub trait VectorHistoryStore<T: State> {
+  fn init(&self);
   fn get_replicas(&self) -> Vec<u64>;
   fn put_replica(&self, replica: u64);
   /// Left open, right closed, sorted by clock in ascending order.
@@ -170,10 +172,21 @@ pub struct SqliteVectorHistoryStore<'a, T: State> {
 }
 
 impl<'a, T: State> SqliteVectorHistoryStore<'a, T> {
-  pub fn init(db: &rusqlite::Connection) {
-    db.execute_batch(
-      "
-      CREATE TABLE IF NOT EXISTS vector_history_replica (
+  pub fn new(instance: u64, transaction: &'a rusqlite::Transaction<'a>) -> Self {
+    Self { instance, transaction, _t: Default::default() }
+  }
+}
+
+impl<'a, T: State> VectorHistoryStore<T> for SqliteVectorHistoryStore<'a, T>
+where
+  T::Action: Serialize + DeserializeOwned,
+{
+  fn init(&self) {
+    self
+      .transaction
+      .execute_batch(
+        "
+      CREATE TABLE IF NOT EXISTS \"vector_history_replica\" (
         instance BLOB NOT NULL,
         replica BLOB NOT NULL
       ) STRICT;
@@ -191,19 +204,10 @@ impl<'a, T: State> SqliteVectorHistoryStore<'a, T> {
       CREATE INDEX IF NOT EXISTS vector_history_replica_history_idx_instance_replica_clock ON
         vector_history_replica_history (instance, replica, clock);
       ",
-    )
-    .unwrap();
+      )
+      .unwrap();
   }
 
-  pub fn new(instance: u64, transaction: &'a rusqlite::Transaction<'a>) -> Self {
-    Self { instance, transaction, _t: Default::default() }
-  }
-}
-
-impl<'a, T: State> VectorHistoryStore<T> for SqliteVectorHistoryStore<'a, T>
-where
-  T::Action: Serialize + DeserializeOwned,
-{
   fn get_replicas(&self) -> Vec<u64> {
     self
       .transaction
@@ -327,6 +331,8 @@ impl<'a, T: State, D: Database> VectorHistoryStore<T> for DatabaseVectorHistoryS
 where
   T::Action: Serialize + DeserializeOwned,
 {
+  fn init(&self) {}
+
   fn get_replicas(&self) -> Vec<u64> {
     self
       .transaction

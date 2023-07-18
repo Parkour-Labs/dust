@@ -20,9 +20,9 @@ type Inner<I, V, A, E> =
 pub struct ObjectGraph<I, V, A, E>
 where
   I: Index + Ord,
-  V: Clone + Ord,
-  A: Clone + Ord,
-  E: Clone + Ord,
+  V: Ord,
+  A: Ord,
+  E: Ord,
 {
   inner: Inner<I, V, A, E>,
 }
@@ -31,9 +31,9 @@ where
 impl<I, V, A, E> Newtype for ObjectGraph<I, V, A, E>
 where
   I: Index + Ord,
-  V: Clone + Ord,
-  A: Clone + Ord,
-  E: Clone + Ord,
+  V: Ord,
+  A: Ord,
+  E: Ord,
 {
   type Inner = Inner<I, V, A, E>;
 }
@@ -41,9 +41,9 @@ where
 impl<I, V, A, E> Default for ObjectGraph<I, V, A, E>
 where
   I: Index + Ord,
-  V: Clone + Ord,
-  A: Clone + Ord,
-  E: Clone + Ord,
+  V: Ord,
+  A: Ord,
+  E: Ord,
 {
   fn default() -> Self {
     Self::initial()
@@ -54,9 +54,9 @@ where
 impl<I, V, A, E> ObjectGraph<I, V, A, E>
 where
   I: Index + Ord,
-  V: Clone + Ord,
-  A: Clone + Ord,
-  E: Clone + Ord,
+  V: Ord,
+  A: Ord,
+  E: Ord,
 {
   fn vertices(&self) -> &HashMap<I, Register<Option<V>>> {
     &self.inner.0
@@ -73,35 +73,35 @@ where
   }
   /// Obtains reference to vertex value.
   pub fn vertex(&self, index: &I) -> Option<&V> {
-    match &self.vertices().get(index)?.get() {
+    match &self.vertices().get(index)?.value() {
       Some(s) => Some(s),
       None => None,
     }
   }
   /// Obtains reference to atom value.
   pub fn atom(&self, index: &I) -> Option<&(I, A)> {
-    match &self.atoms().get(index)?.get() {
+    match &self.atoms().get(index)?.value() {
       Some(s) => self.vertices().get(&s.0).and(Some(s)),
       None => None,
     }
   }
   /// Obtains reference to edge value.
   pub fn edge(&self, index: &I) -> Option<&(I, I, E)> {
-    match &self.edges().get(index)?.get() {
+    match &self.edges().get(index)?.value() {
       Some(s) => self.vertices().get(&s.0).and(self.vertices().get(&s.1)).and(Some(s)),
       None => None,
     }
   }
   /// Makes modification of vertex value.
-  pub fn make_vertex_mod(index: I, value: Option<V>, clock: Clock) -> <Self as State>::Action {
-    (HashMap::from([(index, Register::make_mod(value, clock))]), HashMap::new(), HashMap::new())
+  pub fn action_vertex(clock: Clock, index: I, value: Option<V>) -> <Self as State>::Action {
+    (HashMap::from([(index, Register::action(clock, value))]), HashMap::new(), HashMap::new())
   }
   /// Makes modification of atom value.
-  pub fn make_atom_mod(index: I, value: Option<(I, A)>, clock: Clock) -> <Self as State>::Action {
-    (HashMap::new(), HashMap::from([(index, Register::make_mod(value, clock))]), HashMap::new())
+  pub fn action_atom(clock: Clock, index: I, value: Option<(I, A)>) -> <Self as State>::Action {
+    (HashMap::new(), HashMap::from([(index, Register::action(clock, value))]), HashMap::new())
   }
   /// Makes modification of edge value.
-  pub fn make_edge_mod(index: I, value: Option<(I, I, E)>, clock: Clock) -> <Self as State>::Action {
-    (HashMap::new(), HashMap::new(), HashMap::from([(index, Register::make_mod(value, clock))]))
+  pub fn action_edge(clock: Clock, index: I, value: Option<(I, I, E)>) -> <Self as State>::Action {
+    (HashMap::new(), HashMap::new(), HashMap::from([(index, Register::action(clock, value))]))
   }
 }

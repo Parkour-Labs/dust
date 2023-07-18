@@ -11,7 +11,7 @@ impl Node {
 
 /// Marks all upstream nodes as `dirty`, triggers upstream `notify` functions
 /// and clears all out-edges.
-fn dfs(u: &Node) {
+pub fn dfs(u: &Node) {
   if let false = u.dirty.replace(true) {
     // Pending nightly feature: https://github.com/rust-lang/rust/issues/50186
     let mut option = u.notify.take();

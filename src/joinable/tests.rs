@@ -3,7 +3,7 @@ use std::num::Wrapping;
 
 use super::*;
 
-fn apply<T: State>(mut s: T, a: &T::Action) -> T {
+fn apply<T: State>(mut s: T, a: T::Action) -> T {
   s.apply(a);
   s
 }
@@ -13,12 +13,12 @@ fn join<T: Joinable>(mut s: T, t: T) -> T {
   s
 }
 
-fn delta_join<T: DeltaJoinable>(mut s: T, a: &T::Action, b: &T::Action) -> T {
+fn delta_join<T: DeltaJoinable>(mut s: T, a: T::Action, b: T::Action) -> T {
   s.delta_join(a, b);
   s
 }
 
-fn gamma_join<T: GammaJoinable>(mut s: T, a: &T::Action) -> T {
+fn gamma_join<T: GammaJoinable>(mut s: T, a: T::Action) -> T {
   s.gamma_join(a);
   s
 }
@@ -48,12 +48,12 @@ pub fn assert_joinable<T: Joinable + Debug + Clone>(
     let b = rand_action();
 
     // Properties of state spaces.
-    assert!(state_eq(apply(s.clone(), &T::id()), s.clone()));
-    assert!(state_eq(apply(apply(s.clone(), &a), &b), apply(s.clone(), &T::comp(a.clone(), b.clone()))));
+    assert!(state_eq(apply(s.clone(), T::id()), s.clone()));
+    assert!(state_eq(apply(apply(s.clone(), a.clone()), b.clone()), apply(s.clone(), T::comp(a.clone(), b.clone()))));
 
     // Properties of joinable state spaces.
     assert!(T::preq(&T::initial(), &s));
-    assert!(T::preq(&s, &apply(s.clone(), &a)));
+    assert!(T::preq(&s, &apply(s.clone(), a.clone())));
     let st = join(s.clone(), t.clone());
     assert!(T::preq(&s, &st));
     assert!(T::preq(&t, &st));
@@ -83,7 +83,10 @@ pub fn assert_delta_joinable<T: DeltaJoinable + Debug + Clone + Eq>(
     let b = rand_action();
 
     // Properties of Δ-joinable state spaces.
-    assert!(state_eq(delta_join(s.clone(), &a, &b), join(apply(s.clone(), &a), apply(s.clone(), &b))));
+    assert!(state_eq(
+      delta_join(s.clone(), a.clone(), b.clone()),
+      join(apply(s.clone(), a.clone()), apply(s.clone(), b.clone()))
+    ));
   }
 }
 
@@ -101,7 +104,10 @@ pub fn assert_gamma_joinable<T: GammaJoinable + Debug + Clone + Eq>(
     let b = rand_action();
 
     // Properties of Γ-joinable state spaces.
-    assert!(state_eq(gamma_join(apply(s.clone(), &a), &b), join(apply(s.clone(), &a), apply(s.clone(), &b))));
+    assert!(state_eq(
+      gamma_join(apply(s.clone(), a.clone()), b.clone()),
+      join(apply(s.clone(), a.clone()), apply(s.clone(), b.clone()))
+    ));
   }
 }
 

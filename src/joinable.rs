@@ -26,8 +26,8 @@ pub trait Newtype: From<Self::Inner> + Into<Self::Inner> + AsRef<Self::Inner> + 
 }
 
 /// Trait alias for hash map indices.
-pub trait Index: Copy + Eq + Hash {}
-impl<T: Copy + Eq + Hash> Index for T {}
+pub trait Index: Clone + Eq + Hash {}
+impl<T: Clone + Eq + Hash> Index for T {}
 
 /// An instance of [`State`] is a "proof" that `(Self, Action)` forms a **state space**.
 ///
@@ -39,7 +39,7 @@ impl<T: Copy + Eq + Hash> Index for T {}
 pub trait State {
   type Action;
   fn initial() -> Self;
-  fn apply(&mut self, a: &Self::Action);
+  fn apply(&mut self, a: Self::Action);
   fn id() -> Self::Action;
   fn comp(a: Self::Action, b: Self::Action) -> Self::Action;
 }
@@ -69,7 +69,7 @@ pub trait Joinable: State {
 ///
 /// in addition to the properties of joinable state spaces.
 pub trait DeltaJoinable: Joinable {
-  fn delta_join(&mut self, a: &Self::Action, b: &Self::Action);
+  fn delta_join(&mut self, a: Self::Action, b: Self::Action);
 }
 
 /// An instance of [`GammaJoinable`] is a "proof" that `(Self, Action)` forms a **Γ-joinable state space**.
@@ -81,7 +81,7 @@ pub trait DeltaJoinable: Joinable {
 ///
 /// in addition to the properties of joinable state spaces.
 pub trait GammaJoinable: Joinable {
-  fn gamma_join(&mut self, a: &Self::Action);
+  fn gamma_join(&mut self, a: Self::Action);
 }
 
 /// An instance of [`Restorable`] is a "proof" that `(Self, Action)` forms a **restorable state space**.
@@ -122,7 +122,7 @@ pub trait Maximum: Ord {
 /// on a type `T` by defining *actions* as *taking maximums*.
 #[repr(transparent)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ByMax<T: Clone + Minimum> {
+pub struct ByMax<T: Minimum> {
   pub inner: T,
 }
 
@@ -130,7 +130,7 @@ pub struct ByMax<T: Clone + Minimum> {
 /// on a type `T` by defining *actions* as *taking minimums*.
 #[repr(transparent)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ByMin<T: Clone + Maximum> {
+pub struct ByMin<T: Maximum> {
   pub inner: T,
 }
 

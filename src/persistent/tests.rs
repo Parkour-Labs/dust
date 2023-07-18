@@ -23,6 +23,7 @@ impl<T: State> VectorHistoryStore<T> for RefCell<MockVectorHistoryStore<T>>
 where
   T::Action: Clone,
 {
+  fn init(&self) {}
   fn get_replicas(&self) -> Vec<u64> {
     self.borrow().replicas.clone()
   }
@@ -281,10 +282,7 @@ fn vector_history_random_core<T: State, S: VectorHistoryStore<T>>(
 #[test]
 fn vector_history_with_sqlite_random() {
   type T = ByMax<u64>;
-
   let mut db = Connection::open_in_memory().unwrap();
-  SqliteVectorHistoryStore::<T>::init(&db);
-
   let txn = db.transaction().unwrap();
   let store = SqliteVectorHistoryStore::<T>::new(0, &txn);
   vector_history_random_core(|| rand::thread_rng().gen(), |lhs, rhs| lhs == rhs, store);
@@ -293,13 +291,10 @@ fn vector_history_with_sqlite_random() {
 #[test]
 fn vector_history_with_database_random() {
   type T = ByMax<u64>;
-
   let mut db = SqliteDatabase::open_in_memory();
   let replica_table = DatabaseVectorHistoryStore::<T, _>::replica_table(&db);
   let replica_history_table = DatabaseVectorHistoryStore::<T, _>::replica_history_table(&db);
-
   let txn = db.transaction();
   let store = DatabaseVectorHistoryStore::<T, SqliteDatabase>::new(0, &txn, &replica_table, &replica_history_table);
-
   vector_history_random_core(|| rand::thread_rng().gen(), |lhs, rhs| lhs == rhs, store);
 }

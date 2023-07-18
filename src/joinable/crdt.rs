@@ -7,5 +7,5 @@ pub use object_graph::ObjectGraph;
 pub mod register;
 pub use register::Register;
 
-pub mod set;
-pub use set::Set;
+pub mod map;
+pub use map::Map;

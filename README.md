@@ -23,13 +23,12 @@ Hopefully this will enable us to develop countless mobile apps (with seamless da
 2. Implement the `joinable::{State, Joinable}` traits. They generalise all CRDTs and OTDTs.
 3. Implementation for `joinable::Joinable::{preq, join}` need not to be efficient. If your data type is a _delta-state_ CRDT, implement `joinable::GammaJoinable` instead.
    - You will find `joinable::GammaJoinable::gamma_join`, if exists, equivalent to `joinable::State::apply`.
-4. Decide how changes to your data structure will be delivered to external observers (coarse-grained vs. fine-grained, etc.)
-5. Wrap your structure in a new type and implement the `observable::Observable` trait.
+4. Decide how your data structure will be stored in a local database (bulk-load vs. lazy-load, etc.)
+5. Wrap your structure in a new type and implement the `persistent::Persistent` trait.
+   - You may want to make use of `persistent::History`.
+6. Decide how changes to your data structure will be delivered to external observers (coarse-grained vs. fine-grained, etc.)
+7. Wrap your structure in a new type and implement the `observable::Observable` trait.
    - The new type should also implement `joinable::Joinable` and `joinable::GammaJoinable` by delegating calls. In `joinable::{State::apply, Joinable::join, GammaJoinable::gamma_join}`, calculate a "change set" from the current state and incoming action, and use it to determine which observers should be notified.
-6. Decide how your data structure will be stored in a local database (bulk-load vs. lazy-load, etc.)
-7. Wrap your structure in a new type and implement the `persistent::Persistent` trait.
-   - You may want to make use of `persistent::{Controller, History}`.
-   - Database interfaces suffixed with `Store` can be reused. For complex queries, you may need to define and implement your own `Store`.
 
 ## Implementing new OTDTs
 

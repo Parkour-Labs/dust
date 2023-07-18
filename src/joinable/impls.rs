@@ -9,7 +9,7 @@ where
   fn initial() -> Self {
     T::Inner::initial().into()
   }
-  fn apply(&mut self, a: &Self::Action) {
+  fn apply(&mut self, a: Self::Action) {
     T::Inner::apply(self.as_mut(), a)
   }
   fn id() -> Self::Action {
@@ -38,7 +38,7 @@ impl<T: Newtype> DeltaJoinable for T
 where
   T::Inner: DeltaJoinable,
 {
-  fn delta_join(&mut self, a: &Self::Action, b: &Self::Action) {
+  fn delta_join(&mut self, a: Self::Action, b: Self::Action) {
     T::Inner::delta_join(self.as_mut(), a, b)
   }
 }
@@ -48,7 +48,7 @@ impl<T: Newtype> GammaJoinable for T
 where
   T::Inner: GammaJoinable,
 {
-  fn gamma_join(&mut self, a: &Self::Action) {
+  fn gamma_join(&mut self, a: Self::Action) {
     T::Inner::gamma_join(self.as_mut(), a)
   }
 }
@@ -75,8 +75,8 @@ macro_rules! impl_state_for_product {
       fn initial() -> Self {
         ( $($S::initial()),* )
       }
-      fn apply(&mut self, a: &Self::Action) {
-        $($S::apply(&mut self.$i, &a.$i);)*
+      fn apply(&mut self, a: Self::Action) {
+        $($S::apply(&mut self.$i, a.$i);)*
       }
       fn id() -> Self::Action {
         ( $($S::id()),* )
@@ -106,8 +106,8 @@ macro_rules! impl_joinable_for_product {
 macro_rules! impl_delta_joinable_for_product {
   ( $($i:tt),* ; $($S:ident),* ) => {
     impl< $($S: DeltaJoinable),* > DeltaJoinable for ( $($S),* ) {
-      fn delta_join(&mut self, a: &Self::Action, b: &Self::Action) {
-        $($S::delta_join(&mut self.$i, &a.$i, &b.$i);)*
+      fn delta_join(&mut self, a: Self::Action, b: Self::Action) {
+        $($S::delta_join(&mut self.$i, a.$i, b.$i);)*
       }
     }
   };
@@ -117,8 +117,8 @@ macro_rules! impl_delta_joinable_for_product {
 macro_rules! impl_gamma_joinable_for_product {
   ( $($i:tt),* ; $($S:ident),* ) => {
     impl< $($S: GammaJoinable),* > GammaJoinable for ( $($S),* ) {
-      fn gamma_join(&mut self, a: &Self::Action) {
-        $($S::gamma_join(&mut self.$i, &a.$i);)*
+      fn gamma_join(&mut self, a: Self::Action) {
+        $($S::gamma_join(&mut self.$i, a.$i);)*
       }
     }
   };
@@ -165,9 +165,9 @@ impl<I: Index, S: State> State for HashMap<I, S> {
   fn initial() -> Self {
     HashMap::new()
   }
-  fn apply(&mut self, a: &Self::Action) {
+  fn apply(&mut self, a: Self::Action) {
     for (i, ai) in a {
-      S::apply(self.entry(*i).or_insert(S::initial()), ai);
+      S::apply(self.entry(i).or_insert(S::initial()), ai);
     }
   }
   fn id() -> Self::Action {
@@ -203,36 +203,25 @@ impl<I: Index, S: Joinable> Joinable for HashMap<I, S> {
 
 /// Iterated product of Δ-joinable state spaces: `I → (S, A)`.
 impl<I: Index, S: DeltaJoinable> DeltaJoinable for HashMap<I, S> {
-  fn delta_join(&mut self, a: &Self::Action, b: &Self::Action) {
-    let mut ma = HashMap::<I, &S::Action>::new();
-    let mut mb = HashMap::<I, &S::Action>::new();
+  fn delta_join(&mut self, a: Self::Action, mut b: Self::Action) {
     for (i, ai) in a {
-      ma.insert(*i, ai);
-    }
-    for (i, bi) in b {
-      mb.insert(*i, bi);
-    }
-    let id = S::id();
-    for (i, ai) in a {
-      if let Some(bi) = mb.get(i) {
-        S::delta_join(self.entry(*i).or_insert(S::initial()), ai, bi);
+      if let Some(bi) = b.remove(&i) {
+        S::delta_join(self.entry(i).or_insert(S::initial()), ai, bi);
       } else {
-        S::delta_join(self.entry(*i).or_insert(S::initial()), ai, &id);
+        S::delta_join(self.entry(i).or_insert(S::initial()), ai, S::id());
       }
     }
     for (i, bi) in b {
-      if !ma.contains_key(i) {
-        S::delta_join(self.entry(*i).or_insert(S::initial()), &id, bi);
-      }
+      S::delta_join(self.entry(i).or_insert(S::initial()), S::id(), bi);
     }
   }
 }
 
 /// Iterated product of Γ-joinable state spaces: `I → (S, A)`.
 impl<I: Index, S: GammaJoinable> GammaJoinable for HashMap<I, S> {
-  fn gamma_join(&mut self, a: &Self::Action) {
+  fn gamma_join(&mut self, a: Self::Action) {
     for (i, ai) in a {
-      S::gamma_join(self.entry(*i).or_insert(S::initial()), ai);
+      S::gamma_join(self.entry(i).or_insert(S::initial()), ai);
     }
   }
 }
@@ -241,14 +230,14 @@ impl<I: Index, S: GammaJoinable> GammaJoinable for HashMap<I, S> {
 impl<I: Index, S: Restorable> Restorable for HashMap<I, S> {
   type RestorePoint = HashMap<I, S::RestorePoint>;
   fn mark(&self) -> Self::RestorePoint {
-    self.iter().map(|(i, si)| (*i, S::mark(si))).collect()
+    self.iter().map(|(i, si)| (i.clone(), S::mark(si))).collect()
   }
   fn restore(&mut self, m: Self::RestorePoint) -> Self::Action {
-    let mut keys: HashSet<I> = self.keys().copied().collect();
+    let mut keys: HashSet<I> = self.keys().cloned().collect();
     let mut res = HashMap::new();
     for (i, mi) in m {
-      res.insert(i, S::restore(self.entry(i).or_insert(S::initial()), mi));
       keys.remove(&i);
+      res.insert(i.clone(), S::restore(self.entry(i).or_insert(S::initial()), mi));
     }
     for i in keys {
       if let Some(mut si) = self.remove(&i) {
@@ -338,39 +327,50 @@ impl Maximum for Clock {
   }
 }
 
-impl<T: Clone + Minimum> State for ByMax<T> {
+impl<T: Minimum> State for ByMax<T> {
   type Action = T;
   fn initial() -> Self {
     Self { inner: Minimum::minimum() }
   }
-  fn apply(&mut self, a: &T) {
-    self.inner = self.inner.clone().max(a.clone())
+  fn apply(&mut self, a: T) {
+    if self.inner < a {
+      self.inner = a;
+    }
   }
   fn id() -> T {
     Minimum::minimum()
   }
   fn comp(a: T, b: T) -> T {
-    a.max(b)
+    Ord::max(a, b)
   }
 }
 
-impl<T: Clone + Minimum> Joinable for ByMax<T> {
+impl<T: Minimum> Joinable for ByMax<T> {
   fn preq(&self, t: &Self) -> bool {
     self.inner <= t.inner
   }
   fn join(&mut self, t: Self) {
-    self.inner = self.inner.clone().max(t.inner)
+    if self.inner < t.inner {
+      self.inner = t.inner;
+    }
   }
 }
 
-impl<T: Clone + Minimum> DeltaJoinable for ByMax<T> {
-  fn delta_join(&mut self, a: &T, b: &T) {
-    self.inner = self.inner.clone().max(a.clone()).max(b.clone())
+impl<T: Minimum> DeltaJoinable for ByMax<T> {
+  fn delta_join(&mut self, a: T, b: T) {
+    if self.inner < a {
+      self.inner = a;
+    }
+    if self.inner < b {
+      self.inner = b;
+    }
   }
 }
 
-impl<T: Clone + Minimum> GammaJoinable for ByMax<T> {
-  fn gamma_join(&mut self, a: &T) {
-    self.inner = self.inner.clone().max(a.clone())
+impl<T: Minimum> GammaJoinable for ByMax<T> {
+  fn gamma_join(&mut self, a: T) {
+    if self.inner < a {
+      self.inner = a;
+    }
   }
 }

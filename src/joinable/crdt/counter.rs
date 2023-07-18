@@ -38,7 +38,8 @@ impl<I: Index> Counter<I> {
     self.inner.values().map(|e| e.inner).sum()
   }
   /// Makes increment.
-  pub fn make_mod(&self, index: I, increment: u64) -> <Self as State>::Action {
-    HashMap::from([(index, self.inner.get(&index).map_or(0, |e| e.inner) + increment)])
+  pub fn action(&self, index: I, increment: u64) -> <Self as State>::Action {
+    let value = self.inner.get(&index).map_or(0, |e| e.inner) + increment;
+    HashMap::from([(index, value)])
   }
 }
