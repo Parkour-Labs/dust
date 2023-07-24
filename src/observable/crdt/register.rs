@@ -1,61 +1,77 @@
 //! An *observable* last-writer-win register.
 
-use serde::de::DeserializeOwned;
-use serde::ser::Serialize;
+/*
+use std::cell::RefCell;
+use std::ops::Deref;
 use std::{cell::Cell, rc::Weak};
 
 use crate::joinable::{crdt as jcrdt, Clock, Minimum, State};
-use crate::observable::{impls::dfs, Node, Observable};
-use crate::persistent::crdt as pcrdt;
+use crate::observable::{Node, ObservableRef};
+use crate::persistent::{crdt as pcrdt, Serde};
 
-/// An *observable* last-writer-win register.
-pub struct Register<T: Minimum + Serialize + DeserializeOwned> {
-  inner: Cell<Option<pcrdt::Register<T>>>,
+/// An *observable* and *persistent* last-writer-win register.
+pub struct Register<T: Minimum + Serde> {
   out: Cell<Vec<Weak<Node>>>,
+  inner: pcrdt::Register<T>,
 }
 
-impl<T: Minimum + Serialize + DeserializeOwned> Register<T> {
+/*
+impl<T: Minimum> Register<T> {
   /// Loads or creates a minimum register.
   pub fn new<S: pcrdt::RegisterStore<T>>(store: &S, name: &'static str, default: impl FnOnce() -> T) -> Self {
-    Self { inner: Cell::new(Some(pcrdt::Register::new(store, name, default))), out: Default::default() }
+    Self { out: Default::default(), inner: RefCell::new(pcrdt::Register::new(store, name, default)) }
   }
   /// Makes modification.
   pub fn action(clock: Clock, value: T) -> <jcrdt::Register<T> as State>::Action {
-    pcrdt::Register::action(clock, value)
+    jcrdt::Register::action(clock, value)
   }
   /// Updates clock and value.
   pub fn apply<S: pcrdt::RegisterStore<T>>(&self, store: &S, action: <jcrdt::Register<T> as State>::Action) {
-    let mut inner = self.inner.take().unwrap();
-    inner.apply(store, action);
-    self.inner.set(Some(inner));
+    self.inner.borrow_mut().apply(store, action);
     self.notify();
   }
 }
+*/
 
-impl<T: Minimum + Serialize + DeserializeOwned> Observable<T> for Register<T> {
+pub struct RegisterRef<'a, T: Minimum + Serde> {
+  inner: std::cell::Ref<'a, pcrdt::Register<T>>,
+}
+
+impl<'a, T: Minimum + Serde> Deref for RegisterRef<'a, T> {
+  type Target = T;
+
+  fn deref(&self) -> &Self::Target {
+    self.inner.value()
+  }
+}
+
+impl<T: Minimum + Serde> ObservableRef<T> for Register<T> {
+  type Ref<'a> = RegisterRef<'a, T>
+  where
+    T: 'a,
+    Self: 'a;
+
   fn register(&self, observer: &Weak<Node>) {
     let mut out = self.out.take();
     out.push(observer.clone());
     self.out.set(out);
   }
+
   fn notify(&self) {
     for weak in self.out.take() {
       if let Some(v) = weak.upgrade() {
-        dfs(&v);
+        v.notify();
       }
     }
   }
-  fn peek(&self) -> T {
-    /*
-    let inner = self.inner.take().unwrap();
-    let res = inner.value().clone();
-    self.inner.set(Some(inner));
-    res
-    */
-    todo!()
+
+  fn peek(&self) -> Self::Ref<'_> {
+    Self::Ref { inner: self.inner.borrow() }
   }
-  fn get(&self, observer: &Weak<Node>) -> T {
+
+  fn get(&self, observer: &Weak<Node>) -> Self::Ref<'_> {
     self.register(observer);
     self.peek()
   }
 }
+*/

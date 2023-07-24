@@ -1,79 +1,64 @@
 //! A *persistent* last-writer-win register.
 
-use rusqlite::OptionalExtension;
-use serde::de::DeserializeOwned;
-use serde::ser::Serialize;
+use rusqlite::{OptionalExtension, Transaction};
 
-use crate::joinable::{crdt as jcrdt, Clock};
+use crate::joinable::{crdt as jcrdt, Clock, Joinable};
 use crate::joinable::{Minimum, State};
+use crate::persistent::{PersistentJoinable, PersistentState, Serde};
 
 /// A *persistent* last-writer-win register.
-pub struct Register<T: Minimum + Serialize + DeserializeOwned> {
+pub struct Register<T: Minimum + Serde> {
   inner: jcrdt::Register<T>,
-  name: &'static str,
 }
 
-impl<T: Minimum + Serialize + DeserializeOwned> Register<T> {
-  /// Loads or creates a minimum register.
-  pub fn new<S: RegisterStore<T>>(store: &S, name: &'static str, default: impl FnOnce() -> T) -> Self {
-    store.init(name);
-    let (clock, value) = store.get(name).unwrap_or((Clock::minimum(), default()));
-    Self { inner: jcrdt::Register::from(clock, value), name }
-  }
-  /// Obtains clock.
-  pub fn clock(&self) -> Clock {
-    self.inner.clock()
-  }
-  /// Obtains value.
-  pub fn value(&self) -> &T {
-    self.inner.value()
-  }
-  /// Makes modification.
-  pub fn action(clock: Clock, value: T) -> <jcrdt::Register<T> as State>::Action {
-    jcrdt::Register::action(clock, value)
-  }
-  /// Updates clock and value.
-  pub fn apply<S: RegisterStore<T>>(&mut self, store: &S, action: <jcrdt::Register<T> as State>::Action) {
-    self.inner.apply(action);
-    store.set(self.name, (self.inner.clock(), self.inner.value()));
-  }
-}
+impl<T: Minimum + Serde> PersistentState for Register<T> {
+  type State = jcrdt::Register<T>;
+  type Action = <jcrdt::Register<T> as State>::Action;
 
-/// Database interface for [`Register`].
-pub trait RegisterStore<T: Minimum + Serialize + DeserializeOwned> {
-  fn init(&self, name: &str);
-  fn get(&self, name: &str) -> Option<(Clock, T)>;
-  fn set(&self, name: &str, data: (Clock, &T));
-}
-
-/// Implementation of [`RegisterStore`] using SQLite.
-impl<'a, T: Minimum + Serialize + DeserializeOwned> RegisterStore<T> for rusqlite::Transaction<'a> {
-  fn init(&self, name: &str) {
-    self
-      .prepare_cached(&format!(
-        "CREATE TABLE IF NOT EXISTS \"{name}\" (clock BLOB NOT NULL, data BLOB NOT NULL) STRICT"
+  fn initial(txn: &Transaction, name: &str) -> Self {
+    txn
+      .execute_batch(&format!(
+        "CREATE TABLE IF NOT EXISTS \"{name}\" (clock BLOB NOT NULL, data BLOB NOT NULL) STRICT;"
       ))
-      .unwrap()
-      .execute(())
       .unwrap();
-  }
-
-  fn get(&self, name: &str) -> Option<(Clock, T)> {
-    self
+    let opt = txn
       .prepare_cached(&format!("SELECT clock, data FROM \"{name}\" WHERE rowid = 0"))
       .unwrap()
       .query_row((), |row| {
-        Ok((Clock::from_be_bytes(row.get(0)?), postcard::from_bytes(row.get_ref(1)?.as_blob()?).unwrap()))
+        Ok(jcrdt::Register::from(
+          Clock::from_be_bytes(row.get(0).unwrap()),
+          postcard::from_bytes(row.get_ref(1).unwrap().as_blob().unwrap()).unwrap(),
+        ))
       })
       .optional()
-      .unwrap()
+      .unwrap();
+    Self { inner: opt.unwrap_or_default() }
   }
 
-  fn set(&self, name: &str, data: (Clock, &T)) {
-    self
+  fn apply(&mut self, txn: &Transaction, name: &str, a: Self::Action) {
+    self.inner.apply(a);
+    txn
       .prepare_cached(&format!("REPLACE INTO \"{name}\" (rowid, clock, data) VALUES (0, ?, ?)"))
       .unwrap()
-      .execute((data.0.to_u128().to_be_bytes(), postcard::to_allocvec(data.1).unwrap()))
+      .execute((self.inner.clock().to_u128().to_be_bytes(), postcard::to_allocvec(self.inner.value()).unwrap()))
       .unwrap();
+  }
+
+  fn id() -> Self::Action {
+    jcrdt::Register::id()
+  }
+
+  fn comp(a: Self::Action, b: Self::Action) -> Self::Action {
+    jcrdt::Register::comp(a, b)
+  }
+}
+
+impl<T: Minimum + Serde> PersistentJoinable for Register<T> {
+  fn preq(&self, _txn: &Transaction, _name: &str, t: &Self::State) -> bool {
+    self.inner.preq(t)
+  }
+
+  fn join(&mut self, _txn: &Transaction, _name: &str, t: Self::State) {
+    self.inner.join(t)
   }
 }

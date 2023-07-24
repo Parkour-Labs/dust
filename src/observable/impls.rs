@@ -1,29 +1,18 @@
 use super::*;
 
 impl Node {
-  /// Creates a pure observer node. Since nodes are almost always wrapped
-  /// inside an [`Rc`], it makes most sense to require the given closure to
-  /// have static lifetime.
-  pub fn new(notify: impl FnMut() + 'static) -> Self {
-    Self { out: Default::default(), dirty: Default::default(), notify: Cell::new(Some(Box::new(notify))) }
+  /// Creates a pure observer node.
+  pub fn new() -> Self {
+    Self { out: Default::default(), notified: Default::default() }
   }
-}
-
-/// Marks all upstream nodes as `dirty`, triggers upstream `notify` functions
-/// and clears all out-edges.
-pub fn dfs(u: &Node) {
-  if let false = u.dirty.replace(true) {
-    // Pending nightly feature: https://github.com/rust-lang/rust/issues/50186
-    let mut option = u.notify.take();
-    if let Some(notify) = option.as_mut() {
-      notify();
+  /// Marks all upstream nodes as `notified` and clears all out-edges.
+  pub fn notify(&self) {
+    for weak in self.out.take() {
+      if let Some(v) = weak.upgrade() {
+        v.notify();
+      }
     }
-    u.notify.set(option);
-  }
-  for weak in u.out.take() {
-    if let Some(v) = weak.upgrade() {
-      dfs(&v);
-    }
+    self.notified.set(true);
   }
 }
 
@@ -39,12 +28,11 @@ impl<T: Copy> Observable<T> for Active<T> {
   fn register(&self, observer: &Weak<Node>) {
     push(&self.out, observer.clone());
   }
-  /// Marks all upstream nodes as `dirty`, triggers upstream `notify` functions
-  /// and clears all out-edges.
+  /// Marks all upstream nodes as `notified` and clears all out-edges.
   fn notify(&self) {
     for weak in self.out.take() {
       if let Some(v) = weak.upgrade() {
-        dfs(&v);
+        v.notify();
       }
     }
   }
@@ -72,25 +60,26 @@ impl<T: Copy> Active<T> {
 }
 
 impl<T> ObservableRef<T> for ActiveRef<T> {
+  type Ref<'a> = std::cell::Ref<'a, T> where T: 'a, Self: 'a;
+
   /// Registers an observer (direct upstream node).
   fn register(&self, observer: &Weak<Node>) {
     push(&self.out, observer.clone());
   }
-  /// Marks all upstream nodes as `dirty`, triggers upstream `notify` functions
-  /// and clears all out-edges.
+  /// Marks all upstream nodes as `notified` and clears all out-edges.
   fn notify(&self) {
     for weak in self.out.take() {
       if let Some(v) = weak.upgrade() {
-        dfs(&v);
+        v.notify();
       }
     }
   }
   /// Obtains the current value without registering any observer.
-  fn peek(&self) -> Ref<'_, T> {
+  fn peek(&self) -> Self::Ref<'_> {
     self.value.borrow()
   }
   /// Obtains the current value and calls `self.register(observer)`.
-  fn get(&self, observer: &Weak<Node>) -> Ref<'_, T> {
+  fn get(&self, observer: &Weak<Node>) -> Self::Ref<'_> {
     self.register(observer);
     self.peek()
   }
@@ -104,12 +93,12 @@ impl<T> ActiveRef<T> {
   /// Obtains and *locks* the current value by mutable reference, calling
   /// `self.notify()` when the lock is released, without registering any
   /// observer.
-  pub fn peek_mut(&self) -> NotifiedRefMut<'_, T> {
+  pub fn peek_mut(&self) -> NotifiedRefMut<'_, T, Self> {
     NotifiedRefMut { inner: Some(self.value.borrow_mut()), origin: self }
   }
   /// Obtains and *locks* the current value by mutable reference, calling
   /// `self.register(observer)` and `self.notify()` when the lock is released.
-  pub fn get_mut(&self, observer: &Weak<Node>) -> NotifiedRefMut<'_, T> {
+  pub fn get_mut(&self, observer: &Weak<Node>) -> NotifiedRefMut<'_, T, Self> {
     self.register(observer);
     self.peek_mut()
   }
@@ -125,15 +114,14 @@ impl<'a, T: Copy> Observable<T> for Reactive<'a, T> {
   fn register(&self, observer: &Weak<Node>) {
     push(&self.node.out, observer.clone());
   }
-  /// Marks all upstream nodes (including `self`) as `dirty`, triggers upstream
-  /// `notify` functions and clears all out-edges.
+  /// Marks all upstream nodes as `notified` and clears all out-edges.
   fn notify(&self) {
-    dfs(&self.node);
+    self.node.notify();
   }
   /// Obtains the current value without registering any observer.
   fn peek(&self) -> T {
-    // If marked `dirty`, recompute and clear the `dirty` flag.
-    if let true = self.node.dirty.replace(false) {
+    // If marked `notified`, recompute and clear the `notified` flag.
+    if let true = self.node.notified.replace(false) {
       let mut option = self.recompute.take();
       if let Some(recompute) = option.as_mut() {
         self.value.set(recompute(&Rc::downgrade(&self.node)));
@@ -167,19 +155,20 @@ impl<'a, T: Copy> Reactive<'a, T> {
 }
 
 impl<'a, T> ObservableRef<T> for ReactiveRef<'a, T> {
+  type Ref<'b> = std::cell::Ref<'b, T> where T: 'b, Self: 'b;
+
   /// Registers an observer (direct upstream node).
   fn register(&self, observer: &Weak<Node>) {
     push(&self.node.out, observer.clone());
   }
-  /// Marks all upstream nodes (including `self`) as `dirty`, triggers upstream
-  /// `notify` functions and clears all out-edges.
+  /// Marks all upstream nodes as `notified` and clears all out-edges.
   fn notify(&self) {
-    dfs(&self.node);
+    self.node.notify();
   }
   /// Obtains the current value without registering any observer.
-  fn peek(&self) -> Ref<'_, T> {
-    // If marked `dirty`, recompute and clear the `dirty` flag.
-    if let true = self.node.dirty.replace(false) {
+  fn peek(&self) -> Self::Ref<'_> {
+    // If marked `notified`, recompute and clear the `notified` flag.
+    if let true = self.node.notified.replace(false) {
       let mut option = self.recompute.take();
       if let Some(recompute) = option.as_mut() {
         self.value.replace(recompute(&Rc::downgrade(&self.node)));
@@ -189,7 +178,7 @@ impl<'a, T> ObservableRef<T> for ReactiveRef<'a, T> {
     self.value.borrow()
   }
   /// Obtains the current value and calls `self.register(observer)`.
-  fn get(&self, observer: &Weak<Node>) -> Ref<'_, T> {
+  fn get(&self, observer: &Weak<Node>) -> Self::Ref<'_> {
     self.register(observer);
     self.peek()
   }

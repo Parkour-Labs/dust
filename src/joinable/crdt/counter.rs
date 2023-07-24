@@ -14,7 +14,7 @@ use crate::joinable::{ByMax, Index, Newtype, State};
 #[repr(transparent)]
 #[derive(Debug, From, Into, AsRef, AsMut)]
 pub struct Counter<I: Index> {
-  inner: HashMap<I, ByMax<u64>>,
+  pub(crate) inner: HashMap<I, ByMax<u64>>,
 }
 
 /// Show that this is a newtype (so that related instances can be synthesised).

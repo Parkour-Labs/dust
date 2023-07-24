@@ -14,31 +14,40 @@
 //!    - On recv new knowledge from any peer: `Γ`-join, update `T`, if updated then broadcast (can omit the originator);
 //! Invariant: every known mod is sent to every peer, and mods for the same replica are sent in causal order.
 
+pub mod _database;
+pub mod controller;
 pub mod crdt;
-pub mod database;
 pub mod vector_history;
 
 #[cfg(test)]
 mod tests;
 
-use crate::joinable::{Clock, GammaJoinable, Joinable, State};
+use rusqlite::Transaction;
+use serde::de::DeserializeOwned;
+use serde::ser::Serialize;
 
-/// A type implementing [`Persistent<T>`] uses `T` as its backing store.
-///
-/// `T` is the type of database transaction handles, which should be passed by
-/// reference to all methods (read or write) of `Self`.
-pub trait Persistent<T> {}
+/// Trait alias for serde.
+pub trait Serde: Serialize + DeserializeOwned {}
+impl<T: Serialize + DeserializeOwned> Serde for T {}
 
-pub trait Synchronizable<T: Joinable> {
-  fn state(&self) -> (Clock, T);
-  fn join_state(&mut self, state: &(Clock, T)) -> bool;
+pub trait PersistentState {
+  type State;
+  type Action;
+  fn initial(txn: &Transaction, name: &str) -> Self;
+  fn apply(&mut self, txn: &Transaction, name: &str, a: Self::Action);
+  fn id() -> Self::Action;
+  fn comp(a: Self::Action, b: Self::Action) -> Self::Action;
 }
 
-/// A tuple of (replica ID, clock value, action).
-pub type Item<T> = (u64, Clock, <T as State>::Action);
+pub trait PersistentJoinable: PersistentState {
+  fn preq(&self, txn: &Transaction, name: &str, t: &Self::State) -> bool;
+  fn join(&mut self, txn: &Transaction, name: &str, t: Self::State);
+}
 
-pub trait GammaSynchronizable<T: GammaJoinable> {
-  fn state_vector(&self) -> Vec<(u64, Option<Clock>)>;
-  fn actions_after(&self, state_vector: &[(u64, Option<Clock>)]) -> Vec<Item<T>>;
-  fn gamma_join_actions(&mut self, actions: &[Item<T>]) -> Vec<Item<T>>;
+pub trait PersistentDeltaJoinable: PersistentJoinable {
+  fn delta_join(&mut self, txn: &Transaction, name: &str, a: Self::Action, b: Self::Action);
+}
+
+pub trait PersistentGammaJoinable: PersistentJoinable {
+  fn gamma_join(&mut self, txn: &Transaction, name: &str, a: Self::Action);
 }

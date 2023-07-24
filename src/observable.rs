@@ -1,5 +1,5 @@
 use std::{
-  cell::{Cell, Ref, RefCell, RefMut},
+  cell::{Cell, RefCell, RefMut},
   ops::{Deref, DerefMut},
   rc::{Rc, Weak},
 };
@@ -14,10 +14,8 @@ mod tests;
 pub struct Node {
   // `Rc` and `Weak` must be used instead of references, since it is impossible
   // to put elements with different lifetimes into the same `Vec`.
-  // (It would be possible only if Rust had dependent types.)
   out: Cell<Vec<Weak<Node>>>,
-  dirty: Cell<bool>,
-  notify: Cell<Option<Box<dyn FnMut() + 'static>>>,
+  notified: Cell<bool>,
 }
 
 pub trait Observable<T> {
@@ -28,10 +26,15 @@ pub trait Observable<T> {
 }
 
 pub trait ObservableRef<T> {
+  type Ref<'a>: Deref<Target = T>
+  where
+    T: 'a,
+    Self: 'a;
+
   fn register(&self, observer: &Weak<Node>);
   fn notify(&self);
-  fn peek(&self) -> Ref<'_, T>;
-  fn get(&self, observer: &Weak<Node>) -> Ref<'_, T>;
+  fn peek(&self) -> Self::Ref<'_>;
+  fn get(&self, observer: &Weak<Node>) -> Self::Ref<'_>;
 }
 
 /// An [`Active`] value can be listened on.
@@ -80,28 +83,28 @@ pub struct ReactiveRef<'a, T> {
   recompute: Cell<Option<Box<dyn FnMut(&Weak<Node>) -> T + 'a>>>,
 }
 
-/// A mutable reference obtained from [`ActiveRef`] which notifies the origin
-/// when dropped.
-pub struct NotifiedRefMut<'a, T> {
+/// A mutable reference obtained from [`ObservableRef`] which notifies the
+/// origin when dropped.
+pub struct NotifiedRefMut<'a, T, U: ObservableRef<T>> {
   inner: Option<RefMut<'a, T>>,
-  origin: &'a ActiveRef<T>,
+  origin: &'a U,
 }
 
-impl<'a, T> Drop for NotifiedRefMut<'a, T> {
+impl<'a, T, U: ObservableRef<T>> Drop for NotifiedRefMut<'a, T, U> {
   fn drop(&mut self) {
     std::mem::drop(self.inner.take());
     self.origin.notify();
   }
 }
 
-impl<'a, T> Deref for NotifiedRefMut<'a, T> {
+impl<'a, T, U: ObservableRef<T>> Deref for NotifiedRefMut<'a, T, U> {
   type Target = T;
   fn deref(&self) -> &T {
     self.inner.as_ref().unwrap()
   }
 }
 
-impl<'a, T> DerefMut for NotifiedRefMut<'a, T> {
+impl<'a, T, U: ObservableRef<T>> DerefMut for NotifiedRefMut<'a, T, U> {
   fn deref_mut(&mut self) -> &mut T {
     self.inner.as_mut().unwrap()
   }
