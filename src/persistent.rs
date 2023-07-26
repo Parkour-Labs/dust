@@ -15,7 +15,7 @@
 //! Invariant: every known mod is sent to every peer, and mods for the same replica are sent in causal order.
 
 pub mod _database;
-pub mod controller;
+pub mod collection;
 pub mod crdt;
 pub mod vector_history;
 
@@ -33,21 +33,21 @@ impl<T: Serialize + DeserializeOwned> Serde for T {}
 pub trait PersistentState {
   type State;
   type Action;
-  fn initial(txn: &Transaction, name: &str) -> Self;
-  fn apply(&mut self, txn: &Transaction, name: &str, a: Self::Action);
+  fn initial(txn: &Transaction, col: &str, name: &str) -> Self;
+  fn apply(&mut self, txn: &Transaction, col: &str, name: &str, a: Self::Action);
   fn id() -> Self::Action;
   fn comp(a: Self::Action, b: Self::Action) -> Self::Action;
 }
 
 pub trait PersistentJoinable: PersistentState {
-  fn preq(&self, txn: &Transaction, name: &str, t: &Self::State) -> bool;
-  fn join(&mut self, txn: &Transaction, name: &str, t: Self::State);
+  fn preq(&mut self, txn: &Transaction, col: &str, name: &str, t: &Self::State) -> bool;
+  fn join(&mut self, txn: &Transaction, col: &str, name: &str, t: Self::State);
 }
 
 pub trait PersistentDeltaJoinable: PersistentJoinable {
-  fn delta_join(&mut self, txn: &Transaction, name: &str, a: Self::Action, b: Self::Action);
+  fn delta_join(&mut self, txn: &Transaction, col: &str, name: &str, a: Self::Action, b: Self::Action);
 }
 
 pub trait PersistentGammaJoinable: PersistentJoinable {
-  fn gamma_join(&mut self, txn: &Transaction, name: &str, a: Self::Action);
+  fn gamma_join(&mut self, txn: &Transaction, col: &str, name: &str, a: Self::Action);
 }

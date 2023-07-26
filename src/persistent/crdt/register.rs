@@ -11,37 +11,67 @@ pub struct Register<T: Minimum + Serde> {
   inner: jcrdt::Register<T>,
 }
 
-impl<T: Minimum + Serde> PersistentState for Register<T> {
-  type State = jcrdt::Register<T>;
-  type Action = <jcrdt::Register<T> as State>::Action;
-
-  fn initial(txn: &Transaction, name: &str) -> Self {
+impl<T: Minimum + Serde> Register<T> {
+  /// Creates or loads data.
+  pub fn new(txn: &Transaction, col: &str, name: &str) -> Self {
     txn
       .execute_batch(&format!(
-        "CREATE TABLE IF NOT EXISTS \"{name}\" (clock BLOB NOT NULL, data BLOB NOT NULL) STRICT;"
+        "
+CREATE TABLE IF NOT EXISTS \"{col}.{name}\" (
+  id BLOB NOT NULL,
+  clock BLOB NOT NULL,
+  data BLOB NOT NULL,
+  PRIMARY KEY (id)
+) STRICT, WITHOUT ROWID;
+        "
       ))
       .unwrap();
     let opt = txn
-      .prepare_cached(&format!("SELECT clock, data FROM \"{name}\" WHERE rowid = 0"))
+      .prepare_cached(&format!("SELECT clock, data FROM \"{col}.{name}\" WHERE id = X''"))
       .unwrap()
       .query_row((), |row| {
         Ok(jcrdt::Register::from(
-          Clock::from_be_bytes(row.get(0).unwrap()),
-          postcard::from_bytes(row.get_ref(1).unwrap().as_blob().unwrap()).unwrap(),
+          Clock::from_be_bytes(row.get(0)?),
+          postcard::from_bytes(row.get_ref(1)?.as_blob()?).unwrap(),
         ))
       })
       .optional()
       .unwrap();
     Self { inner: opt.unwrap_or_default() }
   }
-
-  fn apply(&mut self, txn: &Transaction, name: &str, a: Self::Action) {
-    self.inner.apply(a);
+  /// Saves data.
+  pub fn save(&self, txn: &Transaction, col: &str, name: &str) {
     txn
-      .prepare_cached(&format!("REPLACE INTO \"{name}\" (rowid, clock, data) VALUES (0, ?, ?)"))
+      .prepare_cached(&format!("REPLACE INTO \"{col}.{name}\" (id, clock, data) VALUES (X'', ?, ?)"))
       .unwrap()
       .execute((self.inner.clock().to_u128().to_be_bytes(), postcard::to_allocvec(self.inner.value()).unwrap()))
       .unwrap();
+  }
+  /// Obtains clock.
+  pub fn clock(&self) -> Clock {
+    self.inner.clock()
+  }
+  /// Obtains value.
+  pub fn value(&self) -> &T {
+    self.inner.value()
+  }
+  /// Makes modification.
+  pub fn action(clock: Clock, value: T) -> <Self as PersistentState>::Action {
+    jcrdt::Register::action(clock, value)
+  }
+}
+
+impl<T: Minimum + Serde> PersistentState for Register<T> {
+  type State = jcrdt::Register<T>;
+  type Action = <Self::State as State>::Action;
+
+  fn initial(txn: &Transaction, col: &str, name: &str) -> Self {
+    Self::new(txn, col, name)
+  }
+
+  fn apply(&mut self, txn: &Transaction, col: &str, name: &str, a: Self::Action) {
+    self.inner.apply(a);
+    self.save(txn, col, name);
   }
 
   fn id() -> Self::Action {
@@ -54,11 +84,11 @@ impl<T: Minimum + Serde> PersistentState for Register<T> {
 }
 
 impl<T: Minimum + Serde> PersistentJoinable for Register<T> {
-  fn preq(&self, _txn: &Transaction, _name: &str, t: &Self::State) -> bool {
+  fn preq(&mut self, _txn: &Transaction, _collection: &str, _name: &str, t: &Self::State) -> bool {
     self.inner.preq(t)
   }
 
-  fn join(&mut self, _txn: &Transaction, _name: &str, t: Self::State) {
+  fn join(&mut self, _txn: &Transaction, _collection: &str, _name: &str, t: Self::State) {
     self.inner.join(t)
   }
 }

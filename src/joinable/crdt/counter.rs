@@ -1,9 +1,10 @@
 //! A grow-only counter.
 
 use derive_more::{AsMut, AsRef, From, Into};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::joinable::{ByMax, Index, Newtype, State};
+use crate::joinable::{ByMax, Id, Newtype, State};
 
 /// A grow-only counter.
 ///
@@ -12,23 +13,23 @@ use crate::joinable::{ByMax, Index, Newtype, State};
 /// - [`Counter`] is an instance of [`DeltaJoinable`] state space.
 /// - [`Counter`] is an instance of [`GammaJoinable`] state space.
 #[repr(transparent)]
-#[derive(Debug, From, Into, AsRef, AsMut)]
-pub struct Counter<I: Index> {
+#[derive(Debug, From, Into, AsRef, AsMut, Serialize, Deserialize)]
+pub struct Counter<I: Id> {
   pub(crate) inner: HashMap<I, ByMax<u64>>,
 }
 
 /// Show that this is a newtype (so that related instances can be synthesised).
-impl<I: Index> Newtype for Counter<I> {
+impl<I: Id> Newtype for Counter<I> {
   type Inner = HashMap<I, ByMax<u64>>;
 }
 
-impl<I: Index> Default for Counter<I> {
+impl<I: Id> Default for Counter<I> {
   fn default() -> Self {
     Self::initial()
   }
 }
 
-impl<I: Index> Counter<I> {
+impl<I: Id> Counter<I> {
   /// Creates a zero counter.
   pub fn new() -> Self {
     Self::initial()

@@ -9,6 +9,7 @@
 //! the pair type which is lexicographically ordered).
 
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 use std::cmp::Eq;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
@@ -26,8 +27,8 @@ pub trait Newtype: From<Self::Inner> + Into<Self::Inner> + AsRef<Self::Inner> + 
 }
 
 /// Trait alias for hash map indices.
-pub trait Index: Clone + Eq + Hash {}
-impl<T: Clone + Eq + Hash> Index for T {}
+pub trait Id: Clone + Eq + Hash {}
+impl<T: Clone + Eq + Hash> Id for T {}
 
 /// An instance of [`State`] is a "proof" that `(Self, Action)` forms a **state space**.
 ///
@@ -121,7 +122,7 @@ pub trait Maximum: Ord {
 /// [`ByMax`] is used to indicate that we wish to implement [`Joinable`]
 /// on a type `T` by defining *actions* as *taking maximums*.
 #[repr(transparent)]
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ByMax<T: Minimum> {
   pub inner: T,
 }
@@ -129,14 +130,14 @@ pub struct ByMax<T: Minimum> {
 /// [`ByMin`] is used to indicate that we wish to implement [`Joinable`]
 /// on a type `T` by defining *actions* as *taking minimums*.
 #[repr(transparent)]
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ByMin<T: Maximum> {
   pub inner: T,
 }
 
 /// Implementation of the [hybrid logical clock](https://muratbuffalo.blogspot.com/2014/07/hybrid-logical-clocks.html)
 /// enhanced with a random part (so that it serves as a unique identifier as well).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Clock {
   measured: u64,
   count: u32,

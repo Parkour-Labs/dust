@@ -160,7 +160,7 @@ impl_restorable_for_product!(0, 1, 2; S0, S1, S2);
 impl_restorable_for_product!(0, 1, 2, 3; S0, S1, S2, S3);
 
 /// Iterated product of state spaces: `I → (S, A)`.
-impl<I: Index, S: State> State for HashMap<I, S> {
+impl<I: Id, S: State> State for HashMap<I, S> {
   type Action = HashMap<I, S::Action>;
   fn initial() -> Self {
     HashMap::new()
@@ -183,7 +183,7 @@ impl<I: Index, S: State> State for HashMap<I, S> {
 }
 
 /// Iterated product of joinable state spaces: `I → (S, A)`.
-impl<I: Index, S: Joinable> Joinable for HashMap<I, S> {
+impl<I: Id, S: Joinable> Joinable for HashMap<I, S> {
   fn preq(&self, t: &HashMap<I, S>) -> bool {
     let initial = S::initial();
     for (i, si) in self {
@@ -202,7 +202,7 @@ impl<I: Index, S: Joinable> Joinable for HashMap<I, S> {
 }
 
 /// Iterated product of Δ-joinable state spaces: `I → (S, A)`.
-impl<I: Index, S: DeltaJoinable> DeltaJoinable for HashMap<I, S> {
+impl<I: Id, S: DeltaJoinable> DeltaJoinable for HashMap<I, S> {
   fn delta_join(&mut self, a: Self::Action, mut b: Self::Action) {
     for (i, ai) in a {
       if let Some(bi) = b.remove(&i) {
@@ -218,7 +218,7 @@ impl<I: Index, S: DeltaJoinable> DeltaJoinable for HashMap<I, S> {
 }
 
 /// Iterated product of Γ-joinable state spaces: `I → (S, A)`.
-impl<I: Index, S: GammaJoinable> GammaJoinable for HashMap<I, S> {
+impl<I: Id, S: GammaJoinable> GammaJoinable for HashMap<I, S> {
   fn gamma_join(&mut self, a: Self::Action) {
     for (i, ai) in a {
       S::gamma_join(self.entry(i).or_insert(S::initial()), ai);
@@ -227,7 +227,7 @@ impl<I: Index, S: GammaJoinable> GammaJoinable for HashMap<I, S> {
 }
 
 /// Iterated product of restorable state spaces: `I → (S, A)`.
-impl<I: Index, S: Restorable> Restorable for HashMap<I, S> {
+impl<I: Id, S: Restorable> Restorable for HashMap<I, S> {
   type RestorePoint = HashMap<I, S::RestorePoint>;
   fn mark(&self) -> Self::RestorePoint {
     self.iter().map(|(i, si)| (i.clone(), S::mark(si))).collect()

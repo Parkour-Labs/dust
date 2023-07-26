@@ -1,5 +1,6 @@
 //! A last-writer-win register.
 
+use serde::{Deserialize, Serialize};
 use std::mem::{drop, replace};
 
 use crate::joinable::{Clock, DeltaJoinable, GammaJoinable, Joinable, Minimum, State};
@@ -10,7 +11,7 @@ use crate::joinable::{Clock, DeltaJoinable, GammaJoinable, Joinable, Minimum, St
 /// - [`Register`] is an instance of [`Joinable`] state space.
 /// - [`Register`] is an instance of [`DeltaJoinable`] state space.
 /// - [`Register`] is an instance of [`GammaJoinable`] state space.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Register<T: Minimum> {
   clock: Clock,
   value: T,
