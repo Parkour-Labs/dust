@@ -9,52 +9,59 @@ use crate::persistent::{PersistentJoinable, PersistentState, Serde};
 /// A *persistent* last-writer-win register.
 pub struct Register<T: Minimum + Serde> {
   inner: jcrdt::Register<T>,
+  collection: &'static str,
+  name: &'static str,
 }
 
 impl<T: Minimum + Serde> Register<T> {
   /// Creates or loads data.
-  pub fn new(txn: &Transaction, col: &str, name: &str) -> Self {
+  pub fn new(txn: &Transaction, collection: &'static str, name: &'static str) -> Self {
     txn
       .execute_batch(&format!(
         "
-CREATE TABLE IF NOT EXISTS \"{col}.{name}\" (
+CREATE TABLE IF NOT EXISTS \"{collection}.{name}\" (
   id BLOB NOT NULL,
   clock BLOB NOT NULL,
-  data BLOB NOT NULL,
+  value BLOB NOT NULL,
   PRIMARY KEY (id)
 ) STRICT, WITHOUT ROWID;
         "
       ))
       .unwrap();
     let opt = txn
-      .prepare_cached(&format!("SELECT clock, data FROM \"{col}.{name}\" WHERE id = X''"))
+      .prepare_cached(&format!("SELECT clock, value FROM \"{collection}.{name}\" WHERE id = X''"))
       .unwrap()
       .query_row((), |row| {
-        Ok(jcrdt::Register::from(
-          Clock::from_be_bytes(row.get(0)?),
-          postcard::from_bytes(row.get_ref(1)?.as_blob()?).unwrap(),
-        ))
+        let clock = row.get(0).unwrap();
+        let value = row.get_ref(1).unwrap().as_blob().unwrap();
+        Ok(jcrdt::Register::from(Clock::from_be_bytes(clock), postcard::from_bytes(value).unwrap()))
       })
       .optional()
       .unwrap();
-    Self { inner: opt.unwrap_or_default() }
+    Self { inner: opt.unwrap_or_default(), collection, name }
   }
+
   /// Saves data.
-  pub fn save(&self, txn: &Transaction, col: &str, name: &str) {
+  pub fn save(&self, txn: &Transaction) {
+    let col = self.collection;
+    let name = self.name;
     txn
-      .prepare_cached(&format!("REPLACE INTO \"{col}.{name}\" (id, clock, data) VALUES (X'', ?, ?)"))
+      .prepare_cached(&format!("REPLACE INTO \"{col}.{name}\" VALUES (X'', ?, ?)"))
       .unwrap()
       .execute((self.inner.clock().to_u128().to_be_bytes(), postcard::to_allocvec(self.inner.value()).unwrap()))
       .unwrap();
   }
+
   /// Obtains clock.
   pub fn clock(&self) -> Clock {
     self.inner.clock()
   }
+
   /// Obtains value.
   pub fn value(&self) -> &T {
     self.inner.value()
   }
+
   /// Makes modification.
   pub fn action(clock: Clock, value: T) -> <Self as PersistentState>::Action {
     jcrdt::Register::action(clock, value)
@@ -65,13 +72,13 @@ impl<T: Minimum + Serde> PersistentState for Register<T> {
   type State = jcrdt::Register<T>;
   type Action = <Self::State as State>::Action;
 
-  fn initial(txn: &Transaction, col: &str, name: &str) -> Self {
+  fn initial(txn: &Transaction, col: &'static str, name: &'static str) -> Self {
     Self::new(txn, col, name)
   }
 
-  fn apply(&mut self, txn: &Transaction, col: &str, name: &str, a: Self::Action) {
+  fn apply(&mut self, txn: &Transaction, a: Self::Action) {
     self.inner.apply(a);
-    self.save(txn, col, name);
+    self.save(txn);
   }
 
   fn id() -> Self::Action {
@@ -84,11 +91,11 @@ impl<T: Minimum + Serde> PersistentState for Register<T> {
 }
 
 impl<T: Minimum + Serde> PersistentJoinable for Register<T> {
-  fn preq(&mut self, _txn: &Transaction, _collection: &str, _name: &str, t: &Self::State) -> bool {
+  fn preq(&mut self, _txn: &Transaction, t: &Self::State) -> bool {
     self.inner.preq(t)
   }
 
-  fn join(&mut self, _txn: &Transaction, _collection: &str, _name: &str, t: Self::State) {
+  fn join(&mut self, _txn: &Transaction, t: Self::State) {
     self.inner.join(t)
   }
 }

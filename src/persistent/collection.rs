@@ -3,73 +3,73 @@ use std::collections::HashMap;
 
 use super::{PersistentDeltaJoinable, PersistentGammaJoinable, PersistentJoinable, PersistentState, Serde};
 
-trait TypeErasedState {
-  fn apply(&mut self, txn: &Transaction, col: &str, name: &str, a: &[u8]);
+trait GenericState {
+  fn apply(&mut self, txn: &Transaction, a: &[u8]);
 }
 
-trait TypeErasedJoinable: TypeErasedState {
-  fn preq(&mut self, txn: &Transaction, col: &str, name: &str, t: &[u8]) -> bool;
-  fn join(&mut self, txn: &Transaction, col: &str, name: &str, t: &[u8]);
+trait GenericJoinable: GenericState {
+  fn preq(&mut self, txn: &Transaction, t: &[u8]) -> bool;
+  fn join(&mut self, txn: &Transaction, t: &[u8]);
 }
 
-trait TypeErasedDeltaJoinable: TypeErasedJoinable {
-  fn delta_join(&mut self, txn: &Transaction, col: &str, name: &str, a: &[u8], b: &[u8]);
+trait GenericDeltaJoinable: GenericJoinable {
+  fn delta_join(&mut self, txn: &Transaction, a: &[u8], b: &[u8]);
 }
 
-trait TypeErasedGammaJoinable: TypeErasedJoinable {
-  fn gamma_join(&mut self, txn: &Transaction, col: &str, name: &str, a: &[u8]);
+trait GenericGammaJoinable: GenericJoinable {
+  fn gamma_join(&mut self, txn: &Transaction, a: &[u8]);
 }
 
-impl<T: PersistentState> TypeErasedState for T
+impl<T: PersistentState> GenericState for T
 where
   T::State: Serde,
   T::Action: Serde,
 {
-  fn apply(&mut self, txn: &Transaction, col: &str, name: &str, a: &[u8]) {
-    self.apply(txn, col, name, postcard::from_bytes(a).unwrap())
+  fn apply(&mut self, txn: &Transaction, a: &[u8]) {
+    self.apply(txn, postcard::from_bytes(a).unwrap())
   }
 }
 
-impl<T: PersistentJoinable> TypeErasedJoinable for T
+impl<T: PersistentJoinable> GenericJoinable for T
 where
   T::State: Serde,
   T::Action: Serde,
 {
-  fn preq(&mut self, txn: &Transaction, col: &str, name: &str, t: &[u8]) -> bool {
-    self.preq(txn, col, name, &postcard::from_bytes(t).unwrap())
+  fn preq(&mut self, txn: &Transaction, t: &[u8]) -> bool {
+    self.preq(txn, &postcard::from_bytes(t).unwrap())
   }
 
-  fn join(&mut self, txn: &Transaction, col: &str, name: &str, t: &[u8]) {
-    self.join(txn, col, name, postcard::from_bytes(t).unwrap())
+  fn join(&mut self, txn: &Transaction, t: &[u8]) {
+    self.join(txn, postcard::from_bytes(t).unwrap())
   }
 }
 
-impl<T: PersistentDeltaJoinable> TypeErasedDeltaJoinable for T
+impl<T: PersistentDeltaJoinable> GenericDeltaJoinable for T
 where
   T::State: Serde,
   T::Action: Serde,
 {
-  fn delta_join(&mut self, txn: &Transaction, col: &str, name: &str, a: &[u8], b: &[u8]) {
-    self.delta_join(txn, col, name, postcard::from_bytes(a).unwrap(), postcard::from_bytes(b).unwrap())
+  fn delta_join(&mut self, txn: &Transaction, a: &[u8], b: &[u8]) {
+    self.delta_join(txn, postcard::from_bytes(a).unwrap(), postcard::from_bytes(b).unwrap())
   }
 }
 
-impl<T: PersistentGammaJoinable> TypeErasedGammaJoinable for T
+impl<T: PersistentGammaJoinable> GenericGammaJoinable for T
 where
   T::State: Serde,
   T::Action: Serde,
 {
-  fn gamma_join(&mut self, txn: &Transaction, col: &str, name: &str, a: &[u8]) {
-    self.gamma_join(txn, col, name, postcard::from_bytes(a).unwrap())
+  fn gamma_join(&mut self, txn: &Transaction, a: &[u8]) {
+    self.gamma_join(txn, postcard::from_bytes(a).unwrap())
   }
 }
 
 pub struct Collection {
   conn: Connection,
   name: &'static str,
-  joinable: HashMap<&'static str, Box<dyn TypeErasedJoinable>>,
-  delta_joinable: HashMap<&'static str, Box<dyn TypeErasedDeltaJoinable>>,
-  gamma_joinable: HashMap<&'static str, Box<dyn TypeErasedGammaJoinable>>,
+  joinable: HashMap<&'static str, Box<dyn GenericJoinable>>,
+  delta_joinable: HashMap<&'static str, Box<dyn GenericDeltaJoinable>>,
+  gamma_joinable: HashMap<&'static str, Box<dyn GenericGammaJoinable>>,
 }
 
 impl Collection {
@@ -114,6 +114,10 @@ impl Collection {
     let txn = self.conn.transaction().unwrap();
     self.gamma_joinable.insert(name, Box::new(T::initial(&txn, self.name, name)));
     txn.commit().unwrap();
+  }
+
+  pub fn txn(&mut self) -> Transaction<'_> {
+    self.conn.transaction().unwrap()
   }
 }
 

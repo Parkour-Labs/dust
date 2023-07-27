@@ -18,14 +18,14 @@ pub struct Node {
   notified: Cell<bool>,
 }
 
-pub trait Observable<T> {
+pub trait Observable<T: ?Sized> {
   fn register(&self, observer: &Weak<Node>);
   fn notify(&self);
   fn peek(&self) -> T;
   fn get(&self, observer: &Weak<Node>) -> T;
 }
 
-pub trait ObservableRef<T> {
+pub trait ObservableRef<T: ?Sized> {
   type Ref<'a>: Deref<Target = T>
   where
     T: 'a,

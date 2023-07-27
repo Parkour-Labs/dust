@@ -7,7 +7,7 @@ State management core framework.
 This library can be divided into four components:
 
 - [x] **The "joinable" framework:** provides [general abstractions](docs/state-management-theory.pdf) for [CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type) and [OT](https://en.wikipedia.org/wiki/Operational_transformation)-based synchronisation strategies.
-- [ ] **The "persistent" framework:** provides abstractions for storing joinable structures into local databases, synchronises with remote sources, and garbage-collects modification histories.
+- [x] **The "persistent" framework:** provides abstractions for storing joinable structures into local databases, synchronises with remote sources, and garbage-collects modification histories.
 - [ ] **The "observable" framework:** provides abstractions for propagating changes from joinable structures to external states like UI content (i.e. the [observer pattern](https://en.wikipedia.org/wiki/Observer_pattern)).
 - [ ] **The object graph:** a "joinable", "persistent" and "observable" graph for storing arbitrary `struct`s, and macros for transforming `struct` definitions to objects linked to the graph (i.e. the [active record pattern](https://en.wikipedia.org/wiki/Active_record_pattern)).
 
@@ -24,8 +24,7 @@ Hopefully this will enable us to develop countless mobile apps (with seamless da
 3. Implementation for `joinable::Joinable::{preq, join}` need not to be efficient. If your data type is a _delta-state_ CRDT, implement `joinable::GammaJoinable` instead.
    - You will find `joinable::GammaJoinable::gamma_join`, if exists, equivalent to `joinable::State::apply`.
 4. Decide how your data structure will be stored in a local database (bulk-load vs. lazy-load, etc.)
-5. Wrap your structure in a new type and implement the `persistent::Persistent` trait.
-   - You may want to make use of `persistent::History`.
+5. Wrap your structure in a new type and implement the `persistent::{PersistentState, PersistentJoinable}` traits.
 6. Decide how changes to your data structure will be delivered to external observers (coarse-grained vs. fine-grained, etc.)
 7. Wrap your structure in a new type and implement the `observable::Observable` trait.
    - The new type should also implement `joinable::Joinable` and `joinable::GammaJoinable` by delegating calls. In `joinable::{State::apply, Joinable::join, GammaJoinable::gamma_join}`, calculate a "change set" from the current state and incoming action, and use it to determine which observers should be notified.
