@@ -3,7 +3,7 @@
 use rusqlite::{OptionalExtension, Transaction};
 use std::collections::HashSet;
 
-use crate::joinable::{crdt as jcrdt, Clock, GammaJoinable, Joinable, State};
+use crate::joinable::{crdt as jcrdt, Clock, Joinable, State};
 use crate::persistent::{PersistentGammaJoinable, PersistentJoinable, PersistentState};
 
 /// A *persistent* last-writer-win object graph.
@@ -241,11 +241,11 @@ impl PersistentState for ObjectGraph {
   type State = jcrdt::ObjectGraph;
   type Action = <Self::State as State>::Action;
 
-  fn initial(txn: &Transaction, col: &'static str, name: &'static str) -> Self {
+  fn initial(txn: &mut Transaction, col: &'static str, name: &'static str) -> Self {
     Self::new(txn, col, name)
   }
 
-  fn apply(&mut self, txn: &Transaction, a: Self::Action) {
+  fn apply(&mut self, txn: &mut Transaction, a: Self::Action) {
     let ns: Vec<u128> = a.0.keys().copied().collect();
     let es: Vec<u128> = a.1.keys().copied().collect();
     self.loads(txn, ns.iter().copied(), es.iter().copied());
@@ -263,12 +263,12 @@ impl PersistentState for ObjectGraph {
 }
 
 impl PersistentJoinable for ObjectGraph {
-  fn preq(&mut self, txn: &Transaction, t: &Self::State) -> bool {
+  fn preq(&mut self, txn: &mut Transaction, t: &Self::State) -> bool {
     self.loads(txn, t.inner.0.keys().copied(), t.inner.1.keys().copied());
     self.inner.preq(t)
   }
 
-  fn join(&mut self, txn: &Transaction, t: Self::State) {
+  fn join(&mut self, txn: &mut Transaction, t: Self::State) {
     let ns: Vec<u128> = t.inner.0.keys().copied().collect();
     let es: Vec<u128> = t.inner.1.keys().copied().collect();
     self.loads(txn, ns.iter().copied(), es.iter().copied());
@@ -277,12 +277,4 @@ impl PersistentJoinable for ObjectGraph {
   }
 }
 
-impl PersistentGammaJoinable for ObjectGraph {
-  fn gamma_join(&mut self, txn: &Transaction, a: Self::Action) {
-    let ns: Vec<u128> = a.0.keys().copied().collect();
-    let es: Vec<u128> = a.1.keys().copied().collect();
-    self.loads(txn, ns.iter().copied(), es.iter().copied());
-    self.inner.gamma_join(a);
-    self.saves(txn, ns.into_iter(), es.into_iter());
-  }
-}
+impl PersistentGammaJoinable for ObjectGraph {}

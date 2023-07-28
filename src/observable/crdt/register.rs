@@ -1,77 +1,94 @@
-//! An *observable* last-writer-win register.
+//! An *observable* and *persistent* last-writer-win register.
 
-/*
-use std::cell::RefCell;
-use std::ops::Deref;
-use std::{cell::Cell, rc::Weak};
+use rusqlite::Transaction;
+use serde::{de::DeserializeOwned, ser::Serialize};
 
-use crate::joinable::{crdt as jcrdt, Clock, Minimum, State};
-use crate::observable::{Node, ObservableRef};
-use crate::persistent::{crdt as pcrdt, Serde};
+use crate::joinable::{Clock, Minimum};
+use crate::observable::{Aggregator, ObservableGammaJoinable, ObservableJoinable, ObservableState, Port};
+use crate::persistent::{crdt as pcrdt, PersistentJoinable, PersistentState};
 
 /// An *observable* and *persistent* last-writer-win register.
-pub struct Register<T: Minimum + Serde> {
-  out: Cell<Vec<Weak<Node>>>,
+pub struct Register<T: Minimum + Clone + Serialize + DeserializeOwned> {
   inner: pcrdt::Register<T>,
+  subscriptions: Vec<Port>,
 }
 
-/*
-impl<T: Minimum> Register<T> {
-  /// Loads or creates a minimum register.
-  pub fn new<S: pcrdt::RegisterStore<T>>(store: &S, name: &'static str, default: impl FnOnce() -> T) -> Self {
-    Self { out: Default::default(), inner: RefCell::new(pcrdt::Register::new(store, name, default)) }
+impl<T: Minimum + Clone + Serialize + DeserializeOwned> Register<T> {
+  /// Creates or loads data.
+  pub fn new(txn: &mut Transaction, collection: &'static str, name: &'static str) -> Self {
+    Self { inner: pcrdt::Register::new(txn, collection, name), subscriptions: Vec::new() }
   }
-  /// Makes modification.
-  pub fn action(clock: Clock, value: T) -> <jcrdt::Register<T> as State>::Action {
-    jcrdt::Register::action(clock, value)
+
+  /// Saves data.
+  pub fn save(&self, txn: &mut Transaction) {
+    self.inner.save(txn)
   }
-  /// Updates clock and value.
-  pub fn apply<S: pcrdt::RegisterStore<T>>(&self, store: &S, action: <jcrdt::Register<T> as State>::Action) {
-    self.inner.borrow_mut().apply(store, action);
-    self.notify();
+
+  /// Obtains clock.
+  pub fn clock(&self) -> Clock {
+    self.inner.clock()
   }
-}
-*/
 
-pub struct RegisterRef<'a, T: Minimum + Serde> {
-  inner: std::cell::Ref<'a, pcrdt::Register<T>>,
-}
-
-impl<'a, T: Minimum + Serde> Deref for RegisterRef<'a, T> {
-  type Target = T;
-
-  fn deref(&self) -> &Self::Target {
+  /// Obtains value.
+  pub fn value(&self) -> &T {
     self.inner.value()
   }
-}
 
-impl<T: Minimum + Serde> ObservableRef<T> for Register<T> {
-  type Ref<'a> = RegisterRef<'a, T>
-  where
-    T: 'a,
-    Self: 'a;
-
-  fn register(&self, observer: &Weak<Node>) {
-    let mut out = self.out.take();
-    out.push(observer.clone());
-    self.out.set(out);
+  /// Makes modification.
+  pub fn action(clock: Clock, value: T) -> <Self as ObservableState>::Action {
+    pcrdt::Register::action(clock, value)
   }
 
-  fn notify(&self) {
-    for weak in self.out.take() {
-      if let Some(v) = weak.upgrade() {
-        v.notify();
-      }
+  /// Adds observer.
+  pub fn subscribe(&mut self, port: Port) {
+    self.subscriptions.push(port);
+  }
+
+  /// Removes observer.
+  pub fn unsubscribe(&mut self, port: Port) {
+    self.subscriptions.retain(|&x| x != port);
+  }
+
+  /// Notifies all observers.
+  pub fn notifies(&self, ctx: &mut <Self as ObservableState>::Context) {
+    for &port in &self.subscriptions {
+      ctx.push(port, self.inner.value().clone());
     }
   }
+}
 
-  fn peek(&self) -> Self::Ref<'_> {
-    Self::Ref { inner: self.inner.borrow() }
+impl<T: Minimum + Clone + Serialize + DeserializeOwned> ObservableState for Register<T> {
+  type State = <pcrdt::Register<T> as PersistentState>::State;
+  type Action = <pcrdt::Register<T> as PersistentState>::Action;
+  type Context = Aggregator<T>;
+
+  fn initial(txn: &mut rusqlite::Transaction, collection: &'static str, name: &'static str) -> Self {
+    Self::new(txn, collection, name)
   }
 
-  fn get(&self, observer: &Weak<Node>) -> Self::Ref<'_> {
-    self.register(observer);
-    self.peek()
+  fn apply(&mut self, txn: &mut rusqlite::Transaction, ctx: &mut Self::Context, a: Self::Action) {
+    self.inner.apply(txn, a);
+    self.notifies(ctx);
+  }
+
+  fn id() -> Self::Action {
+    pcrdt::Register::id()
+  }
+
+  fn comp(a: Self::Action, b: Self::Action) -> Self::Action {
+    pcrdt::Register::comp(a, b)
   }
 }
-*/
+
+impl<T: Minimum + Clone + Serialize + DeserializeOwned> ObservableJoinable for Register<T> {
+  fn preq(&mut self, txn: &mut Transaction, _ctx: &mut Self::Context, t: &Self::State) -> bool {
+    self.inner.preq(txn, t)
+  }
+
+  fn join(&mut self, txn: &mut Transaction, ctx: &mut Self::Context, t: Self::State) {
+    self.inner.join(txn, t);
+    self.notifies(ctx);
+  }
+}
+
+impl<T: Minimum + Clone + Serialize + DeserializeOwned> ObservableGammaJoinable for Register<T> {}

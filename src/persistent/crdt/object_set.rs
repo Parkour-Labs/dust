@@ -3,7 +3,7 @@
 use rusqlite::{OptionalExtension, Transaction};
 use std::collections::HashSet;
 
-use crate::joinable::{crdt as jcrdt, Clock, GammaJoinable, Joinable, State};
+use crate::joinable::{crdt as jcrdt, Clock, Joinable, State};
 use crate::persistent::{PersistentGammaJoinable, PersistentJoinable, PersistentState};
 
 /// A *persistent* last-writer-win element map.
@@ -16,7 +16,7 @@ pub struct ObjectSet {
 
 impl ObjectSet {
   /// Creates or loads data.
-  pub fn new(txn: &Transaction, collection: &'static str, name: &'static str) -> Self {
+  pub fn new(txn: &mut Transaction, collection: &'static str, name: &'static str) -> Self {
     txn
       .execute_batch(&format!(
         "
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS \"{collection}.{name}\" (
   }
 
   /// Loads element.
-  pub fn load(&mut self, txn: &Transaction, id: u128) {
+  pub fn load(&mut self, txn: &mut Transaction, id: u128) {
     if self.loaded.insert(id) {
       let col = self.collection;
       let name = self.name;
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS \"{collection}.{name}\" (
   }
 
   /// Saves loaded element.
-  pub fn save(&self, txn: &Transaction, id: u128) {
+  pub fn save(&self, txn: &mut Transaction, id: u128) {
     if let Some(elem) = self.inner.inner.get(&id) {
       let col = self.collection;
       let name = self.name;
@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS \"{collection}.{name}\" (
   }
 
   /// Obtains reference to element.
-  pub fn get(&mut self, txn: &Transaction, id: u128) -> Option<&[u8]> {
+  pub fn get(&mut self, txn: &mut Transaction, id: u128) -> Option<&[u8]> {
     self.load(txn, id);
     self.inner.get(id)
   }
@@ -81,13 +81,13 @@ CREATE TABLE IF NOT EXISTS \"{collection}.{name}\" (
     jcrdt::ObjectSet::action(clock, id, value)
   }
 
-  pub fn loads(&mut self, txn: &Transaction, ids: impl Iterator<Item = u128>) {
+  pub fn loads(&mut self, txn: &mut Transaction, ids: impl Iterator<Item = u128>) {
     for id in ids {
       self.load(txn, id);
     }
   }
 
-  pub fn saves(&mut self, txn: &Transaction, ids: impl Iterator<Item = u128>) {
+  pub fn saves(&mut self, txn: &mut Transaction, ids: impl Iterator<Item = u128>) {
     for id in ids {
       self.save(txn, id);
     }
@@ -109,11 +109,11 @@ impl PersistentState for ObjectSet {
   type State = jcrdt::ObjectSet;
   type Action = <Self::State as State>::Action;
 
-  fn initial(txn: &Transaction, col: &'static str, name: &'static str) -> Self {
+  fn initial(txn: &mut Transaction, col: &'static str, name: &'static str) -> Self {
     Self::new(txn, col, name)
   }
 
-  fn apply(&mut self, txn: &Transaction, a: Self::Action) {
+  fn apply(&mut self, txn: &mut Transaction, a: Self::Action) {
     let ids: Vec<u128> = a.keys().copied().collect();
     self.loads(txn, ids.iter().copied());
     self.inner.apply(a);
@@ -130,12 +130,12 @@ impl PersistentState for ObjectSet {
 }
 
 impl PersistentJoinable for ObjectSet {
-  fn preq(&mut self, txn: &Transaction, t: &Self::State) -> bool {
+  fn preq(&mut self, txn: &mut Transaction, t: &Self::State) -> bool {
     self.loads(txn, t.inner.keys().copied());
     self.inner.preq(t)
   }
 
-  fn join(&mut self, txn: &Transaction, t: Self::State) {
+  fn join(&mut self, txn: &mut Transaction, t: Self::State) {
     let ids: Vec<u128> = t.inner.keys().copied().collect();
     self.loads(txn, ids.iter().copied());
     self.inner.join(t);
@@ -143,11 +143,4 @@ impl PersistentJoinable for ObjectSet {
   }
 }
 
-impl PersistentGammaJoinable for ObjectSet {
-  fn gamma_join(&mut self, txn: &Transaction, a: Self::Action) {
-    let ids: Vec<u128> = a.keys().copied().collect();
-    self.loads(txn, ids.iter().copied());
-    self.inner.gamma_join(a);
-    self.saves(txn, ids.into_iter());
-  }
-}
+impl PersistentGammaJoinable for ObjectSet {}

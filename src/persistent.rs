@@ -26,21 +26,19 @@ use rusqlite::Transaction;
 pub trait PersistentState {
   type State;
   type Action;
-  fn initial(txn: &Transaction, col: &'static str, name: &'static str) -> Self;
-  fn apply(&mut self, txn: &Transaction, a: Self::Action);
+  fn initial(txn: &mut Transaction, collection: &'static str, name: &'static str) -> Self;
+  fn apply(&mut self, txn: &mut Transaction, a: Self::Action);
   fn id() -> Self::Action;
   fn comp(a: Self::Action, b: Self::Action) -> Self::Action;
 }
 
 pub trait PersistentJoinable: PersistentState {
-  fn preq(&mut self, txn: &Transaction, t: &Self::State) -> bool;
-  fn join(&mut self, txn: &Transaction, t: Self::State);
-}
-
-pub trait PersistentDeltaJoinable: PersistentJoinable {
-  fn delta_join(&mut self, txn: &Transaction, a: Self::Action, b: Self::Action);
+  fn preq(&mut self, txn: &mut Transaction, t: &Self::State) -> bool;
+  fn join(&mut self, txn: &mut Transaction, t: Self::State);
 }
 
 pub trait PersistentGammaJoinable: PersistentJoinable {
-  fn gamma_join(&mut self, txn: &Transaction, a: Self::Action);
+  fn gamma_join(&mut self, txn: &mut Transaction, a: Self::Action) {
+    self.apply(txn, a);
+  }
 }

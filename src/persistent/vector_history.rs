@@ -175,16 +175,16 @@ pub trait VectorHistoryStore {
 }
 
 impl<'a> VectorHistoryStore for Transaction<'a> {
-  fn init(&self, name: &str) {
+  fn init(&self, collection: &str) {
     self
       .execute_batch(&format!(
         "
-CREATE TABLE IF NOT EXISTS \"{name}.vhr\" (
+CREATE TABLE IF NOT EXISTS \"{collection}.vhr\" (
   replica BLOB NOT NULL,
   PRIMARY KEY (replica)
 ) STRICT, WITHOUT ROWID;
 
-CREATE TABLE IF NOT EXISTS \"{name}.vh\" (
+CREATE TABLE IF NOT EXISTS \"{collection}.vh\" (
   replica BLOB NOT NULL,
   clock BLOB NOT NULL,
   name BLOB NOT NULL,
@@ -196,9 +196,9 @@ CREATE TABLE IF NOT EXISTS \"{name}.vh\" (
       .unwrap();
   }
 
-  fn get_replicas(&self, name: &str) -> Vec<u128> {
+  fn get_replicas(&self, collection: &str) -> Vec<u128> {
     self
-      .prepare_cached(&format!("SELECT replica FROM \"{name}.vhr\""))
+      .prepare_cached(&format!("SELECT replica FROM \"{collection}.vhr\""))
       .unwrap()
       .query_map((), |row| Ok(u128::from_be_bytes(row.get(0)?)))
       .unwrap()
@@ -206,9 +206,9 @@ CREATE TABLE IF NOT EXISTS \"{name}.vh\" (
       .unwrap()
   }
 
-  fn put_replica(&self, name: &str, replica: u128) {
+  fn put_replica(&self, collection: &str, replica: u128) {
     self
-      .prepare_cached(&format!("REPLACE INTO \"{name}.vhr\" (replica) VALUES (?)"))
+      .prepare_cached(&format!("REPLACE INTO \"{collection}.vhr\" (replica) VALUES (?)"))
       .unwrap()
       .execute((replica.to_be_bytes(),))
       .unwrap();
@@ -216,7 +216,7 @@ CREATE TABLE IF NOT EXISTS \"{name}.vh\" (
 
   fn get_by_replica_clock_range(
     &self,
-    name: &str,
+    collection: &str,
     replica: u128,
     lower: Option<Clock>,
     upper: Clock,
@@ -225,7 +225,7 @@ CREATE TABLE IF NOT EXISTS \"{name}.vh\" (
     let upper = upper.to_be_bytes();
     self
       .prepare_cached(&format!(
-        "SELECT clock, name, action FROM \"{name}.vh\" WHERE replica = ? AND clock >= ? AND clock <= ? ORDER BY clock ASC"
+        "SELECT clock, name, action FROM \"{collection}.vh\" WHERE replica = ? AND clock >= ? AND clock <= ? ORDER BY clock ASC"
       ))
       .unwrap()
       .query_map((replica.to_be_bytes(), lower, upper), |row| {
@@ -236,9 +236,11 @@ CREATE TABLE IF NOT EXISTS \"{name}.vh\" (
       .unwrap()
   }
 
-  fn get_by_replica_clock_max(&self, name: &str, replica: u128) -> Option<(Clock, String, Vec<u8>)> {
+  fn get_by_replica_clock_max(&self, collection: &str, replica: u128) -> Option<(Clock, String, Vec<u8>)> {
     self
-      .prepare_cached(&format!("SELECT clock, name, action FROM \"{name}.vh\" WHERE replica = ? ORDER BY clock DESC"))
+      .prepare_cached(&format!(
+        "SELECT clock, name, action FROM \"{collection}.vh\" WHERE replica = ? ORDER BY clock DESC"
+      ))
       .unwrap()
       .query_row((replica.to_be_bytes(),), |row| {
         Ok((Clock::from_be_bytes(row.get(0)?), String::from_utf8(row.get(1)?).unwrap(), row.get(2)?))
@@ -247,9 +249,9 @@ CREATE TABLE IF NOT EXISTS \"{name}.vh\" (
       .unwrap()
   }
 
-  fn put_by_replica(&self, name: &str, replica: u128, item: (Clock, String, Vec<u8>)) {
+  fn put_by_replica(&self, collection: &str, replica: u128, item: (Clock, String, Vec<u8>)) {
     self
-      .prepare_cached(&format!("REPLACE INTO \"{name}.vh\" (replica, clock, name, action) VALUES (?, ?, ?, ?)"))
+      .prepare_cached(&format!("REPLACE INTO \"{collection}.vh\" (replica, clock, name, action) VALUES (?, ?, ?, ?)"))
       .unwrap()
       .execute((replica.to_be_bytes(), item.0.to_be_bytes(), item.1.into_bytes(), item.2))
       .unwrap();

@@ -3,9 +3,8 @@
 use rusqlite::{OptionalExtension, Transaction};
 use serde::{de::DeserializeOwned, ser::Serialize};
 
-use crate::joinable::{crdt as jcrdt, Clock, Joinable};
-use crate::joinable::{Minimum, State};
-use crate::persistent::{PersistentJoinable, PersistentState};
+use crate::joinable::{crdt as jcrdt, Clock, Joinable, Minimum, State};
+use crate::persistent::{PersistentGammaJoinable, PersistentJoinable, PersistentState};
 
 /// A *persistent* last-writer-win register.
 pub struct Register<T: Minimum + Serialize + DeserializeOwned> {
@@ -16,7 +15,7 @@ pub struct Register<T: Minimum + Serialize + DeserializeOwned> {
 
 impl<T: Minimum + Serialize + DeserializeOwned> Register<T> {
   /// Creates or loads data.
-  pub fn new(txn: &Transaction, collection: &'static str, name: &'static str) -> Self {
+  pub fn new(txn: &mut Transaction, collection: &'static str, name: &'static str) -> Self {
     txn
       .execute_batch(&format!(
         "
@@ -43,7 +42,7 @@ CREATE TABLE IF NOT EXISTS \"{collection}.{name}\" (
   }
 
   /// Saves data.
-  pub fn save(&self, txn: &Transaction) {
+  pub fn save(&self, txn: &mut Transaction) {
     let col = self.collection;
     let name = self.name;
     txn
@@ -71,13 +70,13 @@ CREATE TABLE IF NOT EXISTS \"{collection}.{name}\" (
 
 impl<T: Minimum + Serialize + DeserializeOwned> PersistentState for Register<T> {
   type State = jcrdt::Register<T>;
-  type Action = <Self::State as State>::Action;
+  type Action = <jcrdt::Register<T> as State>::Action;
 
-  fn initial(txn: &Transaction, col: &'static str, name: &'static str) -> Self {
+  fn initial(txn: &mut Transaction, col: &'static str, name: &'static str) -> Self {
     Self::new(txn, col, name)
   }
 
-  fn apply(&mut self, txn: &Transaction, a: Self::Action) {
+  fn apply(&mut self, txn: &mut Transaction, a: Self::Action) {
     self.inner.apply(a);
     self.save(txn);
   }
@@ -92,11 +91,13 @@ impl<T: Minimum + Serialize + DeserializeOwned> PersistentState for Register<T> 
 }
 
 impl<T: Minimum + Serialize + DeserializeOwned> PersistentJoinable for Register<T> {
-  fn preq(&mut self, _txn: &Transaction, t: &Self::State) -> bool {
+  fn preq(&mut self, _txn: &mut Transaction, t: &Self::State) -> bool {
     self.inner.preq(t)
   }
 
-  fn join(&mut self, _txn: &Transaction, t: Self::State) {
+  fn join(&mut self, _txn: &mut Transaction, t: Self::State) {
     self.inner.join(t)
   }
 }
+
+impl<T: Minimum + Serialize + DeserializeOwned> PersistentGammaJoinable for Register<T> {}

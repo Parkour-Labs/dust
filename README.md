@@ -8,8 +8,8 @@ This library can be divided into four components:
 
 - [x] **The "joinable" framework:** provides [general abstractions](docs/state-management-theory.pdf) for [CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type) and [OT](https://en.wikipedia.org/wiki/Operational_transformation)-based synchronisation strategies.
 - [x] **The "persistent" framework:** provides abstractions for storing joinable structures into local databases, synchronises with remote sources, and garbage-collects modification histories.
-- [ ] **The "observable" framework:** provides abstractions for propagating changes from joinable structures to external states like UI content (i.e. the [observer pattern](https://en.wikipedia.org/wiki/Observer_pattern)).
-- [ ] **The object graph:** a "joinable", "persistent" and "observable" graph for storing arbitrary `struct`s, and macros for transforming `struct` definitions to objects linked to the graph (i.e. the [active record pattern](https://en.wikipedia.org/wiki/Active_record_pattern)).
+- [x] **The "observable" framework:** provides abstractions for propagating changes from joinable structures to external states through a C ABI.
+- [x] **The object graph:** a "joinable", "persistent" and "observable" object graph.
 
 Hopefully this will enable us to develop countless mobile apps (with seamless data persistence and synchronisation) quickly, without any special effort on state management!
 

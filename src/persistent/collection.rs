@@ -2,23 +2,19 @@ use rusqlite::{Connection, Transaction};
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 
-use super::{PersistentDeltaJoinable, PersistentGammaJoinable, PersistentJoinable, PersistentState};
+use super::{PersistentGammaJoinable, PersistentJoinable, PersistentState};
 
 trait GenericState {
-  fn apply(&mut self, txn: &Transaction, a: &[u8]);
+  fn apply(&mut self, txn: &mut Transaction, a: &[u8]);
 }
 
 trait GenericJoinable: GenericState {
-  fn preq(&mut self, txn: &Transaction, t: &[u8]) -> bool;
-  fn join(&mut self, txn: &Transaction, t: &[u8]);
-}
-
-trait GenericDeltaJoinable: GenericJoinable {
-  fn delta_join(&mut self, txn: &Transaction, a: &[u8], b: &[u8]);
+  fn preq(&mut self, txn: &mut Transaction, t: &[u8]) -> bool;
+  fn join(&mut self, txn: &mut Transaction, t: &[u8]);
 }
 
 trait GenericGammaJoinable: GenericJoinable {
-  fn gamma_join(&mut self, txn: &Transaction, a: &[u8]);
+  fn gamma_join(&mut self, txn: &mut Transaction, a: &[u8]);
 }
 
 impl<T: PersistentState> GenericState for T
@@ -26,7 +22,7 @@ where
   T::State: DeserializeOwned,
   T::Action: DeserializeOwned,
 {
-  fn apply(&mut self, txn: &Transaction, a: &[u8]) {
+  fn apply(&mut self, txn: &mut Transaction, a: &[u8]) {
     self.apply(txn, postcard::from_bytes(a).unwrap())
   }
 }
@@ -36,22 +32,12 @@ where
   T::State: DeserializeOwned,
   T::Action: DeserializeOwned,
 {
-  fn preq(&mut self, txn: &Transaction, t: &[u8]) -> bool {
+  fn preq(&mut self, txn: &mut Transaction, t: &[u8]) -> bool {
     self.preq(txn, &postcard::from_bytes(t).unwrap())
   }
 
-  fn join(&mut self, txn: &Transaction, t: &[u8]) {
+  fn join(&mut self, txn: &mut Transaction, t: &[u8]) {
     self.join(txn, postcard::from_bytes(t).unwrap())
-  }
-}
-
-impl<T: PersistentDeltaJoinable> GenericDeltaJoinable for T
-where
-  T::State: DeserializeOwned,
-  T::Action: DeserializeOwned,
-{
-  fn delta_join(&mut self, txn: &Transaction, a: &[u8], b: &[u8]) {
-    self.delta_join(txn, postcard::from_bytes(a).unwrap(), postcard::from_bytes(b).unwrap())
   }
 }
 
@@ -60,7 +46,7 @@ where
   T::State: DeserializeOwned,
   T::Action: DeserializeOwned,
 {
-  fn gamma_join(&mut self, txn: &Transaction, a: &[u8]) {
+  fn gamma_join(&mut self, txn: &mut Transaction, a: &[u8]) {
     self.gamma_join(txn, postcard::from_bytes(a).unwrap())
   }
 }
@@ -69,13 +55,12 @@ pub struct Collection {
   conn: Connection,
   name: &'static str,
   joinable: HashMap<&'static str, Box<dyn GenericJoinable>>,
-  delta_joinable: HashMap<&'static str, Box<dyn GenericDeltaJoinable>>,
   gamma_joinable: HashMap<&'static str, Box<dyn GenericGammaJoinable>>,
 }
 
 impl Collection {
   pub fn new(conn: Connection, name: &'static str) -> Self {
-    Self { conn, name, joinable: HashMap::new(), delta_joinable: HashMap::new(), gamma_joinable: HashMap::new() }
+    Self { conn, name, joinable: HashMap::new(), gamma_joinable: HashMap::new() }
   }
 
   pub fn add_joinable<T: PersistentJoinable + 'static>(&mut self, name: &'static str)
@@ -84,23 +69,9 @@ impl Collection {
     T::Action: DeserializeOwned,
   {
     assert!(!self.joinable.contains_key(name));
-    assert!(!self.delta_joinable.contains_key(name));
     assert!(!self.gamma_joinable.contains_key(name));
-    let txn = self.conn.transaction().unwrap();
-    self.joinable.insert(name, Box::new(T::initial(&txn, self.name, name)));
-    txn.commit().unwrap();
-  }
-
-  pub fn add_delta_joinable<T: PersistentDeltaJoinable + 'static>(&mut self, name: &'static str)
-  where
-    T::State: DeserializeOwned,
-    T::Action: DeserializeOwned,
-  {
-    assert!(!self.joinable.contains_key(name));
-    assert!(!self.delta_joinable.contains_key(name));
-    assert!(!self.gamma_joinable.contains_key(name));
-    let txn = self.conn.transaction().unwrap();
-    self.delta_joinable.insert(name, Box::new(T::initial(&txn, self.name, name)));
+    let mut txn = self.conn.transaction().unwrap();
+    self.joinable.insert(name, Box::new(T::initial(&mut txn, self.name, name)));
     txn.commit().unwrap();
   }
 
@@ -110,10 +81,9 @@ impl Collection {
     T::Action: DeserializeOwned,
   {
     assert!(!self.joinable.contains_key(name));
-    assert!(!self.delta_joinable.contains_key(name));
     assert!(!self.gamma_joinable.contains_key(name));
-    let txn = self.conn.transaction().unwrap();
-    self.gamma_joinable.insert(name, Box::new(T::initial(&txn, self.name, name)));
+    let mut txn = self.conn.transaction().unwrap();
+    self.gamma_joinable.insert(name, Box::new(T::initial(&mut txn, self.name, name)));
     txn.commit().unwrap();
   }
 

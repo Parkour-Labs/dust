@@ -82,7 +82,9 @@ pub trait DeltaJoinable: Joinable {
 ///
 /// in addition to the properties of joinable state spaces.
 pub trait GammaJoinable: Joinable {
-  fn gamma_join(&mut self, a: Self::Action);
+  fn gamma_join(&mut self, a: Self::Action) {
+    self.apply(a);
+  }
 }
 
 /// An instance of [`Restorable`] is a "proof" that `(Self, Action)` forms a **restorable state space**.
