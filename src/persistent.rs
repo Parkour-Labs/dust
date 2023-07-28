@@ -14,7 +14,6 @@
 //!    - On recv new knowledge from any peer: `Γ`-join, update `T`, if updated then broadcast (can omit the originator);
 //! Invariant: every known mod is sent to every peer, and mods for the same replica are sent in causal order.
 
-pub mod _database;
 pub mod collection;
 pub mod crdt;
 pub mod vector_history;
@@ -23,12 +22,6 @@ pub mod vector_history;
 mod tests;
 
 use rusqlite::Transaction;
-use serde::de::DeserializeOwned;
-use serde::ser::Serialize;
-
-/// Trait alias for serde.
-pub trait Serde: Serialize + DeserializeOwned {}
-impl<T: Serialize + DeserializeOwned> Serde for T {}
 
 pub trait PersistentState {
   type State;

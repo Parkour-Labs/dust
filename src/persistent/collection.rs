@@ -1,7 +1,8 @@
 use rusqlite::{Connection, Transaction};
+use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 
-use super::{PersistentDeltaJoinable, PersistentGammaJoinable, PersistentJoinable, PersistentState, Serde};
+use super::{PersistentDeltaJoinable, PersistentGammaJoinable, PersistentJoinable, PersistentState};
 
 trait GenericState {
   fn apply(&mut self, txn: &Transaction, a: &[u8]);
@@ -22,8 +23,8 @@ trait GenericGammaJoinable: GenericJoinable {
 
 impl<T: PersistentState> GenericState for T
 where
-  T::State: Serde,
-  T::Action: Serde,
+  T::State: DeserializeOwned,
+  T::Action: DeserializeOwned,
 {
   fn apply(&mut self, txn: &Transaction, a: &[u8]) {
     self.apply(txn, postcard::from_bytes(a).unwrap())
@@ -32,8 +33,8 @@ where
 
 impl<T: PersistentJoinable> GenericJoinable for T
 where
-  T::State: Serde,
-  T::Action: Serde,
+  T::State: DeserializeOwned,
+  T::Action: DeserializeOwned,
 {
   fn preq(&mut self, txn: &Transaction, t: &[u8]) -> bool {
     self.preq(txn, &postcard::from_bytes(t).unwrap())
@@ -46,8 +47,8 @@ where
 
 impl<T: PersistentDeltaJoinable> GenericDeltaJoinable for T
 where
-  T::State: Serde,
-  T::Action: Serde,
+  T::State: DeserializeOwned,
+  T::Action: DeserializeOwned,
 {
   fn delta_join(&mut self, txn: &Transaction, a: &[u8], b: &[u8]) {
     self.delta_join(txn, postcard::from_bytes(a).unwrap(), postcard::from_bytes(b).unwrap())
@@ -56,8 +57,8 @@ where
 
 impl<T: PersistentGammaJoinable> GenericGammaJoinable for T
 where
-  T::State: Serde,
-  T::Action: Serde,
+  T::State: DeserializeOwned,
+  T::Action: DeserializeOwned,
 {
   fn gamma_join(&mut self, txn: &Transaction, a: &[u8]) {
     self.gamma_join(txn, postcard::from_bytes(a).unwrap())
@@ -79,8 +80,8 @@ impl Collection {
 
   pub fn add_joinable<T: PersistentJoinable + 'static>(&mut self, name: &'static str)
   where
-    T::State: Serde,
-    T::Action: Serde,
+    T::State: DeserializeOwned,
+    T::Action: DeserializeOwned,
   {
     assert!(!self.joinable.contains_key(name));
     assert!(!self.delta_joinable.contains_key(name));
@@ -92,8 +93,8 @@ impl Collection {
 
   pub fn add_delta_joinable<T: PersistentDeltaJoinable + 'static>(&mut self, name: &'static str)
   where
-    T::State: Serde,
-    T::Action: Serde,
+    T::State: DeserializeOwned,
+    T::Action: DeserializeOwned,
   {
     assert!(!self.joinable.contains_key(name));
     assert!(!self.delta_joinable.contains_key(name));
@@ -105,8 +106,8 @@ impl Collection {
 
   pub fn add_gamma_joinable<T: PersistentGammaJoinable + 'static>(&mut self, name: &'static str)
   where
-    T::State: Serde,
-    T::Action: Serde,
+    T::State: DeserializeOwned,
+    T::Action: DeserializeOwned,
   {
     assert!(!self.joinable.contains_key(name));
     assert!(!self.delta_joinable.contains_key(name));

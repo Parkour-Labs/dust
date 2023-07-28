@@ -1,11 +1,9 @@
 use rand::Rng;
 use rusqlite::Connection;
+use serde::{de::DeserializeOwned, ser::Serialize};
 use std::{cell::RefCell, collections::HashMap};
 
-use super::{
-  vector_history::{VectorHistory, VectorHistoryStore},
-  Serde,
-};
+use super::vector_history::{VectorHistory, VectorHistoryStore};
 use crate::joinable::{ByMax, Clock, State};
 
 struct MockVectorHistoryStore {
@@ -231,7 +229,7 @@ fn vector_history_random_core<T: State, S: VectorHistoryStore>(
   action_eq: impl Fn(T::Action, T::Action) -> bool,
   store: S,
 ) where
-  T::Action: Clone + Serde,
+  T::Action: Clone + Serialize + DeserializeOwned,
 {
   let mut history = VectorHistory::new(&store, "");
   let mut mock = MockVectorHistory::new();

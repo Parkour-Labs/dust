@@ -1,19 +1,20 @@
 //! A *persistent* last-writer-win register.
 
 use rusqlite::{OptionalExtension, Transaction};
+use serde::{de::DeserializeOwned, ser::Serialize};
 
 use crate::joinable::{crdt as jcrdt, Clock, Joinable};
 use crate::joinable::{Minimum, State};
-use crate::persistent::{PersistentJoinable, PersistentState, Serde};
+use crate::persistent::{PersistentJoinable, PersistentState};
 
 /// A *persistent* last-writer-win register.
-pub struct Register<T: Minimum + Serde> {
+pub struct Register<T: Minimum + Serialize + DeserializeOwned> {
   inner: jcrdt::Register<T>,
   collection: &'static str,
   name: &'static str,
 }
 
-impl<T: Minimum + Serde> Register<T> {
+impl<T: Minimum + Serialize + DeserializeOwned> Register<T> {
   /// Creates or loads data.
   pub fn new(txn: &Transaction, collection: &'static str, name: &'static str) -> Self {
     txn
@@ -68,7 +69,7 @@ CREATE TABLE IF NOT EXISTS \"{collection}.{name}\" (
   }
 }
 
-impl<T: Minimum + Serde> PersistentState for Register<T> {
+impl<T: Minimum + Serialize + DeserializeOwned> PersistentState for Register<T> {
   type State = jcrdt::Register<T>;
   type Action = <Self::State as State>::Action;
 
@@ -90,7 +91,7 @@ impl<T: Minimum + Serde> PersistentState for Register<T> {
   }
 }
 
-impl<T: Minimum + Serde> PersistentJoinable for Register<T> {
+impl<T: Minimum + Serialize + DeserializeOwned> PersistentJoinable for Register<T> {
   fn preq(&mut self, _txn: &Transaction, t: &Self::State) -> bool {
     self.inner.preq(t)
   }

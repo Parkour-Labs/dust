@@ -4,17 +4,17 @@ use rusqlite::{OptionalExtension, Transaction};
 use std::collections::HashSet;
 
 use crate::joinable::{crdt as jcrdt, Clock, GammaJoinable, Joinable, State};
-use crate::persistent::{PersistentGammaJoinable, PersistentJoinable, PersistentState, Serde};
+use crate::persistent::{PersistentGammaJoinable, PersistentJoinable, PersistentState};
 
 /// A *persistent* last-writer-win element map.
-pub struct ObjectSet<T: Ord + Serde> {
-  inner: jcrdt::ObjectSet<T>,
+pub struct ObjectSet {
+  inner: jcrdt::ObjectSet,
   loaded: HashSet<u128>,
   collection: &'static str,
   name: &'static str,
 }
 
-impl<T: Ord + Serde> ObjectSet<T> {
+impl ObjectSet {
   /// Creates or loads data.
   pub fn new(txn: &Transaction, collection: &'static str, name: &'static str) -> Self {
     txn
@@ -42,11 +42,8 @@ CREATE TABLE IF NOT EXISTS \"{collection}.{name}\" (
         .unwrap()
         .query_row((id.to_be_bytes(),), |row| {
           let clock = row.get(0).unwrap();
-          let value = row.get_ref(1).unwrap().as_blob_or_null().unwrap();
-          Ok(jcrdt::Register::from(
-            Clock::from_be_bytes(clock),
-            value.map(|value| postcard::from_bytes(value).unwrap()),
-          ))
+          let value = row.get(1).unwrap();
+          Ok(jcrdt::Register::from(Clock::from_be_bytes(clock), value))
         })
         .optional()
         .unwrap();
@@ -62,11 +59,7 @@ CREATE TABLE IF NOT EXISTS \"{collection}.{name}\" (
       txn
         .prepare_cached(&format!("REPLACE INTO \"{col}.{name}\" VALUES (?, ?, ?)"))
         .unwrap()
-        .execute((
-          id.to_be_bytes(),
-          elem.clock().to_u128().to_be_bytes(),
-          elem.value().as_ref().map(|value| postcard::to_allocvec(value).unwrap()),
-        ))
+        .execute((id.to_be_bytes(), elem.clock().to_u128().to_be_bytes(), elem.value()))
         .unwrap();
     }
   }
@@ -78,13 +71,13 @@ CREATE TABLE IF NOT EXISTS \"{collection}.{name}\" (
   }
 
   /// Obtains reference to element.
-  pub fn get(&mut self, txn: &Transaction, id: u128) -> Option<&T> {
+  pub fn get(&mut self, txn: &Transaction, id: u128) -> Option<&[u8]> {
     self.load(txn, id);
     self.inner.get(id)
   }
 
   /// Makes modification of element.
-  pub fn action(clock: Clock, id: u128, value: Option<T>) -> <Self as PersistentState>::Action {
+  pub fn action(clock: Clock, id: u128, value: Option<Vec<u8>>) -> <Self as PersistentState>::Action {
     jcrdt::ObjectSet::action(clock, id, value)
   }
 
@@ -112,8 +105,8 @@ CREATE TABLE IF NOT EXISTS \"{collection}.{name}\" (
   }
 }
 
-impl<T: Ord + Serde> PersistentState for ObjectSet<T> {
-  type State = jcrdt::ObjectSet<T>;
+impl PersistentState for ObjectSet {
+  type State = jcrdt::ObjectSet;
   type Action = <Self::State as State>::Action;
 
   fn initial(txn: &Transaction, col: &'static str, name: &'static str) -> Self {
@@ -136,7 +129,7 @@ impl<T: Ord + Serde> PersistentState for ObjectSet<T> {
   }
 }
 
-impl<T: Ord + Serde> PersistentJoinable for ObjectSet<T> {
+impl PersistentJoinable for ObjectSet {
   fn preq(&mut self, txn: &Transaction, t: &Self::State) -> bool {
     self.loads(txn, t.inner.keys().copied());
     self.inner.preq(t)
@@ -150,7 +143,7 @@ impl<T: Ord + Serde> PersistentJoinable for ObjectSet<T> {
   }
 }
 
-impl<T: Ord + Serde> PersistentGammaJoinable for ObjectSet<T> {
+impl PersistentGammaJoinable for ObjectSet {
   fn gamma_join(&mut self, txn: &Transaction, a: Self::Action) {
     let ids: Vec<u128> = a.keys().copied().collect();
     self.loads(txn, ids.iter().copied());
