@@ -4,7 +4,9 @@ use rusqlite::Transaction;
 use serde::{de::DeserializeOwned, ser::Serialize};
 
 use crate::joinable::{Clock, Minimum};
-use crate::observable::{Aggregator, ObservableGammaJoinable, ObservableJoinable, ObservableState, Port};
+use crate::observable::{
+  Aggregator, ObservablePersistentGammaJoinable, ObservablePersistentJoinable, ObservablePersistentState, Port,
+};
 use crate::persistent::{crdt as pcrdt, PersistentJoinable, PersistentState};
 
 /// An *observable* and *persistent* last-writer-win register.
@@ -35,13 +37,19 @@ impl<T: Minimum + Clone + Serialize + DeserializeOwned> Register<T> {
   }
 
   /// Makes modification.
-  pub fn action(clock: Clock, value: T) -> <Self as ObservableState>::Action {
+  pub fn action(clock: Clock, value: T) -> <Self as ObservablePersistentState>::Action {
     pcrdt::Register::action(clock, value)
   }
 
   /// Adds observer.
-  pub fn subscribe(&mut self, port: Port) {
+  pub fn subscribe(
+    &mut self,
+    _txn: &mut Transaction,
+    ctx: &mut <Self as ObservablePersistentState>::Context,
+    port: Port,
+  ) {
     self.subscriptions.push(port);
+    ctx.push(port, self.value().clone());
   }
 
   /// Removes observer.
@@ -49,15 +57,14 @@ impl<T: Minimum + Clone + Serialize + DeserializeOwned> Register<T> {
     self.subscriptions.retain(|&x| x != port);
   }
 
-  /// Notifies all observers.
-  pub fn notifies(&self, ctx: &mut <Self as ObservableState>::Context) {
+  fn notifies(&self, ctx: &mut <Self as ObservablePersistentState>::Context) {
     for &port in &self.subscriptions {
-      ctx.push(port, self.inner.value().clone());
+      ctx.push(port, self.value().clone());
     }
   }
 }
 
-impl<T: Minimum + Clone + Serialize + DeserializeOwned> ObservableState for Register<T> {
+impl<T: Minimum + Clone + Serialize + DeserializeOwned> ObservablePersistentState for Register<T> {
   type State = <pcrdt::Register<T> as PersistentState>::State;
   type Action = <pcrdt::Register<T> as PersistentState>::Action;
   type Context = Aggregator<T>;
@@ -80,7 +87,7 @@ impl<T: Minimum + Clone + Serialize + DeserializeOwned> ObservableState for Regi
   }
 }
 
-impl<T: Minimum + Clone + Serialize + DeserializeOwned> ObservableJoinable for Register<T> {
+impl<T: Minimum + Clone + Serialize + DeserializeOwned> ObservablePersistentJoinable for Register<T> {
   fn preq(&mut self, txn: &mut Transaction, _ctx: &mut Self::Context, t: &Self::State) -> bool {
     self.inner.preq(txn, t)
   }
@@ -91,4 +98,4 @@ impl<T: Minimum + Clone + Serialize + DeserializeOwned> ObservableJoinable for R
   }
 }
 
-impl<T: Minimum + Clone + Serialize + DeserializeOwned> ObservableGammaJoinable for Register<T> {}
+impl<T: Minimum + Clone + Serialize + DeserializeOwned> ObservablePersistentGammaJoinable for Register<T> {}

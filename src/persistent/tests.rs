@@ -1,7 +1,7 @@
 use rand::Rng;
 use rusqlite::Connection;
 use serde::{de::DeserializeOwned, ser::Serialize};
-use std::{cell::RefCell, collections::HashMap};
+use std::collections::HashMap;
 
 use super::vector_history::{VectorHistory, VectorHistoryStore};
 use crate::joinable::{ByMax, Clock, State};
@@ -11,23 +11,25 @@ struct MockVectorHistoryStore {
   data: Vec<(u128, Clock, String, Vec<u8>)>,
 }
 
-impl VectorHistoryStore for RefCell<MockVectorHistoryStore> {
-  fn init(&self, _name: &str) {}
-  fn get_replicas(&self, _name: &str) -> Vec<u128> {
-    self.borrow().replicas.clone()
+impl VectorHistoryStore for MockVectorHistoryStore {
+  fn init(&mut self, _name: &str) {}
+
+  fn get_replicas(&mut self, _name: &str) -> Vec<u128> {
+    self.replicas.clone()
   }
-  fn put_replica(&self, _name: &str, replica: u128) {
-    self.borrow_mut().replicas.push(replica);
+
+  fn put_replica(&mut self, _name: &str, replica: u128) {
+    self.replicas.push(replica);
   }
+
   fn get_by_replica_clock_range(
-    &self,
+    &mut self,
     _name: &str,
     replica: u128,
     lower: Option<Clock>,
     upper: Clock,
   ) -> Vec<(Clock, String, Vec<u8>)> {
     let mut res: Vec<(Clock, String, Vec<u8>)> = self
-      .borrow()
       .data
       .iter()
       .filter(|(r, c, _, _)| *r == replica && Some(*c) > lower && *c <= upper)
@@ -36,17 +38,18 @@ impl VectorHistoryStore for RefCell<MockVectorHistoryStore> {
     res.sort_unstable_by_key(|(c, _, _)| *c);
     res
   }
-  fn get_by_replica_clock_max(&self, _name: &str, replica: u128) -> Option<(Clock, String, Vec<u8>)> {
+
+  fn get_by_replica_clock_max(&mut self, _name: &str, replica: u128) -> Option<(Clock, String, Vec<u8>)> {
     self
-      .borrow()
       .data
       .iter()
       .filter(|(r, _, _, _)| *r == replica)
       .max_by_key(|(_, c, _, _)| *c)
       .map(|(_, c, n, a)| (*c, n.clone(), a.clone()))
   }
-  fn put_by_replica(&self, _name: &str, replica: u128, item: (Clock, String, Vec<u8>)) {
-    self.borrow_mut().data.push((replica, item.0, item.1, item.2));
+
+  fn put_by_replica(&mut self, _name: &str, replica: u128, item: (Clock, &str, &[u8])) {
+    self.data.push((replica, item.0, String::from(item.1), Vec::from(item.2)));
   }
 }
 
@@ -64,22 +67,22 @@ macro_rules! string {
 
 #[test]
 fn vector_history_push_simple() {
-  let store = RefCell::new(MockVectorHistoryStore { replicas: Vec::new(), data: Vec::new() });
-  let mut history = VectorHistory::new(&store, "");
-  history.assert_invariants(&store);
+  let mut store = MockVectorHistoryStore { replicas: Vec::new(), data: Vec::new() };
+  let mut history = VectorHistory::new(&mut store, "");
+  history.assert_invariants(&mut store);
 
-  assert!(history.push(&store, 1, clock!(3), string!(""), vec![1]));
-  assert!(!history.push(&store, 1, clock!(2), string!(""), vec![2]));
-  assert!(!history.push(&store, 1, clock!(3), string!(""), vec![3]));
-  assert!(history.push(&store, 1, clock!(4), string!(""), vec![4]));
-  assert!(history.push(&store, 1, clock!(5), string!(""), vec![5]));
-  assert!(history.push(&store, 1, clock!(6), string!(""), vec![6]));
-  assert!(history.push(&store, 2, clock!(3), string!(""), vec![7]));
-  assert!(!history.push(&store, 2, clock!(2), string!(""), vec![8]));
-  history.assert_invariants(&store);
+  assert!(history.push(&mut store, (1, clock!(3), string!(""), vec![1])).is_some());
+  assert!(history.push(&mut store, (1, clock!(2), string!(""), vec![2])).is_none());
+  assert!(history.push(&mut store, (1, clock!(3), string!(""), vec![3])).is_none());
+  assert!(history.push(&mut store, (1, clock!(4), string!(""), vec![4])).is_some());
+  assert!(history.push(&mut store, (1, clock!(5), string!(""), vec![5])).is_some());
+  assert!(history.push(&mut store, (1, clock!(6), string!(""), vec![6])).is_some());
+  assert!(history.push(&mut store, (2, clock!(3), string!(""), vec![7])).is_some());
+  assert!(history.push(&mut store, (2, clock!(2), string!(""), vec![8])).is_none());
+  history.assert_invariants(&mut store);
 
   assert_eq!(
-    store.borrow().data,
+    store.data,
     vec![
       (1, clock!(3), string!(""), vec![1]),
       (1, clock!(4), string!(""), vec![4]),
@@ -92,7 +95,7 @@ fn vector_history_push_simple() {
 
 #[test]
 fn vector_history_load_unload_collect_simple() {
-  let store = RefCell::new(MockVectorHistoryStore {
+  let mut store = MockVectorHistoryStore {
     replicas: vec![1, 2, 3, 4],
     data: vec![
       (1, clock!(3), string!(""), vec![1]),
@@ -104,18 +107,18 @@ fn vector_history_load_unload_collect_simple() {
       (2, clock!(6), string!(""), vec![7]),
       (3, clock!(5), string!(""), vec![8]),
     ],
-  });
-  let mut history = VectorHistory::new(&store, "");
-  history.assert_invariants(&store);
+  };
+  let mut history = VectorHistory::new(&mut store, "");
+  history.assert_invariants(&mut store);
   assert_eq!(history.latest(), Some(clock!(6)));
 
-  assert!(!history.push(&store, 1, clock!(4), string!(""), vec![9]));
-  assert!(!history.push(&store, 1, clock!(6), string!(""), vec![9]));
-  assert!(!history.push(&store, 3, clock!(4), string!(""), vec![9]));
-  assert!(history.push(&store, 3, clock!(6), string!(""), vec![9]));
-  assert!(history.push(&store, 5, clock!(7), string!(""), vec![10]));
+  assert!(history.push(&mut store, (1, clock!(4), string!(""), vec![9])).is_none());
+  assert!(history.push(&mut store, (1, clock!(6), string!(""), vec![9])).is_none());
+  assert!(history.push(&mut store, (3, clock!(4), string!(""), vec![9])).is_none());
+  assert!(history.push(&mut store, (3, clock!(6), string!(""), vec![9])).is_some());
+  assert!(history.push(&mut store, (5, clock!(7), string!(""), vec![10])).is_some());
   assert_eq!(history.latest(), Some(clock!(7)));
-  history.assert_invariants(&store);
+  history.assert_invariants(&mut store);
 
   history.unload_until(
     vec![
@@ -128,12 +131,12 @@ fn vector_history_load_unload_collect_simple() {
     ]
     .as_slice(),
   );
-  history.assert_invariants(&store);
+  history.assert_invariants(&mut store);
   assert_eq!(history.latest(), Some(clock!(7)));
 
   assert_eq!(
     {
-      let mut lhs = history.collect(&store, HashMap::from([(1, Some(clock!(3))), (2, Some(clock!(3)))]));
+      let mut lhs = history.collect(&mut store, HashMap::from([(1, Some(clock!(3))), (2, Some(clock!(3)))]));
       lhs.sort_by_key(|(replica, _, _, _)| *replica);
       lhs
     },
@@ -149,11 +152,11 @@ fn vector_history_load_unload_collect_simple() {
     ]
   );
   assert_eq!(history.latest(), Some(clock!(7)));
-  history.assert_invariants(&store);
+  history.assert_invariants(&mut store);
 
   assert_eq!(
     {
-      let mut lhs = history.collect(&store, HashMap::from([(1, Some(clock!(2))), (2, Some(clock!(2)))]));
+      let mut lhs = history.collect(&mut store, HashMap::from([(1, Some(clock!(2))), (2, Some(clock!(2)))]));
       lhs.sort_by_key(|(replica, _, _, _)| *replica);
       lhs
     },
@@ -171,7 +174,7 @@ fn vector_history_load_unload_collect_simple() {
     ]
   );
   assert_eq!(history.latest(), Some(clock!(7)));
-  history.assert_invariants(&store);
+  history.assert_invariants(&mut store);
 }
 
 struct MockVectorHistory {
@@ -191,14 +194,14 @@ impl MockVectorHistory {
     self.data.values().fold(None, |acc, entry| acc.max(entry.last().map(|(fst, _, _)| *fst)))
   }
 
-  fn push(&mut self, item: (u128, Clock, String, Vec<u8>)) -> bool {
-    let (replica, clock, name, action) = item;
+  fn push(&mut self, item: (u128, Clock, String, Vec<u8>)) -> Option<(u128, Clock, String, Vec<u8>)> {
+    let (replica, clock, name, action) = item.clone();
     let entry = self.data.entry(replica).or_insert_with(Vec::new);
     if entry.last().map(|(fst, _, _)| *fst) < Some(clock) {
       entry.push((clock, name, action));
-      true
+      Some(item)
     } else {
-      false
+      None
     }
   }
 
@@ -227,17 +230,17 @@ fn random_option_clock() -> Option<Clock> {
 fn vector_history_random_core<T: State, S: VectorHistoryStore>(
   mut rand_action: impl FnMut() -> T::Action,
   action_eq: impl Fn(T::Action, T::Action) -> bool,
-  store: S,
+  mut store: S,
 ) where
   T::Action: Clone + Serialize + DeserializeOwned,
 {
-  let mut history = VectorHistory::new(&store, "");
+  let mut history = VectorHistory::new(&mut store, "");
   let mut mock = MockVectorHistory::new();
   let mut rng = rand::thread_rng();
 
   for _ in 0..1000 {
     match rng.gen_range(0..=6) {
-      0 => history = VectorHistory::new(&store, ""),
+      0 => history = VectorHistory::new(&mut store, ""),
       1 => {
         let mut lhs = history.latests();
         let mut rhs = mock.clocks();
@@ -248,13 +251,13 @@ fn vector_history_random_core<T: State, S: VectorHistoryStore>(
       2 => assert_eq!(history.latest(), mock.clock()),
       3 => {
         let begins = mock.data.keys().map(|key| (*key, random_option_clock())).collect::<Vec<_>>();
-        history.load_until(&store, &begins);
-        history.assert_invariants(&store);
+        history.load_until(&mut store, &begins);
+        history.assert_invariants(&mut store);
       }
       4 => {
         let begins = mock.data.keys().map(|key| (*key, random_option_clock())).collect::<Vec<_>>();
         history.unload_until(&begins);
-        history.assert_invariants(&store);
+        history.assert_invariants(&mut store);
       }
       5 => {
         let replica = rng.gen_range(0..10);
@@ -262,14 +265,14 @@ fn vector_history_random_core<T: State, S: VectorHistoryStore>(
         let name = String::from("");
         let action = rand_action();
         assert_eq!(
-          history.push(&store, replica, clock, name.clone(), postcard::to_allocvec(&action).unwrap()),
-          mock.push((replica, clock, name, postcard::to_allocvec(&action).unwrap()))
+          history.push(&mut store, (replica, clock, name.clone(), postcard::to_allocvec(&action).unwrap())).is_some(),
+          mock.push((replica, clock, name, postcard::to_allocvec(&action).unwrap())).is_some()
         );
-        history.assert_invariants(&store);
+        history.assert_invariants(&mut store);
       }
       6 => {
         let clocks = mock.data.keys().map(|key| (*key, random_option_clock())).collect::<HashMap<_, _>>();
-        let mut lhs = history.collect(&store, clocks.clone());
+        let mut lhs = history.collect(&mut store, clocks.clone());
         let mut rhs = mock.actions(clocks.clone());
         lhs.sort_by_key(|(fst, snd, _, _)| (*fst, *snd));
         rhs.sort_by_key(|(fst, snd, _, _)| (*fst, *snd));

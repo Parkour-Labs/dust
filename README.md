@@ -26,8 +26,7 @@ Hopefully this will enable us to develop countless mobile apps (with seamless da
 4. Decide how your data structure will be stored in a local database (bulk-load vs. lazy-load, etc.)
 5. Wrap your structure in a new type and implement the `persistent::{PersistentState, PersistentJoinable}` traits.
 6. Decide how changes to your data structure will be delivered to external observers (coarse-grained vs. fine-grained, etc.)
-7. Wrap your structure in a new type and implement the `observable::Observable` trait.
-   - The new type should also implement `joinable::Joinable` and `joinable::GammaJoinable` by delegating calls. In `joinable::{State::apply, Joinable::join, GammaJoinable::gamma_join}`, calculate a "change set" from the current state and incoming action, and use it to determine which observers should be notified.
+7. Wrap your structure in a new type and implement the `observable::{ObservablePersistentState, ObservablePersistentJoinable}` traits.
 
 ## Implementing new OTDTs
 

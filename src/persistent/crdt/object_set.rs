@@ -81,24 +81,19 @@ CREATE TABLE IF NOT EXISTS \"{collection}.{name}\" (
     jcrdt::ObjectSet::action(clock, id, value)
   }
 
-  pub fn loads(&mut self, txn: &mut Transaction, ids: impl Iterator<Item = u128>) {
+  fn loads(&mut self, txn: &mut Transaction, ids: impl Iterator<Item = u128>) {
     for id in ids {
       self.load(txn, id);
     }
   }
 
-  pub fn saves(&mut self, txn: &mut Transaction, ids: impl Iterator<Item = u128>) {
+  fn saves(&mut self, txn: &mut Transaction, ids: impl Iterator<Item = u128>) {
     for id in ids {
       self.save(txn, id);
     }
   }
 
-  pub fn unloads(&mut self, ids: impl Iterator<Item = u128>) {
-    for id in ids {
-      self.unload(id);
-    }
-  }
-
+  /// Frees memory.
   pub fn free(&mut self) {
     self.inner = jcrdt::ObjectSet::new();
     self.loaded = HashSet::new();

@@ -5,7 +5,9 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
 use crate::joinable::Clock;
-use crate::observable::{Aggregator, ObservableGammaJoinable, ObservableJoinable, ObservableState, Port};
+use crate::observable::{
+  Aggregator, ObservablePersistentGammaJoinable, ObservablePersistentJoinable, ObservablePersistentState, Port,
+};
 use crate::persistent::{crdt as pcrdt, PersistentJoinable, PersistentState};
 
 /// An *observable* and *persistent* last-writer-win element map.
@@ -41,29 +43,25 @@ impl ObjectSet {
   }
 
   /// Makes modification of element.
-  pub fn action(clock: Clock, id: u128, value: Option<Vec<u8>>) -> <Self as ObservableState>::Action {
+  pub fn action(clock: Clock, id: u128, value: Option<Vec<u8>>) -> <Self as ObservablePersistentState>::Action {
     pcrdt::ObjectSet::action(clock, id, value)
   }
 
-  pub fn loads(&mut self, txn: &mut Transaction, ids: impl Iterator<Item = u128>) {
-    self.inner.loads(txn, ids)
-  }
-
-  pub fn saves(&mut self, txn: &mut Transaction, ids: impl Iterator<Item = u128>) {
-    self.inner.saves(txn, ids)
-  }
-
-  pub fn unloads(&mut self, ids: impl Iterator<Item = u128>) {
-    self.inner.unloads(ids)
-  }
-
+  /// Frees memory.
   pub fn free(&mut self) {
     self.inner.free()
   }
 
   /// Adds observer.
-  pub fn subscribe(&mut self, id: u128, port: Port) {
+  pub fn subscribe(
+    &mut self,
+    txn: &mut Transaction,
+    ctx: &mut <Self as ObservablePersistentState>::Context,
+    id: u128,
+    port: Port,
+  ) {
     self.subscriptions.entry(id).or_default().push(port);
+    ctx.push(port, self.get(txn, id).map(Vec::from));
   }
 
   /// Removes observer.
@@ -76,8 +74,7 @@ impl ObjectSet {
     }
   }
 
-  /// Notifies given observers.
-  pub fn notifies(&mut self, txn: &mut Transaction, ctx: &mut <Self as ObservableState>::Context, ids: &[u128]) {
+  fn notifies(&mut self, txn: &mut Transaction, ctx: &mut <Self as ObservablePersistentState>::Context, ids: &[u128]) {
     for &id in ids {
       if let Some(ports) = self.subscriptions.get(&id) {
         for &port in ports {
@@ -88,7 +85,7 @@ impl ObjectSet {
   }
 }
 
-impl ObservableState for ObjectSet {
+impl ObservablePersistentState for ObjectSet {
   type State = <pcrdt::ObjectSet as PersistentState>::State;
   type Action = <pcrdt::ObjectSet as PersistentState>::Action;
   type Context = Aggregator<Option<Vec<u8>>>;
@@ -112,7 +109,7 @@ impl ObservableState for ObjectSet {
   }
 }
 
-impl ObservableJoinable for ObjectSet {
+impl ObservablePersistentJoinable for ObjectSet {
   fn preq(&mut self, txn: &mut Transaction, _ctx: &mut Self::Context, t: &Self::State) -> bool {
     self.inner.preq(txn, t)
   }
@@ -124,4 +121,4 @@ impl ObservableJoinable for ObjectSet {
   }
 }
 
-impl ObservableGammaJoinable for ObjectSet {}
+impl ObservablePersistentGammaJoinable for ObjectSet {}

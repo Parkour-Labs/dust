@@ -204,33 +204,25 @@ CREATE INDEX IF NOT EXISTS \"{collection}.{name}.edges.idx_label_dst\" ON \"{col
     jcrdt::ObjectGraph::action_edge(clock, id, value)
   }
 
-  pub fn loads(&mut self, txn: &Transaction, ns: impl Iterator<Item = u128>, es: impl Iterator<Item = u128>) {
-    for id in ns {
+  fn loads(&mut self, txn: &Transaction, nodes: impl Iterator<Item = u128>, edges: impl Iterator<Item = u128>) {
+    for id in nodes {
       self.load_node(txn, id);
     }
-    for id in es {
+    for id in edges {
       self.load_edge(txn, id);
     }
   }
 
-  pub fn saves(&mut self, txn: &Transaction, ns: impl Iterator<Item = u128>, es: impl Iterator<Item = u128>) {
-    for id in ns {
+  fn saves(&mut self, txn: &Transaction, nodes: impl Iterator<Item = u128>, edges: impl Iterator<Item = u128>) {
+    for id in nodes {
       self.save_node(txn, id);
     }
-    for id in es {
+    for id in edges {
       self.save_edge(txn, id);
     }
   }
 
-  pub fn unloads(&mut self, ns: impl Iterator<Item = u128>, es: impl Iterator<Item = u128>) {
-    for id in ns {
-      self.unload_node(id);
-    }
-    for id in es {
-      self.unload_edge(id);
-    }
-  }
-
+  /// Frees memory.
   pub fn free(&mut self) {
     self.inner = jcrdt::ObjectGraph::new();
     self.loaded = (HashSet::new(), HashSet::new());
@@ -246,11 +238,11 @@ impl PersistentState for ObjectGraph {
   }
 
   fn apply(&mut self, txn: &mut Transaction, a: Self::Action) {
-    let ns: Vec<u128> = a.0.keys().copied().collect();
-    let es: Vec<u128> = a.1.keys().copied().collect();
-    self.loads(txn, ns.iter().copied(), es.iter().copied());
+    let nodes: Vec<u128> = a.0.keys().copied().collect();
+    let edges: Vec<u128> = a.1.keys().copied().collect();
+    self.loads(txn, nodes.iter().copied(), edges.iter().copied());
     self.inner.apply(a);
-    self.saves(txn, ns.into_iter(), es.into_iter());
+    self.saves(txn, nodes.into_iter(), edges.into_iter());
   }
 
   fn id() -> Self::Action {
@@ -269,11 +261,11 @@ impl PersistentJoinable for ObjectGraph {
   }
 
   fn join(&mut self, txn: &mut Transaction, t: Self::State) {
-    let ns: Vec<u128> = t.inner.0.keys().copied().collect();
-    let es: Vec<u128> = t.inner.1.keys().copied().collect();
-    self.loads(txn, ns.iter().copied(), es.iter().copied());
+    let nodes: Vec<u128> = t.inner.0.keys().copied().collect();
+    let edges: Vec<u128> = t.inner.1.keys().copied().collect();
+    self.loads(txn, nodes.iter().copied(), edges.iter().copied());
     self.inner.join(t);
-    self.saves(txn, ns.into_iter(), es.into_iter());
+    self.saves(txn, nodes.into_iter(), edges.into_iter());
   }
 }
 

@@ -2,7 +2,7 @@ pub mod crdt;
 
 use rusqlite::Transaction;
 
-pub trait ObservableState {
+pub trait ObservablePersistentState {
   type State;
   type Action;
   type Context;
@@ -12,18 +12,23 @@ pub trait ObservableState {
   fn comp(a: Self::Action, b: Self::Action) -> Self::Action;
 }
 
-pub trait ObservableJoinable: ObservableState {
+pub trait ObservablePersistentJoinable: ObservablePersistentState {
   fn preq(&mut self, txn: &mut Transaction, ctx: &mut Self::Context, t: &Self::State) -> bool;
   fn join(&mut self, txn: &mut Transaction, ctx: &mut Self::Context, t: Self::State);
 }
 
-pub trait ObservableGammaJoinable: ObservableJoinable {
+pub trait ObservablePersistentGammaJoinable: ObservablePersistentJoinable {
   fn gamma_join(&mut self, txn: &mut Transaction, ctx: &mut Self::Context, a: Self::Action) {
     self.apply(txn, ctx, a);
   }
 }
 
 pub type Port = u64;
+
+pub enum SetEvent<T> {
+  Insert(T),
+  Remove(T),
+}
 
 pub struct Aggregator<T> {
   events: Vec<(Port, T)>,
