@@ -1,18 +1,10 @@
-/.vscode
-/target
-
-
-# Added by cargo
-#
-# already existing elements were commented out
-
-#/target
-/Cargo.lock
-
-
-# Added by cargo
-#
-# already existing elements were commented out
-
-#/target
-#/Cargo.lock
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
