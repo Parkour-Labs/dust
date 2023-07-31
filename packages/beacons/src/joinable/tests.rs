@@ -1,4 +1,3 @@
-use std::fmt::Debug;
 use std::num::Wrapping;
 
 use super::*;
@@ -32,10 +31,10 @@ fn rand_string(len: usize) -> String {
   res
 }
 
-pub fn assert_joinable<T: Joinable + Debug + Clone>(
+pub fn assert_joinable<T: Joinable + Clone>(
   mut rand_state: impl FnMut() -> T,
   mut rand_action: impl FnMut() -> T::Action,
-  state_eq: impl Fn(T, T) -> bool,
+  mut state_eq: impl FnMut(T, T) -> bool,
   count: usize,
 ) where
   T::Action: Clone,
@@ -69,10 +68,10 @@ pub fn assert_joinable<T: Joinable + Debug + Clone>(
   }
 }
 
-pub fn assert_delta_joinable<T: DeltaJoinable + Debug + Clone + Eq>(
+pub fn assert_delta_joinable<T: DeltaJoinable + Clone>(
   mut rand_state: impl FnMut() -> T,
   mut rand_action: impl FnMut() -> T::Action,
-  state_eq: impl Fn(T, T) -> bool,
+  mut state_eq: impl FnMut(T, T) -> bool,
   count: usize,
 ) where
   T::Action: Clone,
@@ -90,10 +89,10 @@ pub fn assert_delta_joinable<T: DeltaJoinable + Debug + Clone + Eq>(
   }
 }
 
-pub fn assert_gamma_joinable<T: GammaJoinable + Debug + Clone + Eq>(
+pub fn assert_gamma_joinable<T: GammaJoinable + Clone>(
   mut rand_state: impl FnMut() -> T,
   mut rand_action: impl FnMut() -> T::Action,
-  state_eq: impl Fn(T, T) -> bool,
+  mut state_eq: impl FnMut(T, T) -> bool,
   count: usize,
 ) where
   T::Action: Clone,

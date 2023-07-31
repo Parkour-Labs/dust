@@ -53,13 +53,7 @@ impl ObjectSet {
   }
 
   /// Adds observer.
-  pub fn subscribe(
-    &mut self,
-    txn: &mut Transaction,
-    ctx: &mut <Self as ObservablePersistentState>::Context,
-    id: u128,
-    port: Port,
-  ) {
+  pub fn subscribe(&mut self, txn: &mut Transaction, ctx: &mut Aggregator<Option<Vec<u8>>>, id: u128, port: Port) {
     self.subscriptions.entry(id).or_default().push(port);
     ctx.push(port, self.get(txn, id).map(Vec::from));
   }
@@ -74,7 +68,7 @@ impl ObjectSet {
     }
   }
 
-  fn notifies(&mut self, txn: &mut Transaction, ctx: &mut <Self as ObservablePersistentState>::Context, ids: &[u128]) {
+  fn notifies(&mut self, txn: &mut Transaction, ctx: &mut Aggregator<Option<Vec<u8>>>, ids: &[u128]) {
     for &id in ids {
       if let Some(ports) = self.subscriptions.get(&id) {
         for &port in ports {
@@ -88,13 +82,14 @@ impl ObjectSet {
 impl ObservablePersistentState for ObjectSet {
   type State = <pcrdt::ObjectSet as PersistentState>::State;
   type Action = <pcrdt::ObjectSet as PersistentState>::Action;
-  type Context = Aggregator<Option<Vec<u8>>>;
+  type Transaction<'a> = Transaction<'a>;
+  type Context<'a> = Aggregator<Option<Vec<u8>>>;
 
   fn initial(txn: &mut Transaction, collection: &'static str, name: &'static str) -> Self {
     Self::new(txn, collection, name)
   }
 
-  fn apply(&mut self, txn: &mut Transaction, ctx: &mut Self::Context, a: Self::Action) {
+  fn apply(&mut self, txn: &mut Transaction, ctx: &mut Aggregator<Option<Vec<u8>>>, a: Self::Action) {
     let ids: Vec<u128> = a.keys().copied().collect();
     self.inner.apply(txn, a);
     self.notifies(txn, ctx, &ids);
@@ -110,11 +105,11 @@ impl ObservablePersistentState for ObjectSet {
 }
 
 impl ObservablePersistentJoinable for ObjectSet {
-  fn preq(&mut self, txn: &mut Transaction, _ctx: &mut Self::Context, t: &Self::State) -> bool {
+  fn preq(&mut self, txn: &mut Transaction, _ctx: &mut Aggregator<Option<Vec<u8>>>, t: &Self::State) -> bool {
     self.inner.preq(txn, t)
   }
 
-  fn join(&mut self, txn: &mut Transaction, ctx: &mut Self::Context, t: Self::State) {
+  fn join(&mut self, txn: &mut Transaction, ctx: &mut Aggregator<Option<Vec<u8>>>, t: Self::State) {
     let ids: Vec<u128> = t.inner.keys().copied().collect();
     self.inner.join(txn, t);
     self.notifies(txn, ctx, &ids);

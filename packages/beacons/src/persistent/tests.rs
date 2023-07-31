@@ -12,7 +12,9 @@ struct MockVectorHistoryStore {
 }
 
 impl VectorHistoryStore for MockVectorHistoryStore {
-  fn init(&mut self, _name: &str) {}
+  fn init(&mut self, _name: &str) -> u128 {
+    rand::thread_rng().gen()
+  }
 
   fn get_replicas(&mut self, _name: &str) -> Vec<u128> {
     self.replicas.clone()
@@ -50,6 +52,47 @@ impl VectorHistoryStore for MockVectorHistoryStore {
 
   fn put_by_replica(&mut self, _name: &str, replica: u128, item: (Clock, &str, &[u8])) {
     self.data.push((replica, item.0, String::from(item.1), Vec::from(item.2)));
+  }
+}
+
+struct MockVectorHistory {
+  data: HashMap<u128, Vec<(Clock, String, Vec<u8>)>>,
+}
+
+impl MockVectorHistory {
+  fn new() -> Self {
+    Self { data: HashMap::new() }
+  }
+
+  fn clocks(&self) -> HashMap<u128, Option<Clock>> {
+    self.data.iter().map(|(replica, entry)| (*replica, entry.last().map(|(fst, _, _)| *fst))).collect()
+  }
+
+  fn clock(&self) -> Option<Clock> {
+    self.data.values().fold(None, |acc, entry| acc.max(entry.last().map(|(fst, _, _)| *fst)))
+  }
+
+  fn push(&mut self, item: (u128, Clock, String, Vec<u8>)) -> Option<(u128, Clock, String, Vec<u8>)> {
+    let (replica, clock, name, action) = item.clone();
+    let entry = self.data.entry(replica).or_insert_with(Vec::new);
+    if entry.last().map(|(fst, _, _)| *fst) < Some(clock) {
+      entry.push((clock, name, action));
+      Some(item)
+    } else {
+      None
+    }
+  }
+
+  fn actions(&mut self, mut clocks: HashMap<u128, Option<Clock>>) -> Vec<(u128, Clock, String, Vec<u8>)> {
+    let mut res = Vec::new();
+    for (replica, entry) in self.data.iter_mut() {
+      let begin = clocks.remove(replica).unwrap_or(None);
+      let start = entry.partition_point(|(fst, _, _)| Some(*fst) <= begin);
+      for (clock, name, action) in entry[start..].iter().cloned() {
+        res.push((*replica, clock, name, action));
+      }
+    }
+    res
   }
 }
 
@@ -177,47 +220,6 @@ fn vector_history_load_unload_collect_simple() {
   history.assert_invariants(&mut store);
 }
 
-struct MockVectorHistory {
-  data: HashMap<u128, Vec<(Clock, String, Vec<u8>)>>,
-}
-
-impl MockVectorHistory {
-  fn new() -> Self {
-    Self { data: HashMap::new() }
-  }
-
-  fn clocks(&self) -> HashMap<u128, Option<Clock>> {
-    self.data.iter().map(|(replica, entry)| (*replica, entry.last().map(|(fst, _, _)| *fst))).collect()
-  }
-
-  fn clock(&self) -> Option<Clock> {
-    self.data.values().fold(None, |acc, entry| acc.max(entry.last().map(|(fst, _, _)| *fst)))
-  }
-
-  fn push(&mut self, item: (u128, Clock, String, Vec<u8>)) -> Option<(u128, Clock, String, Vec<u8>)> {
-    let (replica, clock, name, action) = item.clone();
-    let entry = self.data.entry(replica).or_insert_with(Vec::new);
-    if entry.last().map(|(fst, _, _)| *fst) < Some(clock) {
-      entry.push((clock, name, action));
-      Some(item)
-    } else {
-      None
-    }
-  }
-
-  fn actions(&mut self, mut clocks: HashMap<u128, Option<Clock>>) -> Vec<(u128, Clock, String, Vec<u8>)> {
-    let mut res = Vec::new();
-    for (replica, entry) in self.data.iter_mut() {
-      let begin = clocks.remove(replica).unwrap_or(None);
-      let start = entry.partition_point(|(fst, _, _)| Some(*fst) <= begin);
-      for (clock, name, action) in entry[start..].iter().cloned() {
-        res.push((*replica, clock, name, action));
-      }
-    }
-    res
-  }
-}
-
 fn random_option_clock() -> Option<Clock> {
   let value = rand::thread_rng().gen_range(0..10);
   if value % 20 == 0 {
@@ -227,10 +229,10 @@ fn random_option_clock() -> Option<Clock> {
   }
 }
 
-fn vector_history_random_core<T: State, S: VectorHistoryStore>(
+fn vector_history_random_core<T: State>(
   mut rand_action: impl FnMut() -> T::Action,
-  action_eq: impl Fn(T::Action, T::Action) -> bool,
-  mut store: S,
+  mut action_eq: impl FnMut(T::Action, T::Action) -> bool,
+  mut store: impl VectorHistoryStore,
 ) where
   T::Action: Clone + Serialize + DeserializeOwned,
 {
@@ -240,7 +242,12 @@ fn vector_history_random_core<T: State, S: VectorHistoryStore>(
 
   for _ in 0..1000 {
     match rng.gen_range(0..=6) {
-      0 => history = VectorHistory::new(&mut store, ""),
+      0 => {
+        let this = history.this();
+        history = VectorHistory::new(&mut store, "");
+        assert_ne!(history.this(), 0);
+        assert_eq!(this, history.this());
+      }
       1 => {
         let mut lhs = history.latests();
         let mut rhs = mock.clocks();
@@ -290,9 +297,9 @@ fn vector_history_random_core<T: State, S: VectorHistoryStore>(
 }
 
 #[test]
-fn vector_history_with_sqlite_random() {
+fn vector_history_random() {
   type T = ByMax<u64>;
   let mut db = Connection::open_in_memory().unwrap();
   let txn = db.transaction().unwrap();
-  vector_history_random_core::<T, _>(|| rand::thread_rng().gen(), |lhs, rhs| lhs == rhs, txn);
+  vector_history_random_core::<T>(|| rand::thread_rng().gen(), |lhs, rhs| lhs == rhs, txn);
 }

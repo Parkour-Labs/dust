@@ -1,24 +1,23 @@
 pub mod crdt;
 
-use rusqlite::Transaction;
-
 pub trait ObservablePersistentState {
   type State;
   type Action;
-  type Context;
-  fn initial(txn: &mut Transaction, collection: &'static str, name: &'static str) -> Self;
-  fn apply(&mut self, txn: &mut Transaction, ctx: &mut Self::Context, a: Self::Action);
+  type Transaction<'a>;
+  type Context<'a>;
+  fn initial(txn: &mut Self::Transaction<'_>, collection: &'static str, name: &'static str) -> Self;
+  fn apply(&mut self, txn: &mut Self::Transaction<'_>, ctx: &mut Self::Context<'_>, a: Self::Action);
   fn id() -> Self::Action;
   fn comp(a: Self::Action, b: Self::Action) -> Self::Action;
 }
 
 pub trait ObservablePersistentJoinable: ObservablePersistentState {
-  fn preq(&mut self, txn: &mut Transaction, ctx: &mut Self::Context, t: &Self::State) -> bool;
-  fn join(&mut self, txn: &mut Transaction, ctx: &mut Self::Context, t: Self::State);
+  fn preq(&mut self, txn: &mut Self::Transaction<'_>, ctx: &mut Self::Context<'_>, t: &Self::State) -> bool;
+  fn join(&mut self, txn: &mut Self::Transaction<'_>, ctx: &mut Self::Context<'_>, t: Self::State);
 }
 
 pub trait ObservablePersistentGammaJoinable: ObservablePersistentJoinable {
-  fn gamma_join(&mut self, txn: &mut Transaction, ctx: &mut Self::Context, a: Self::Action) {
+  fn gamma_join(&mut self, txn: &mut Self::Transaction<'_>, ctx: &mut Self::Context<'_>, a: Self::Action) {
     self.apply(txn, ctx, a);
   }
 }
@@ -35,8 +34,17 @@ pub struct Aggregator<T> {
 }
 
 impl<T> Aggregator<T> {
+  pub fn new() -> Self {
+    Self { events: Vec::new() }
+  }
   pub fn push(&mut self, port: Port, event: T) {
     self.events.push((port, event));
+  }
+}
+
+impl<T> Default for Aggregator<T> {
+  fn default() -> Self {
+    Self::new()
   }
 }
 

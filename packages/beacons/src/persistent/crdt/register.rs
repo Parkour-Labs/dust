@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS \"{collection}.{name}\" (
 impl<T: Minimum + Serialize + DeserializeOwned> PersistentState for Register<T> {
   type State = jcrdt::Register<T>;
   type Action = <jcrdt::Register<T> as State>::Action;
+  type Transaction<'a> = Transaction<'a>;
 
   fn initial(txn: &mut Transaction, col: &'static str, name: &'static str) -> Self {
     Self::new(txn, col, name)
@@ -95,8 +96,9 @@ impl<T: Minimum + Serialize + DeserializeOwned> PersistentJoinable for Register<
     self.inner.preq(t)
   }
 
-  fn join(&mut self, _txn: &mut Transaction, t: Self::State) {
-    self.inner.join(t)
+  fn join(&mut self, txn: &mut Transaction, t: Self::State) {
+    self.inner.join(t);
+    self.save(txn);
   }
 }
 

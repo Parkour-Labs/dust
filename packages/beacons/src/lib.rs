@@ -1,3 +1,7 @@
+// #![feature(vec_into_raw_parts)]
+
+pub mod collection;
+pub mod global;
 pub mod joinable;
 pub mod observable;
 pub mod persistent;
@@ -7,25 +11,52 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 
 static DB_CONNECTION: OnceLock<Mutex<Connection>> = OnceLock::new();
 
+pub fn init(path: &str) {
+  DB_CONNECTION.set(Mutex::new(Connection::open(path).unwrap())).unwrap();
+}
+
 pub fn db_connection() -> MutexGuard<'static, Connection> {
-  DB_CONNECTION.get_or_init(|| Mutex::new(Connection::open_in_memory().unwrap())).lock().unwrap()
+  DB_CONNECTION.get().unwrap().lock().unwrap()
 }
 
-pub fn add(left: i64, right: i64) -> i64 {
-  left + right
+#[cfg(test)]
+mod tests {
+  #[test]
+  fn simple_test() {}
 }
 
-pub enum MyEnum {
+/*
+#[repr(C)]
+pub enum Event {
   CaseOne(u64),
   CaseTwo(u64),
 }
 
-pub fn create(arg_one: u64, arg_two: u64) -> *mut Vec<MyEnum> {
-  // Do things...
-  &mut Vec::from([MyEnum::CaseOne(arg_one), MyEnum::CaseTwo(arg_two)])
+#[repr(C)]
+pub struct Events {
+  ptr: *mut Event,
+  len: usize,
+  cap: usize,
 }
 
-pub fn destroy(vec: *mut Vec<MyEnum>) {}
+#[no_mangle]
+pub extern "C" fn add(left: u64, right: u64) -> u64 {
+  left + right
+}
+
+#[no_mangle]
+pub extern "C" fn create(arg_one: u64, arg_two: u64) -> Events {
+  // Do things...
+  let res = Vec::from([Event::CaseOne(arg_one), Event::CaseTwo(arg_two)]);
+  let (ptr, len, cap) = res.into_raw_parts();
+  Events { ptr, len, cap }
+}
+
+#[no_mangle]
+pub extern "C" fn destroy(vec: Events) {
+  unsafe { Vec::from_raw_parts(vec.ptr, vec.len, vec.cap) };
+}
+*/
 
 /*
 // Accessing nodes.

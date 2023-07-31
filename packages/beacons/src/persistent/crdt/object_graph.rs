@@ -16,7 +16,7 @@ pub struct ObjectGraph {
 
 impl ObjectGraph {
   /// Creates or loads data.
-  pub fn new(txn: &Transaction, collection: &'static str, name: &'static str) -> Self {
+  pub fn new(txn: &mut Transaction, collection: &'static str, name: &'static str) -> Self {
     txn
       .execute_batch(&format!(
         "
@@ -45,12 +45,12 @@ CREATE INDEX IF NOT EXISTS \"{collection}.{name}.edges.idx_label_dst\" ON \"{col
   }
 
   /// Queries all nodes with given label.
-  pub fn query_node_label(&self, txn: &Transaction, label: u64) -> Vec<u128> {
+  pub fn query_node_label(&self, txn: &mut Transaction, label: u64) -> Vec<u128> {
     let col = self.collection;
     let name = self.name;
     txn
       .prepare_cached(&format!(
-        "SELECT id FROM \"{col}.{name}.nodes\" WHERE label = ? INDEXED BY \"{col}.{name}.nodes.idx_label\""
+        "SELECT id FROM \"{col}.{name}.nodes\" INDEXED BY \"{col}.{name}.nodes.idx_label\" WHERE label = ?"
       ))
       .unwrap()
       .query_map((label.to_be_bytes(),), |row| Ok(u128::from_be_bytes(row.get(0).unwrap())))
@@ -60,12 +60,12 @@ CREATE INDEX IF NOT EXISTS \"{collection}.{name}.edges.idx_label_dst\" ON \"{col
   }
 
   /// Queries all edges with given source.
-  pub fn query_edge_src(&self, txn: &Transaction, src: u128) -> Vec<u128> {
+  pub fn query_edge_src(&self, txn: &mut Transaction, src: u128) -> Vec<u128> {
     let col = self.collection;
     let name = self.name;
     txn
       .prepare_cached(&format!(
-        "SELECT id FROM \"{col}.{name}.edges\" WHERE src = ? INDEXED BY \"{col}.{name}.edges.idx_src\""
+        "SELECT id FROM \"{col}.{name}.edges\" INDEXED BY \"{col}.{name}.edges.idx_src\" WHERE src = ?"
       ))
       .unwrap()
       .query_map((src.to_be_bytes(),), |row| Ok(u128::from_be_bytes(row.get(0).unwrap())))
@@ -75,12 +75,12 @@ CREATE INDEX IF NOT EXISTS \"{collection}.{name}.edges.idx_label_dst\" ON \"{col
   }
 
   /// Queries all edges with given label and destination.
-  pub fn query_edge_label_dst(&self, txn: &Transaction, label: u64, dst: u128) -> Vec<u128> {
+  pub fn query_edge_label_dst(&self, txn: &mut Transaction, label: u64, dst: u128) -> Vec<u128> {
     let col = self.collection;
     let name = self.name;
     txn
       .prepare_cached(&format!(
-        "SELECT id FROM \"{col}.{name}.edges\" WHERE label = ? AND dst = ? INDEXED BY \"{col}.{name}.edges.idx_label_dst\""
+        "SELECT id FROM \"{col}.{name}.edges\" INDEXED BY \"{col}.{name}.edges.idx_label_dst\" WHERE label = ? AND dst = ?"
       ))
       .unwrap()
       .query_map((label.to_be_bytes(), dst.to_be_bytes()), |row| Ok(u128::from_be_bytes(row.get(0).unwrap())))
@@ -90,7 +90,7 @@ CREATE INDEX IF NOT EXISTS \"{collection}.{name}.edges.idx_label_dst\" ON \"{col
   }
 
   /// Loads node.
-  pub fn load_node(&mut self, txn: &Transaction, id: u128) {
+  pub fn load_node(&mut self, txn: &mut Transaction, id: u128) {
     if self.loaded.0.insert(id) {
       let col = self.collection;
       let name = self.name;
@@ -109,7 +109,7 @@ CREATE INDEX IF NOT EXISTS \"{collection}.{name}.edges.idx_label_dst\" ON \"{col
   }
 
   /// Loads edge.
-  pub fn load_edge(&mut self, txn: &Transaction, id: u128) {
+  pub fn load_edge(&mut self, txn: &mut Transaction, id: u128) {
     if self.loaded.1.insert(id) {
       let col = self.collection;
       let name = self.name;
@@ -135,7 +135,7 @@ CREATE INDEX IF NOT EXISTS \"{collection}.{name}.edges.idx_label_dst\" ON \"{col
   }
 
   /// Saves loaded node.
-  pub fn save_node(&self, txn: &Transaction, id: u128) {
+  pub fn save_node(&self, txn: &mut Transaction, id: u128) {
     if let Some(elem) = self.inner.inner.0.get(&id) {
       let col = self.collection;
       let name = self.name;
@@ -152,7 +152,7 @@ CREATE INDEX IF NOT EXISTS \"{collection}.{name}.edges.idx_label_dst\" ON \"{col
   }
 
   /// Saves loaded edge.
-  pub fn save_edge(&self, txn: &Transaction, id: u128) {
+  pub fn save_edge(&self, txn: &mut Transaction, id: u128) {
     if let Some(elem) = self.inner.inner.1.get(&id) {
       let col = self.collection;
       let name = self.name;
@@ -183,13 +183,13 @@ CREATE INDEX IF NOT EXISTS \"{collection}.{name}.edges.idx_label_dst\" ON \"{col
   }
 
   /// Obtains reference to node value.
-  pub fn node(&mut self, txn: &Transaction, id: u128) -> Option<u64> {
+  pub fn node(&mut self, txn: &mut Transaction, id: u128) -> Option<u64> {
     self.load_node(txn, id);
     self.inner.node(id)
   }
 
   /// Obtains reference to edge value.
-  pub fn edge(&mut self, txn: &Transaction, id: u128) -> Option<(u128, u64, u128)> {
+  pub fn edge(&mut self, txn: &mut Transaction, id: u128) -> Option<(u128, u64, u128)> {
     self.load_edge(txn, id);
     self.inner.edge(id)
   }
@@ -204,7 +204,7 @@ CREATE INDEX IF NOT EXISTS \"{collection}.{name}.edges.idx_label_dst\" ON \"{col
     jcrdt::ObjectGraph::action_edge(clock, id, value)
   }
 
-  fn loads(&mut self, txn: &Transaction, nodes: impl Iterator<Item = u128>, edges: impl Iterator<Item = u128>) {
+  fn loads(&mut self, txn: &mut Transaction, nodes: impl Iterator<Item = u128>, edges: impl Iterator<Item = u128>) {
     for id in nodes {
       self.load_node(txn, id);
     }
@@ -213,7 +213,7 @@ CREATE INDEX IF NOT EXISTS \"{collection}.{name}.edges.idx_label_dst\" ON \"{col
     }
   }
 
-  fn saves(&mut self, txn: &Transaction, nodes: impl Iterator<Item = u128>, edges: impl Iterator<Item = u128>) {
+  fn saves(&mut self, txn: &mut Transaction, nodes: impl Iterator<Item = u128>, edges: impl Iterator<Item = u128>) {
     for id in nodes {
       self.save_node(txn, id);
     }
@@ -232,6 +232,7 @@ CREATE INDEX IF NOT EXISTS \"{collection}.{name}.edges.idx_label_dst\" ON \"{col
 impl PersistentState for ObjectGraph {
   type State = jcrdt::ObjectGraph;
   type Action = <Self::State as State>::Action;
+  type Transaction<'a> = Transaction<'a>;
 
   fn initial(txn: &mut Transaction, col: &'static str, name: &'static str) -> Self {
     Self::new(txn, col, name)

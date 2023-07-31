@@ -147,17 +147,17 @@ pub struct Clock {
 }
 
 impl Clock {
-  /// Constructs an HLC from current system time and an optional list of predecessors.
+  /// Constructs an HLC from current system time and an optional predecessor.
   /// The `random` field will be, well, randomly assigned.
-  pub fn new(preds: &[Clock]) -> Self {
+  pub fn new(pred: Option<Clock>) -> Self {
     let measured = match SystemTime::now().duration_since(UNIX_EPOCH) {
       Ok(n) => n.as_secs(),
       Err(_) => 0,
     };
     let mut pair = (measured, 0);
-    for pred in preds {
-      let curr = if pred.count == u32::MAX { (pred.measured + 1, 0) } else { (pred.measured, pred.count + 1) };
-      pair = pair.max(curr);
+    if let Some(pred) = pred {
+      let pred = if pred.count == u32::MAX { (pred.measured + 1, 0) } else { (pred.measured, pred.count + 1) };
+      pair = pair.max(pred);
     }
     Self { measured: pair.0, count: pair.1, random: rand::thread_rng().gen() }
   }

@@ -37,20 +37,20 @@ impl ObjectGraph {
     Self { inner: (nodes, edges) }
   }
   /// Obtains reference to node value.
-  pub fn node(&self, index: u128) -> Option<u64> {
-    *self.inner.0.get(&index)?.value()
+  pub fn node(&self, id: u128) -> Option<u64> {
+    *self.inner.0.get(&id)?.value()
   }
   /// Obtains reference to edge value.
-  pub fn edge(&self, index: u128) -> Option<(u128, u64, u128)> {
-    *self.inner.1.get(&index)?.value()
+  pub fn edge(&self, id: u128) -> Option<(u128, u64, u128)> {
+    *self.inner.1.get(&id)?.value()
   }
   /// Makes modification of node value.
-  pub fn action_node(clock: Clock, index: u128, value: Option<u64>) -> <Self as State>::Action {
-    (HashMap::from([(index, Register::action(clock, value))]), HashMap::new())
+  pub fn action_node(clock: Clock, id: u128, value: Option<u64>) -> <Self as State>::Action {
+    (HashMap::from([(id, Register::action(clock, value))]), HashMap::new())
   }
   /// Makes modification of edge value.
-  pub fn action_edge(clock: Clock, index: u128, value: Option<(u128, u64, u128)>) -> <Self as State>::Action {
-    (HashMap::new(), HashMap::from([(index, Register::action(clock, value))]))
+  pub fn action_edge(clock: Clock, id: u128, value: Option<(u128, u64, u128)>) -> <Self as State>::Action {
+    (HashMap::new(), HashMap::from([(id, Register::action(clock, value))]))
   }
 }
 

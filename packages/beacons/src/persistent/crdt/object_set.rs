@@ -103,6 +103,7 @@ CREATE TABLE IF NOT EXISTS \"{collection}.{name}\" (
 impl PersistentState for ObjectSet {
   type State = jcrdt::ObjectSet;
   type Action = <Self::State as State>::Action;
+  type Transaction<'a> = Transaction<'a>;
 
   fn initial(txn: &mut Transaction, col: &'static str, name: &'static str) -> Self {
     Self::new(txn, col, name)

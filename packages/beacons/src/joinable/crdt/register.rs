@@ -11,7 +11,7 @@ use crate::joinable::{Clock, DeltaJoinable, GammaJoinable, Joinable, Minimum, St
 /// - [`Register`] is an instance of [`Joinable`] state space.
 /// - [`Register`] is an instance of [`DeltaJoinable`] state space.
 /// - [`Register`] is an instance of [`GammaJoinable`] state space.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Serialize, Deserialize)]
 pub struct Register<T: Minimum> {
   clock: Clock,
   value: T,

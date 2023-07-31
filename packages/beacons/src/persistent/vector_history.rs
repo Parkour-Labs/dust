@@ -1,5 +1,6 @@
 //! A [`VectorHistory`] stores an action history for each replica.
 
+use rand::Rng;
 use rusqlite::{OptionalExtension, Transaction};
 use std::collections::{HashMap, VecDeque};
 
@@ -8,6 +9,7 @@ use crate::joinable::{Clock, Maximum};
 /// A [`VectorHistory`] stores an action history for each replica.
 pub struct VectorHistory {
   data: HashMap<u128, ReplicaHistory>,
+  this: u128,
   name: &'static str,
 }
 
@@ -44,14 +46,14 @@ impl VectorHistory {
 
   /// Creates a vector history from a backing store.
   pub fn new(store: &mut impl VectorHistoryStore, name: &'static str) -> Self {
-    store.init(name);
+    let this = store.init(name);
     let mut data = HashMap::new();
     for replica in store.get_replicas(name) {
       let latest = store.get_by_replica_clock_max(name, replica).map(|(clock, _, _)| clock);
       let entry = ReplicaHistory { actions: VecDeque::new(), begin: latest, latest };
       data.insert(replica, entry);
     }
-    Self { data, name }
+    Self { data, this, name }
   }
 
   /// Returns the latest clock values for each replica.
@@ -62,6 +64,11 @@ impl VectorHistory {
   /// Returns the latest clock value across all replicas.
   pub fn latest(&self) -> Option<Clock> {
     self.data.values().fold(None, |acc, entry| acc.max(entry.latest))
+  }
+
+  /// Returns this replica ID.
+  pub fn this(&self) -> u128 {
+    self.this
   }
 
   /// Moves `begin` backwards.
@@ -157,7 +164,7 @@ impl VectorHistory {
 
 /// Database interface for [`VectorHistory`].
 pub trait VectorHistoryStore {
-  fn init(&mut self, collection: &str);
+  fn init(&mut self, collection: &str) -> u128;
   fn get_replicas(&mut self, collection: &str) -> Vec<u128>;
   fn put_replica(&mut self, collection: &str, replica: u128);
   fn get_by_replica_clock_range(
@@ -172,16 +179,21 @@ pub trait VectorHistoryStore {
 }
 
 impl<'a> VectorHistoryStore for Transaction<'a> {
-  fn init(&mut self, collection: &str) {
+  fn init(&mut self, collection: &str) -> u128 {
     self
       .execute_batch(&format!(
         "
-CREATE TABLE IF NOT EXISTS \"{collection}.vhr\" (
+CREATE TABLE IF NOT EXISTS \"{collection}.vector_history.this\" (
   replica BLOB NOT NULL,
   PRIMARY KEY (replica)
 ) STRICT, WITHOUT ROWID;
 
-CREATE TABLE IF NOT EXISTS \"{collection}.vh\" (
+CREATE TABLE IF NOT EXISTS \"{collection}.vector_history.replicas\" (
+  replica BLOB NOT NULL,
+  PRIMARY KEY (replica)
+) STRICT, WITHOUT ROWID;
+
+CREATE TABLE IF NOT EXISTS \"{collection}.vector_history\" (
   replica BLOB NOT NULL,
   clock BLOB NOT NULL,
   name BLOB NOT NULL,
@@ -191,11 +203,28 @@ CREATE TABLE IF NOT EXISTS \"{collection}.vh\" (
         "
       ))
       .unwrap();
+
+    let this = self
+      .prepare_cached(&format!("SELECT replica FROM \"{collection}.vector_history.this\""))
+      .unwrap()
+      .query_row((), |row| Ok(u128::from_be_bytes(row.get(0).unwrap())))
+      .optional()
+      .unwrap();
+
+    this.unwrap_or_else(|| {
+      let random: u128 = rand::thread_rng().gen();
+      self
+        .prepare_cached(&format!("REPLACE INTO \"{collection}.vector_history.this\" VALUES (?)"))
+        .unwrap()
+        .execute((random.to_be_bytes(),))
+        .unwrap();
+      random
+    })
   }
 
   fn get_replicas(&mut self, collection: &str) -> Vec<u128> {
     self
-      .prepare_cached(&format!("SELECT replica FROM \"{collection}.vhr\""))
+      .prepare_cached(&format!("SELECT replica FROM \"{collection}.vector_history.replicas\""))
       .unwrap()
       .query_map((), |row| Ok(u128::from_be_bytes(row.get(0).unwrap())))
       .unwrap()
@@ -205,7 +234,7 @@ CREATE TABLE IF NOT EXISTS \"{collection}.vh\" (
 
   fn put_replica(&mut self, collection: &str, replica: u128) {
     self
-      .prepare_cached(&format!("REPLACE INTO \"{collection}.vhr\" VALUES (?)"))
+      .prepare_cached(&format!("REPLACE INTO \"{collection}.vector_history.replicas\" VALUES (?)"))
       .unwrap()
       .execute((replica.to_be_bytes(),))
       .unwrap();
@@ -222,7 +251,7 @@ CREATE TABLE IF NOT EXISTS \"{collection}.vh\" (
     let upper = upper.to_be_bytes();
     self
       .prepare_cached(&format!(
-        "SELECT clock, name, action FROM \"{collection}.vh\" WHERE replica = ? AND clock >= ? AND clock <= ? ORDER BY clock ASC"
+        "SELECT clock, name, action FROM \"{collection}.vector_history\" WHERE replica = ? AND clock >= ? AND clock <= ? ORDER BY clock ASC"
       ))
       .unwrap()
       .query_map((replica.to_be_bytes(), lower, upper), |row| {
@@ -240,7 +269,7 @@ CREATE TABLE IF NOT EXISTS \"{collection}.vh\" (
   fn get_by_replica_clock_max(&mut self, collection: &str, replica: u128) -> Option<(Clock, String, Vec<u8>)> {
     self
       .prepare_cached(&format!(
-        "SELECT clock, name, action FROM \"{collection}.vh\" WHERE replica = ? ORDER BY clock DESC LIMIT 1"
+        "SELECT clock, name, action FROM \"{collection}.vector_history\" WHERE replica = ? ORDER BY clock DESC LIMIT 1"
       ))
       .unwrap()
       .query_row((replica.to_be_bytes(),), |row| {
@@ -256,7 +285,7 @@ CREATE TABLE IF NOT EXISTS \"{collection}.vh\" (
 
   fn put_by_replica(&mut self, collection: &str, replica: u128, item: (Clock, &str, &[u8])) {
     self
-      .prepare_cached(&format!("REPLACE INTO \"{collection}.vh\" VALUES (?, ?, ?, ?)"))
+      .prepare_cached(&format!("REPLACE INTO \"{collection}.vector_history\" VALUES (?, ?, ?, ?)"))
       .unwrap()
       .execute((replica.to_be_bytes(), item.0.to_be_bytes(), item.1.as_bytes(), item.2))
       .unwrap();

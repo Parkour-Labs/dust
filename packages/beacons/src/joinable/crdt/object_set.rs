@@ -34,15 +34,15 @@ impl ObjectSet {
     Self { inner }
   }
   /// Obtains reference to element.
-  pub fn get(&self, index: u128) -> Option<&[u8]> {
-    match self.inner.get(&index)?.value() {
+  pub fn get(&self, id: u128) -> Option<&[u8]> {
+    match self.inner.get(&id)?.value() {
       None => None,
       Some(value) => Some(value.as_ref()),
     }
   }
   /// Makes modification of element.
-  pub fn action(clock: Clock, index: u128, value: Option<Vec<u8>>) -> <Self as State>::Action {
-    HashMap::from([(index, Register::action(clock, value))])
+  pub fn action(clock: Clock, id: u128, value: Option<Vec<u8>>) -> <Self as State>::Action {
+    HashMap::from([(id, Register::action(clock, value))])
   }
 }
 

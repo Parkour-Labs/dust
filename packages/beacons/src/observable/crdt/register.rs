@@ -42,12 +42,7 @@ impl<T: Minimum + Clone + Serialize + DeserializeOwned> Register<T> {
   }
 
   /// Adds observer.
-  pub fn subscribe(
-    &mut self,
-    _txn: &mut Transaction,
-    ctx: &mut <Self as ObservablePersistentState>::Context,
-    port: Port,
-  ) {
+  pub fn subscribe(&mut self, _txn: &mut Transaction, ctx: &mut Aggregator<T>, port: Port) {
     self.subscriptions.push(port);
     ctx.push(port, self.value().clone());
   }
@@ -57,7 +52,7 @@ impl<T: Minimum + Clone + Serialize + DeserializeOwned> Register<T> {
     self.subscriptions.retain(|&x| x != port);
   }
 
-  fn notifies(&self, ctx: &mut <Self as ObservablePersistentState>::Context) {
+  fn notifies(&self, ctx: &mut Aggregator<T>) {
     for &port in &self.subscriptions {
       ctx.push(port, self.value().clone());
     }
@@ -67,13 +62,14 @@ impl<T: Minimum + Clone + Serialize + DeserializeOwned> Register<T> {
 impl<T: Minimum + Clone + Serialize + DeserializeOwned> ObservablePersistentState for Register<T> {
   type State = <pcrdt::Register<T> as PersistentState>::State;
   type Action = <pcrdt::Register<T> as PersistentState>::Action;
-  type Context = Aggregator<T>;
+  type Transaction<'a> = Transaction<'a>;
+  type Context<'a> = Aggregator<T>;
 
-  fn initial(txn: &mut rusqlite::Transaction, collection: &'static str, name: &'static str) -> Self {
+  fn initial(txn: &mut Transaction, collection: &'static str, name: &'static str) -> Self {
     Self::new(txn, collection, name)
   }
 
-  fn apply(&mut self, txn: &mut rusqlite::Transaction, ctx: &mut Self::Context, a: Self::Action) {
+  fn apply(&mut self, txn: &mut Transaction, ctx: &mut Aggregator<T>, a: Self::Action) {
     self.inner.apply(txn, a);
     self.notifies(ctx);
   }
@@ -88,11 +84,11 @@ impl<T: Minimum + Clone + Serialize + DeserializeOwned> ObservablePersistentStat
 }
 
 impl<T: Minimum + Clone + Serialize + DeserializeOwned> ObservablePersistentJoinable for Register<T> {
-  fn preq(&mut self, txn: &mut Transaction, _ctx: &mut Self::Context, t: &Self::State) -> bool {
+  fn preq(&mut self, txn: &mut Transaction, _ctx: &mut Aggregator<T>, t: &Self::State) -> bool {
     self.inner.preq(txn, t)
   }
 
-  fn join(&mut self, txn: &mut Transaction, ctx: &mut Self::Context, t: Self::State) {
+  fn join(&mut self, txn: &mut Transaction, ctx: &mut Aggregator<T>, t: Self::State) {
     self.inner.join(txn, t);
     self.notifies(ctx);
   }

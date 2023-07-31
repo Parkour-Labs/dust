@@ -19,15 +19,15 @@ pub struct ObjectGraph {
   backedge_subscriptions: HashMap<(u64, u128), Vec<Port>>,
 }
 
-pub struct ObjectGraphAggregator {
-  node_aggregator: Aggregator<Option<u64>>,
-  edge_aggregator: Aggregator<Option<(u128, u64, u128)>>,
-  backedge_aggregator: Aggregator<SetEvent<u128>>,
+pub struct ObjectGraphAggregator<'a> {
+  pub node_aggregator: &'a mut Aggregator<Option<u64>>,
+  pub edge_aggregator: &'a mut Aggregator<Option<(u128, u64, u128)>>,
+  pub backedge_aggregator: &'a mut Aggregator<SetEvent<u128>>,
 }
 
 impl ObjectGraph {
   /// Creates or loads data.
-  pub fn new(txn: &Transaction, collection: &'static str, name: &'static str) -> Self {
+  pub fn new(txn: &mut Transaction, collection: &'static str, name: &'static str) -> Self {
     Self {
       inner: pcrdt::ObjectGraph::new(txn, collection, name),
       node_subscriptions: HashMap::new(),
@@ -37,37 +37,37 @@ impl ObjectGraph {
   }
 
   /// Queries all nodes with given label.
-  pub fn query_node_label(&self, txn: &Transaction, label: u64) -> Vec<u128> {
+  pub fn query_node_label(&self, txn: &mut Transaction, label: u64) -> Vec<u128> {
     self.inner.query_node_label(txn, label)
   }
 
   /// Queries all edges with given source.
-  pub fn query_edge_src(&self, txn: &Transaction, src: u128) -> Vec<u128> {
+  pub fn query_edge_src(&self, txn: &mut Transaction, src: u128) -> Vec<u128> {
     self.inner.query_edge_src(txn, src)
   }
 
   /// Queries all edges with given label and destination.
-  pub fn query_edge_label_dst(&self, txn: &Transaction, label: u64, dst: u128) -> Vec<u128> {
+  pub fn query_edge_label_dst(&self, txn: &mut Transaction, label: u64, dst: u128) -> Vec<u128> {
     self.inner.query_edge_label_dst(txn, label, dst)
   }
 
   /// Loads node.
-  pub fn load_node(&mut self, txn: &Transaction, id: u128) {
+  pub fn load_node(&mut self, txn: &mut Transaction, id: u128) {
     self.inner.load_node(txn, id)
   }
 
   /// Loads edge.
-  pub fn load_edge(&mut self, txn: &Transaction, id: u128) {
+  pub fn load_edge(&mut self, txn: &mut Transaction, id: u128) {
     self.inner.load_edge(txn, id)
   }
 
   /// Saves loaded node.
-  pub fn save_node(&self, txn: &Transaction, id: u128) {
+  pub fn save_node(&self, txn: &mut Transaction, id: u128) {
     self.inner.save_node(txn, id)
   }
 
   /// Saves loaded edge.
-  pub fn save_edge(&self, txn: &Transaction, id: u128) {
+  pub fn save_edge(&self, txn: &mut Transaction, id: u128) {
     self.inner.save_edge(txn, id)
   }
 
@@ -82,12 +82,12 @@ impl ObjectGraph {
   }
 
   /// Obtains reference to node value.
-  pub fn node(&mut self, txn: &Transaction, id: u128) -> Option<u64> {
+  pub fn node(&mut self, txn: &mut Transaction, id: u128) -> Option<u64> {
     self.inner.node(txn, id)
   }
 
   /// Obtains reference to edge value.
-  pub fn edge(&mut self, txn: &Transaction, id: u128) -> Option<(u128, u64, u128)> {
+  pub fn edge(&mut self, txn: &mut Transaction, id: u128) -> Option<(u128, u64, u128)> {
     self.inner.edge(txn, id)
   }
 
@@ -111,25 +111,13 @@ impl ObjectGraph {
   }
 
   /// Adds observer.
-  pub fn subscribe_node(
-    &mut self,
-    txn: &mut Transaction,
-    ctx: &mut <Self as ObservablePersistentState>::Context,
-    id: u128,
-    port: Port,
-  ) {
+  pub fn subscribe_node(&mut self, txn: &mut Transaction, ctx: &mut ObjectGraphAggregator<'_>, id: u128, port: Port) {
     self.node_subscriptions.entry(id).or_default().push(port);
     ctx.node_aggregator.push(port, self.node(txn, id));
   }
 
   /// Adds observer.
-  pub fn subscribe_edge(
-    &mut self,
-    txn: &mut Transaction,
-    ctx: &mut <Self as ObservablePersistentState>::Context,
-    id: u128,
-    port: Port,
-  ) {
+  pub fn subscribe_edge(&mut self, txn: &mut Transaction, ctx: &mut ObjectGraphAggregator<'_>, id: u128, port: Port) {
     self.edge_subscriptions.entry(id).or_default().push(port);
     ctx.edge_aggregator.push(port, self.edge(txn, id));
   }
@@ -138,7 +126,7 @@ impl ObjectGraph {
   pub fn subscribe_backedge(
     &mut self,
     txn: &mut Transaction,
-    ctx: &mut <Self as ObservablePersistentState>::Context,
+    ctx: &mut ObjectGraphAggregator<'_>,
     label: u64,
     dst: u128,
     port: Port,
@@ -184,7 +172,7 @@ impl ObjectGraph {
   fn notifies_pre(
     &mut self,
     txn: &mut Transaction,
-    ctx: &mut <Self as ObservablePersistentState>::Context,
+    ctx: &mut ObjectGraphAggregator<'_>,
     _nodes: &[u128],
     edges: &[u128],
   ) {
@@ -202,7 +190,7 @@ impl ObjectGraph {
   fn notifies_post(
     &mut self,
     txn: &mut Transaction,
-    ctx: &mut <Self as ObservablePersistentState>::Context,
+    ctx: &mut ObjectGraphAggregator<'_>,
     nodes: &[u128],
     edges: &[u128],
   ) {
@@ -233,13 +221,14 @@ impl ObjectGraph {
 impl ObservablePersistentState for ObjectGraph {
   type State = <pcrdt::ObjectGraph as PersistentState>::State;
   type Action = <pcrdt::ObjectGraph as PersistentState>::Action;
-  type Context = ObjectGraphAggregator;
+  type Transaction<'a> = Transaction<'a>;
+  type Context<'a> = ObjectGraphAggregator<'a>;
 
   fn initial(txn: &mut Transaction, collection: &'static str, name: &'static str) -> Self {
     Self::new(txn, collection, name)
   }
 
-  fn apply(&mut self, txn: &mut Transaction, ctx: &mut Self::Context, a: Self::Action) {
+  fn apply(&mut self, txn: &mut Transaction, ctx: &mut ObjectGraphAggregator<'_>, a: Self::Action) {
     let nodes: Vec<u128> = a.0.keys().copied().collect();
     let edges: Vec<u128> = a.1.keys().copied().collect();
     self.notifies_pre(txn, ctx, &nodes, &edges);
@@ -257,11 +246,11 @@ impl ObservablePersistentState for ObjectGraph {
 }
 
 impl ObservablePersistentJoinable for ObjectGraph {
-  fn preq(&mut self, txn: &mut Transaction, _ctx: &mut Self::Context, t: &Self::State) -> bool {
+  fn preq(&mut self, txn: &mut Transaction, _ctx: &mut ObjectGraphAggregator<'_>, t: &Self::State) -> bool {
     self.inner.preq(txn, t)
   }
 
-  fn join(&mut self, txn: &mut Transaction, ctx: &mut Self::Context, t: Self::State) {
+  fn join(&mut self, txn: &mut Transaction, ctx: &mut ObjectGraphAggregator<'_>, t: Self::State) {
     let nodes: Vec<u128> = t.inner.0.keys().copied().collect();
     let edges: Vec<u128> = t.inner.1.keys().copied().collect();
     self.notifies_pre(txn, ctx, &nodes, &edges);
