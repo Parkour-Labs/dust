@@ -17,7 +17,7 @@ type Edges = HashMap<u128, Register<Option<(u128, u64, u128)>>>;
 /// - [`ObjectGraph`] is an instance of [`DeltaJoinable`] state space.
 /// - [`ObjectGraph`] is an instance of [`GammaJoinable`] state space.
 #[repr(transparent)]
-#[derive(Debug, From, Into, AsRef, AsMut, Serialize, Deserialize)]
+#[derive(Debug, Clone, From, Into, AsRef, AsMut, Serialize, Deserialize)]
 pub struct ObjectGraph {
   pub(crate) inner: (Nodes, Edges),
 }

@@ -24,11 +24,13 @@ pub trait ObservablePersistentGammaJoinable: ObservablePersistentJoinable {
 
 pub type Port = u64;
 
+#[derive(Debug, Clone)]
 pub enum SetEvent<T> {
   Insert(T),
   Remove(T),
 }
 
+#[derive(Debug, Clone)]
 pub struct Aggregator<T> {
   events: Vec<(Port, T)>,
 }

@@ -1,29 +1,11 @@
 // #![feature(vec_into_raw_parts)]
 
-pub mod collection;
+pub mod ffi;
 pub mod global;
 pub mod joinable;
+pub mod object_store;
 pub mod observable;
 pub mod persistent;
-
-use rusqlite::Connection;
-use std::sync::{Mutex, MutexGuard, OnceLock};
-
-static DB_CONNECTION: OnceLock<Mutex<Connection>> = OnceLock::new();
-
-pub fn init(path: &str) {
-  DB_CONNECTION.set(Mutex::new(Connection::open(path).unwrap())).unwrap();
-}
-
-pub fn db_connection() -> MutexGuard<'static, Connection> {
-  DB_CONNECTION.get().unwrap().lock().unwrap()
-}
-
-#[cfg(test)]
-mod tests {
-  #[test]
-  fn simple_test() {}
-}
 
 /*
 #[repr(C)]

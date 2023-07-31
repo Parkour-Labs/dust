@@ -12,6 +12,7 @@ use crate::observable::{
 use crate::persistent::{crdt as pcrdt, PersistentJoinable, PersistentState};
 
 /// An *observable* and *persistent* last-writer-win object graph.
+#[derive(Debug, Clone)]
 pub struct ObjectGraph {
   inner: pcrdt::ObjectGraph,
   node_subscriptions: HashMap<u128, Vec<Port>>,
@@ -19,6 +20,7 @@ pub struct ObjectGraph {
   backedge_subscriptions: HashMap<(u64, u128), Vec<Port>>,
 }
 
+#[derive(Debug)]
 pub struct ObjectGraphAggregator<'a> {
   pub node_aggregator: &'a mut Aggregator<Option<u64>>,
   pub edge_aggregator: &'a mut Aggregator<Option<(u128, u64, u128)>>,

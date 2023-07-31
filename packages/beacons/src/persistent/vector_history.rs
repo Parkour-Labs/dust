@@ -7,6 +7,7 @@ use std::collections::{HashMap, VecDeque};
 use crate::joinable::{Clock, Maximum};
 
 /// A [`VectorHistory`] stores an action history for each replica.
+#[derive(Debug, Clone)]
 pub struct VectorHistory {
   data: HashMap<u128, ReplicaHistory>,
   this: u128,
@@ -14,6 +15,7 @@ pub struct VectorHistory {
 }
 
 /// Action history and metadata for one replica.
+#[derive(Debug, Clone)]
 struct ReplicaHistory {
   actions: VecDeque<(Clock, String, Vec<u8>)>,
   begin: Option<Clock>,

@@ -7,6 +7,7 @@ use crate::joinable::{crdt as jcrdt, Clock, Joinable, Minimum, State};
 use crate::persistent::{PersistentGammaJoinable, PersistentJoinable, PersistentState};
 
 /// A *persistent* last-writer-win register.
+#[derive(Debug, Clone)]
 pub struct Register<T: Minimum + Serialize + DeserializeOwned> {
   inner: jcrdt::Register<T>,
   collection: &'static str,

@@ -14,7 +14,7 @@ use crate::joinable::{Clock, Newtype, State};
 /// - [`Map`] is an instance of [`DeltaJoinable`] state space.
 /// - [`Map`] is an instance of [`GammaJoinable`] state space.
 #[repr(transparent)]
-#[derive(Debug, From, Into, AsRef, AsMut, Serialize, Deserialize)]
+#[derive(Debug, Clone, From, Into, AsRef, AsMut, Serialize, Deserialize)]
 pub struct ObjectSet {
   pub(crate) inner: HashMap<u128, Register<Option<Vec<u8>>>>,
 }

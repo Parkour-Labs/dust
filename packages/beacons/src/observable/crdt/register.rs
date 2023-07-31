@@ -10,6 +10,7 @@ use crate::observable::{
 use crate::persistent::{crdt as pcrdt, PersistentJoinable, PersistentState};
 
 /// An *observable* and *persistent* last-writer-win register.
+#[derive(Debug, Clone)]
 pub struct Register<T: Minimum + Clone + Serialize + DeserializeOwned> {
   inner: pcrdt::Register<T>,
   subscriptions: Vec<Port>,

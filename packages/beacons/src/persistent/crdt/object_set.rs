@@ -7,6 +7,7 @@ use crate::joinable::{crdt as jcrdt, Clock, Joinable, State};
 use crate::persistent::{PersistentGammaJoinable, PersistentJoinable, PersistentState};
 
 /// A *persistent* last-writer-win element map.
+#[derive(Debug, Clone)]
 pub struct ObjectSet {
   inner: jcrdt::ObjectSet,
   loaded: HashSet<u128>,

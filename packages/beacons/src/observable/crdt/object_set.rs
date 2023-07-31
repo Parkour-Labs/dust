@@ -11,6 +11,7 @@ use crate::observable::{
 use crate::persistent::{crdt as pcrdt, PersistentJoinable, PersistentState};
 
 /// An *observable* and *persistent* last-writer-win element map.
+#[derive(Debug, Clone)]
 pub struct ObjectSet {
   inner: pcrdt::ObjectSet,
   subscriptions: HashMap<u128, Vec<Port>>,

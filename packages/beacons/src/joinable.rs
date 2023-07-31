@@ -148,7 +148,6 @@ pub struct Clock {
 
 impl Clock {
   /// Constructs an HLC from current system time and an optional predecessor.
-  /// The `random` field will be, well, randomly assigned.
   pub fn new(pred: Option<Clock>) -> Self {
     let measured = match SystemTime::now().duration_since(UNIX_EPOCH) {
       Ok(n) => n.as_secs(),

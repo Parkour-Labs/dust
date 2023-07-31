@@ -7,6 +7,7 @@ use crate::joinable::{crdt as jcrdt, Clock, Joinable, State};
 use crate::persistent::{PersistentGammaJoinable, PersistentJoinable, PersistentState};
 
 /// A *persistent* last-writer-win object graph.
+#[derive(Debug, Clone)]
 pub struct ObjectGraph {
   inner: jcrdt::ObjectGraph,
   loaded: (HashSet<u128>, HashSet<u128>),
