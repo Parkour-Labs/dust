@@ -97,8 +97,11 @@ impl ObjectStore {
   pub fn edge(&mut self, id: u128) -> Option<(u128, u64, u128)> {
     self.graph.edge(&mut auto_commit(&mut self.connection), id)
   }
-  pub fn edges_from(&mut self, src: u128) -> Vec<u128> {
+  pub fn query_edge_src(&mut self, src: u128) -> Vec<u128> {
     self.graph.query_edge_src(&mut auto_commit(&mut self.connection), src)
+  }
+  pub fn query_edge_label_dst(&mut self, label: u64, dst: u128) -> Vec<u128> {
+    self.graph.query_edge_label_dst(&mut auto_commit(&mut self.connection), label, dst)
   }
 
   pub fn set_node(&mut self, id: u128, value: Option<u64>) {
@@ -112,6 +115,11 @@ impl ObjectStore {
   pub fn set_edge(&mut self, id: u128, value: Option<(u128, u64, u128)>) {
     let clock = self.new_clock();
     self.graph_apply(self.this(), clock, ObjectGraph::action_edge(clock, id, value));
+  }
+  pub fn set_edge_dst(&mut self, id: u128, dst: u128) {
+    if let Some((src, label, _)) = self.edge(id) {
+      self.set_edge(id, Some((src, label, dst)));
+    }
   }
 
   pub fn subscribe_node(&mut self, id: u128, port: u64) {

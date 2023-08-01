@@ -1,5 +1,7 @@
+use rand::Rng;
 use rusqlite::Connection;
-use std::sync::{Mutex, MutexGuard, OnceLock};
+use serde::{de::DeserializeOwned, ser::Serialize};
+use std::{cell::Cell, marker::PhantomData};
 
 use crate::object_store::ObjectStore;
 
@@ -12,43 +14,113 @@ PRAGMA cache_size = -20000;
 PRAGMA busy_timeout = 3000;
 ";
 
-// static CONNECTION: OnceLock<Mutex<Connection>> = OnceLock::new();
-static OBJECT_STORE: OnceLock<Mutex<ObjectStore>> = OnceLock::new();
+thread_local! {
+  static OBJECT_STORE: Cell<Option<ObjectStore>> = Cell::new(None);
+}
 
 pub fn init(path: &str) {
   let conn = Connection::open(path).unwrap();
   conn.execute_batch(INITIAL_COMMANDS).unwrap();
-  OBJECT_STORE.set(Mutex::new(ObjectStore::new(conn, ""))).unwrap();
+  OBJECT_STORE.with(|cell| cell.set(Some(ObjectStore::new(conn, ""))));
 }
 
 pub fn init_in_memory() {
   let conn = Connection::open_in_memory().unwrap();
   conn.execute_batch(INITIAL_COMMANDS).unwrap();
-  OBJECT_STORE.set(Mutex::new(ObjectStore::new(conn, ""))).unwrap();
+  OBJECT_STORE.with(|cell| cell.set(Some(ObjectStore::new(conn, ""))));
 }
 
-pub fn object_store() -> MutexGuard<'static, ObjectStore> {
-  OBJECT_STORE.get().unwrap().lock().unwrap()
+pub fn access_store_with<R>(f: impl FnOnce(&mut ObjectStore) -> R) -> R {
+  OBJECT_STORE.with(|cell| {
+    let mut store = cell.take().unwrap();
+    let res = f(&mut store);
+    cell.set(Some(store));
+    res
+  })
 }
 
-#[cfg(test)]
-mod tests {
-  use rand::Rng;
+/// See: https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
+pub fn fnv64_hash(s: &'static str) -> u64 {
+  const PRIME: u64 = 1099511628211;
+  const BASIS: u64 = 14695981039346656037;
+  let mut res = BASIS;
+  for c in s.chars() {
+    let high = (c as u64) >> 8;
+    let low = (c as u64) & 0xFF;
+    res = (res * PRIME) ^ low;
+    res = (res * PRIME) ^ high;
+  }
+  res
+}
 
-  use super::*;
+pub trait Model: std::marker::Sized {
+  fn id(&self) -> u128;
+  fn get(id: u128) -> Option<Self>;
+}
 
-  #[test]
-  fn simple_test() {
-    init_in_memory();
-    let mut rng = rand::thread_rng();
-    let mut store = object_store();
-    store.set_node(0, Some(233));
-    store.set_node(1, Some(2333));
-    store.set_edge(rng.gen(), Some((0, 23333, 1)));
-    assert_eq!(store.node(0), Some(233));
-    assert_eq!(store.node(1), Some(2333));
-    let edges = store.edges_from(0);
-    assert_eq!(edges.len(), 1);
-    assert_eq!(store.edge(edges[0]), Some((0, 23333, 1)));
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Atom<T: Serialize + DeserializeOwned> {
+  id: u128,
+  _t: PhantomData<T>,
+}
+
+impl<T: Serialize + DeserializeOwned> Atom<T> {
+  pub fn from_raw(id: u128) -> Self {
+    Self { id, _t: Default::default() }
+  }
+  pub fn get(&self) -> Option<T> {
+    access_store_with(|store| store.atom(self.id).map(|bytes| postcard::from_bytes(bytes).unwrap()))
+  }
+  pub fn set(&self, value: &T) {
+    access_store_with(|store| store.set_atom(self.id, Some(postcard::to_allocvec(value).unwrap())));
+  }
+  pub fn remove(&self) {
+    access_store_with(|store| store.set_atom(self.id, None));
+  }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Link<T: Model> {
+  id: u128,
+  _t: PhantomData<T>,
+}
+
+impl<T: Model> Link<T> {
+  pub fn from_raw(id: u128) -> Self {
+    Self { id, _t: Default::default() }
+  }
+  pub fn get(&self) -> Option<T> {
+    access_store_with(|store| store.edge(self.id)).and_then(|(_, _, dst)| T::get(dst))
+  }
+  pub fn set(&self, value: &T) {
+    access_store_with(|store| store.set_edge_dst(self.id, value.id()));
+  }
+  pub fn remove(&self) {
+    access_store_with(|store| store.set_edge_dst(self.id, rand::thread_rng().gen()));
+  }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Backlinks<T: Model> {
+  dst: u128,
+  label: u64,
+  _t: PhantomData<T>,
+}
+
+impl<T: Model> Backlinks<T> {
+  pub fn from_raw(dst: u128, label: u64) -> Self {
+    Self { dst, label, _t: Default::default() }
+  }
+  pub fn get(&self) -> Vec<T> {
+    access_store_with(|store| {
+      let mut res = store.query_edge_label_dst(self.label, self.dst);
+      for id in res.as_mut_slice() {
+        *id = store.edge(*id).unwrap().0;
+      }
+      res
+    })
+    .into_iter()
+    .filter_map(T::get)
+    .collect()
   }
 }

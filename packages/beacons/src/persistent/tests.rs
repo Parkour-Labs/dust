@@ -98,7 +98,7 @@ impl MockVectorHistory {
 
 macro_rules! clock {
   ( $val:expr ) => {
-    Clock::from_u128($val)
+    Clock::from($val)
   };
 }
 
@@ -225,7 +225,7 @@ fn random_option_clock() -> Option<Clock> {
   if value % 20 == 0 {
     None
   } else {
-    Some(Clock::from_u128(value))
+    Some(Clock::from(value))
   }
 }
 
@@ -268,7 +268,7 @@ fn vector_history_random_core<T: State>(
       }
       5 => {
         let replica = rng.gen_range(0..10);
-        let clock = Clock::from_u128(rng.gen_range(0..10));
+        let clock = Clock::from(rng.gen_range(0..10));
         let name = String::from("");
         let action = rand_action();
         assert_eq!(

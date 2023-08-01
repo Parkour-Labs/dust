@@ -12,13 +12,13 @@ fn register_simple() {
 
   let mut a = Register::<u64>::new(&mut txn, "collection", "name");
   assert_eq!(*a.value(), 0);
-  a.apply(&mut txn, jcrdt::Register::from(Clock::from_u128(3), 233));
+  a.apply(&mut txn, jcrdt::Register::from(Clock::from(3), 233));
   assert_eq!(*a.value(), 233);
-  a.apply(&mut txn, jcrdt::Register::from(Clock::from_u128(4), 2333));
+  a.apply(&mut txn, jcrdt::Register::from(Clock::from(4), 2333));
   assert_eq!(*a.value(), 2333);
-  a.apply(&mut txn, jcrdt::Register::from(Clock::from_u128(2), 23333));
+  a.apply(&mut txn, jcrdt::Register::from(Clock::from(2), 23333));
   assert_eq!(*a.value(), 2333);
-  a.apply(&mut txn, jcrdt::Register::from(Clock::from_u128(5), 233333));
+  a.apply(&mut txn, jcrdt::Register::from(Clock::from(5), 233333));
   assert_eq!(*a.value(), 233333);
 }
 
@@ -43,21 +43,21 @@ fn register_random() {
         assert_eq!(a.value(), b.value());
       }
       2 => {
-        let action = jcrdt::Register::from(Clock::from_u128(rng.gen_range(0..10)), rng.gen_range(0..10));
+        let action = jcrdt::Register::from(Clock::from(rng.gen_range(0..10)), rng.gen_range(0..10));
         a.apply(&mut txn, action);
         b.apply(action);
       }
       3 => {
-        let state = jcrdt::Register::from(Clock::from_u128(rng.gen_range(0..10)), rng.gen_range(0..10));
+        let state = jcrdt::Register::from(Clock::from(rng.gen_range(0..10)), rng.gen_range(0..10));
         assert_eq!(a.preq(&mut txn, &state), b.preq(&state));
       }
       4 => {
-        let state = jcrdt::Register::from(Clock::from_u128(rng.gen_range(0..10)), rng.gen_range(0..10));
+        let state = jcrdt::Register::from(Clock::from(rng.gen_range(0..10)), rng.gen_range(0..10));
         a.join(&mut txn, state);
         b.join(state);
       }
       5 => {
-        let action = jcrdt::Register::from(Clock::from_u128(rng.gen_range(0..10)), rng.gen_range(0..10));
+        let action = jcrdt::Register::from(Clock::from(rng.gen_range(0..10)), rng.gen_range(0..10));
         a.gamma_join(&mut txn, action);
         b.gamma_join(action);
       }
@@ -76,22 +76,22 @@ fn object_set_simple() {
   assert_eq!(a.get(&mut txn, 1), None);
   assert_eq!(a.get(&mut txn, 2), None);
 
-  a.apply(&mut txn, ObjectSet::action(Clock::from_u128(3), 2, Some(vec![2, 3, 3])));
+  a.apply(&mut txn, ObjectSet::action(Clock::from(3), 2, Some(vec![2, 3, 3])));
   assert_eq!(a.get(&mut txn, 0), None);
   assert_eq!(a.get(&mut txn, 1), None);
   assert_eq!(a.get(&mut txn, 2), Some(vec![2, 3, 3].as_slice()));
 
-  a.apply(&mut txn, ObjectSet::action(Clock::from_u128(4), 1, Some(vec![2, 3, 3, 3])));
+  a.apply(&mut txn, ObjectSet::action(Clock::from(4), 1, Some(vec![2, 3, 3, 3])));
   assert_eq!(a.get(&mut txn, 0), None);
   assert_eq!(a.get(&mut txn, 1), Some(vec![2, 3, 3, 3].as_slice()));
   assert_eq!(a.get(&mut txn, 2), Some(vec![2, 3, 3].as_slice()));
 
-  a.apply(&mut txn, ObjectSet::action(Clock::from_u128(2), 2, Some(vec![2, 3, 3, 3, 3])));
+  a.apply(&mut txn, ObjectSet::action(Clock::from(2), 2, Some(vec![2, 3, 3, 3, 3])));
   assert_eq!(a.get(&mut txn, 0), None);
   assert_eq!(a.get(&mut txn, 1), Some(vec![2, 3, 3, 3].as_slice()));
   assert_eq!(a.get(&mut txn, 2), Some(vec![2, 3, 3].as_slice()));
 
-  a.apply(&mut txn, ObjectSet::action(Clock::from_u128(5), 2, None));
+  a.apply(&mut txn, ObjectSet::action(Clock::from(5), 2, None));
   assert_eq!(a.get(&mut txn, 0), None);
   assert_eq!(a.get(&mut txn, 1), Some(vec![2, 3, 3, 3].as_slice()));
   assert_eq!(a.get(&mut txn, 2), None);
@@ -119,7 +119,7 @@ fn object_set_random() {
       }
       2 => {
         let action = jcrdt::ObjectSet::action(
-          Clock::from_u128(rng.gen_range(0..10)),
+          Clock::from(rng.gen_range(0..10)),
           rng.gen_range(0..10),
           Some(vec![rng.gen_range(0..10)]),
         );
@@ -150,29 +150,29 @@ fn object_graph_simple() {
   assert_eq!(a.edge(&mut txn, 0), None);
   assert_eq!(a.edge(&mut txn, 1), None);
 
-  a.apply(&mut txn, ObjectGraph::action_node(Clock::from_u128(3), 0, Some(233)));
-  a.apply(&mut txn, ObjectGraph::action_edge(Clock::from_u128(3), 0, Some((0, 233, 1))));
+  a.apply(&mut txn, ObjectGraph::action_node(Clock::from(3), 0, Some(233)));
+  a.apply(&mut txn, ObjectGraph::action_edge(Clock::from(3), 0, Some((0, 233, 1))));
   assert_eq!(a.node(&mut txn, 0), Some(233));
   assert_eq!(a.node(&mut txn, 1), None);
   assert_eq!(a.edge(&mut txn, 0), Some((0, 233, 1)));
   assert_eq!(a.edge(&mut txn, 1), None);
 
-  a.apply(&mut txn, ObjectGraph::action_node(Clock::from_u128(4), 0, Some(2333)));
-  a.apply(&mut txn, ObjectGraph::action_edge(Clock::from_u128(4), 0, Some((0, 2333, 1))));
+  a.apply(&mut txn, ObjectGraph::action_node(Clock::from(4), 0, Some(2333)));
+  a.apply(&mut txn, ObjectGraph::action_edge(Clock::from(4), 0, Some((0, 2333, 1))));
   assert_eq!(a.node(&mut txn, 0), Some(2333));
   assert_eq!(a.node(&mut txn, 1), None);
   assert_eq!(a.edge(&mut txn, 0), Some((0, 2333, 1)));
   assert_eq!(a.edge(&mut txn, 1), None);
 
-  a.apply(&mut txn, ObjectGraph::action_node(Clock::from_u128(2), 0, Some(23333)));
-  a.apply(&mut txn, ObjectGraph::action_edge(Clock::from_u128(2), 0, Some((0, 23333, 1))));
+  a.apply(&mut txn, ObjectGraph::action_node(Clock::from(2), 0, Some(23333)));
+  a.apply(&mut txn, ObjectGraph::action_edge(Clock::from(2), 0, Some((0, 23333, 1))));
   assert_eq!(a.node(&mut txn, 0), Some(2333));
   assert_eq!(a.node(&mut txn, 1), None);
   assert_eq!(a.edge(&mut txn, 0), Some((0, 2333, 1)));
   assert_eq!(a.edge(&mut txn, 1), None);
 
-  a.apply(&mut txn, ObjectGraph::action_node(Clock::from_u128(5), 0, None));
-  a.apply(&mut txn, ObjectGraph::action_edge(Clock::from_u128(5), 0, None));
+  a.apply(&mut txn, ObjectGraph::action_node(Clock::from(5), 0, None));
+  a.apply(&mut txn, ObjectGraph::action_edge(Clock::from(5), 0, None));
   assert_eq!(a.node(&mut txn, 0), None);
   assert_eq!(a.node(&mut txn, 1), None);
   assert_eq!(a.edge(&mut txn, 0), None);
@@ -205,7 +205,7 @@ fn object_graph_random() {
       }
       3 => {
         let action = jcrdt::ObjectGraph::action_node(
-          Clock::from_u128(rng.gen_range(0..10)),
+          Clock::from(rng.gen_range(0..10)),
           rng.gen_range(0..10),
           Some(rng.gen_range(0..10)),
         );
@@ -214,7 +214,7 @@ fn object_graph_random() {
       }
       4 => {
         let action = jcrdt::ObjectGraph::action_edge(
-          Clock::from_u128(rng.gen_range(0..10)),
+          Clock::from(rng.gen_range(0..10)),
           rng.gen_range(0..10),
           Some((rng.gen_range(0..10), rng.gen_range(0..10), rng.gen_range(0..10))),
         );

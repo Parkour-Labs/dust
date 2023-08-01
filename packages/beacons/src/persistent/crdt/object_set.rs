@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS \"{collection}.{name}\" (
       txn
         .prepare_cached(&format!("REPLACE INTO \"{col}.{name}\" VALUES (?, ?, ?)"))
         .unwrap()
-        .execute((id.to_be_bytes(), elem.clock().to_u128().to_be_bytes(), elem.value()))
+        .execute((id.to_be_bytes(), elem.clock().to_be_bytes(), elem.value()))
         .unwrap();
     }
   }

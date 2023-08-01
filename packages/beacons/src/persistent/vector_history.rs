@@ -249,7 +249,7 @@ CREATE TABLE IF NOT EXISTS \"{collection}.vector_history\" (
     lower: Option<Clock>,
     upper: Clock,
   ) -> Vec<(Clock, String, Vec<u8>)> {
-    let lower = lower.map_or(0, |clock| clock.to_u128() + 1).to_be_bytes();
+    let lower = lower.map_or(0, |clock| u128::from(clock) + 1).to_be_bytes();
     let upper = upper.to_be_bytes();
     self
       .prepare_cached(&format!(

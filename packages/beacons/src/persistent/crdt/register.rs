@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS \"{collection}.{name}\" (
     txn
       .prepare_cached(&format!("REPLACE INTO \"{col}.{name}\" VALUES (X'', ?, ?)"))
       .unwrap()
-      .execute((self.inner.clock().to_u128().to_be_bytes(), postcard::to_allocvec(self.inner.value()).unwrap()))
+      .execute((self.inner.clock().to_be_bytes(), postcard::to_allocvec(self.inner.value()).unwrap()))
       .unwrap();
   }
 

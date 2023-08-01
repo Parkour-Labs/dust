@@ -161,22 +161,26 @@ impl Clock {
     Self { measured: pair.0, count: pair.1, random: rand::thread_rng().gen() }
   }
 
-  pub fn from_u128(value: u128) -> Self {
+  pub fn from_be_bytes(value: [u8; 16]) -> Self {
+    Self::from(u128::from_be_bytes(value))
+  }
+
+  pub fn to_be_bytes(&self) -> [u8; 16] {
+    u128::from(*self).to_be_bytes()
+  }
+}
+
+impl From<u128> for Clock {
+  fn from(value: u128) -> Self {
     let measured = (value >> 64) as u64;
     let count = (value >> 32) as u32;
     let random = value as u32;
     Self { measured, count, random }
   }
+}
 
-  pub fn to_u128(&self) -> u128 {
-    ((self.measured as u128) << 64) ^ ((self.count as u128) << 32) ^ (self.random as u128)
-  }
-
-  pub fn from_be_bytes(value: [u8; 16]) -> Self {
-    Self::from_u128(u128::from_be_bytes(value))
-  }
-
-  pub fn to_be_bytes(&self) -> [u8; 16] {
-    self.to_u128().to_be_bytes()
+impl From<Clock> for u128 {
+  fn from(value: Clock) -> Self {
+    ((value.measured as u128) << 64) ^ ((value.count as u128) << 32) ^ (value.random as u128)
   }
 }

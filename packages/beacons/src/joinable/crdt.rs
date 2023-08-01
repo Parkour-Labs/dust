@@ -1,6 +1,9 @@
 pub mod register;
 pub use register::Register;
 
+pub mod sequence;
+pub use sequence::Sequence;
+
 pub mod object_set;
 pub use object_set::ObjectSet;
 

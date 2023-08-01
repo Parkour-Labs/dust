@@ -143,11 +143,7 @@ CREATE INDEX IF NOT EXISTS \"{collection}.{name}.edges.idx_label_dst\" ON \"{col
       txn
         .prepare_cached(&format!("REPLACE INTO \"{col}.{name}.nodes\" VALUES (?, ?, ?)"))
         .unwrap()
-        .execute((
-          id.to_be_bytes(),
-          elem.clock().to_u128().to_be_bytes(),
-          elem.value().map(|value| value.to_be_bytes()),
-        ))
+        .execute((id.to_be_bytes(), elem.clock().to_be_bytes(), elem.value().map(|value| value.to_be_bytes())))
         .unwrap();
     }
   }
@@ -162,7 +158,7 @@ CREATE INDEX IF NOT EXISTS \"{collection}.{name}.edges.idx_label_dst\" ON \"{col
         .unwrap()
         .execute((
           id.to_be_bytes(),
-          elem.clock().to_u128().to_be_bytes(),
+          elem.clock().to_be_bytes(),
           elem.value().map(|value| value.0.to_be_bytes()),
           elem.value().map(|value| value.1.to_be_bytes()),
           elem.value().map(|value| value.2.to_be_bytes()),
