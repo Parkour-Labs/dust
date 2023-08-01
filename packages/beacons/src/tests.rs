@@ -1,8 +1,6 @@
 use rand::Rng;
 
-use crate::global::Backlinks;
-
-use super::global::{self, Atom, Link, Model};
+use super::global::{self, Atom, Backlinks, Link, Model};
 
 #[derive(Debug)]
 struct Trivial {
@@ -25,6 +23,10 @@ impl Trivial {
 
     // Return.
     Self::get(id).unwrap()
+  }
+
+  pub fn remove(self) {
+    global::access_store_with(|store| store.set_node(self.id, None));
   }
 }
 
@@ -125,6 +127,10 @@ impl Something {
     // Return.
     Self::get(id).unwrap()
   }
+
+  pub fn remove(self) {
+    global::access_store_with(|store| store.set_node(self.id, None));
+  }
 }
 
 impl Model for Something {
@@ -170,7 +176,7 @@ impl Model for Something {
 }
 
 #[test]
-fn simple_test() {
+fn object_store_simple() {
   global::init_in_memory();
   global::access_store_with(|store| store.set_node(0, Some(233)));
   global::access_store_with(|store| store.set_node(1, Some(2333)));
@@ -183,7 +189,7 @@ fn simple_test() {
 }
 
 #[test]
-fn atom_link_test() {
+fn atom_link_simple() {
   global::init_in_memory();
 
   let trivial = Trivial::create();
@@ -224,4 +230,13 @@ fn atom_link_test() {
   something.link_three.set(&something);
   assert_eq!(something.backlink.get().len(), 2);
   assert_eq!(something_else.backlink.get().len(), 0);
+
+  trivial.remove();
+  trivial_again.remove();
+  assert!(something.link_one.get().is_none());
+  assert!(something.link_two.get().is_none());
+  assert!(something_else.link_one.get().is_none());
+  assert!(something_else.link_two.get().is_none());
+  something.remove();
+  something_else.remove();
 }

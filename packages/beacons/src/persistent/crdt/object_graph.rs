@@ -37,8 +37,8 @@ CREATE TABLE IF NOT EXISTS \"{collection}.{name}.edges\" (
   dst BLOB,
   PRIMARY KEY (id)
 ) STRICT, WITHOUT ROWID;
-CREATE INDEX IF NOT EXISTS \"{collection}.{name}.edges.idx_src\" ON \"{collection}.{name}.edges\" (src);
-CREATE INDEX IF NOT EXISTS \"{collection}.{name}.edges.idx_label_dst\" ON \"{collection}.{name}.edges\" (label, dst);
+CREATE INDEX IF NOT EXISTS \"{collection}.{name}.edges.idx_src_label\" ON \"{collection}.{name}.edges\" (src, label);
+CREATE INDEX IF NOT EXISTS \"{collection}.{name}.edges.idx_dst_label\" ON \"{collection}.{name}.edges\" (dst, label);
         "
       ))
       .unwrap();
@@ -66,7 +66,7 @@ CREATE INDEX IF NOT EXISTS \"{collection}.{name}.edges.idx_label_dst\" ON \"{col
     let name = self.name;
     txn
       .prepare_cached(&format!(
-        "SELECT id FROM \"{col}.{name}.edges\" INDEXED BY \"{col}.{name}.edges.idx_src\" WHERE src = ?"
+        "SELECT id FROM \"{col}.{name}.edges\" INDEXED BY \"{col}.{name}.edges.idx_src_label\" WHERE src = ?"
       ))
       .unwrap()
       .query_map((src.to_be_bytes(),), |row| Ok(u128::from_be_bytes(row.get(0).unwrap())))
@@ -75,16 +75,31 @@ CREATE INDEX IF NOT EXISTS \"{collection}.{name}.edges.idx_label_dst\" ON \"{col
       .collect()
   }
 
-  /// Queries all edges with given label and destination.
-  pub fn query_edge_label_dst(&self, txn: &mut Transaction, label: u64, dst: u128) -> Vec<u128> {
+  /// Queries all edges with given source and label.
+  pub fn query_edge_src_label(&self, txn: &mut Transaction, src: u128, label: u64) -> Vec<u128> {
     let col = self.collection;
     let name = self.name;
     txn
       .prepare_cached(&format!(
-        "SELECT id FROM \"{col}.{name}.edges\" INDEXED BY \"{col}.{name}.edges.idx_label_dst\" WHERE label = ? AND dst = ?"
+        "SELECT id FROM \"{col}.{name}.edges\" INDEXED BY \"{col}.{name}.edges.idx_src_label\" WHERE src = ? AND label = ?"
       ))
       .unwrap()
-      .query_map((label.to_be_bytes(), dst.to_be_bytes()), |row| Ok(u128::from_be_bytes(row.get(0).unwrap())))
+      .query_map((src.to_be_bytes(),label.to_be_bytes()), |row| Ok(u128::from_be_bytes(row.get(0).unwrap())))
+      .unwrap()
+      .map(Result::unwrap)
+      .collect()
+  }
+
+  /// Queries all edges with given destination and label.
+  pub fn query_edge_dst_label(&self, txn: &mut Transaction, dst: u128, label: u64) -> Vec<u128> {
+    let col = self.collection;
+    let name = self.name;
+    txn
+      .prepare_cached(&format!(
+        "SELECT id FROM \"{col}.{name}.edges\" INDEXED BY \"{col}.{name}.edges.idx_dst_label\" WHERE dst = ? AND label = ?"
+      ))
+      .unwrap()
+      .query_map((dst.to_be_bytes(),label.to_be_bytes()), |row| Ok(u128::from_be_bytes(row.get(0).unwrap())))
       .unwrap()
       .map(Result::unwrap)
       .collect()

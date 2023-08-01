@@ -238,9 +238,10 @@ fn object_graph_random() {
         a.unload_edge(id);
       }
       9 => {
-        a.query_edge_label_dst(&mut txn, rng.gen_range(0..10), rng.gen_range(0..10));
-        a.query_edge_src(&mut txn, rng.gen_range(0..10));
         a.query_node_label(&mut txn, rng.gen_range(0..10));
+        a.query_edge_src(&mut txn, rng.gen_range(0..10));
+        a.query_edge_src_label(&mut txn, rng.gen_range(0..10), rng.gen_range(0..10));
+        a.query_edge_dst_label(&mut txn, rng.gen_range(0..10), rng.gen_range(0..10));
       }
       _ => panic!(),
     }

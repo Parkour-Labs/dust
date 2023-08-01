@@ -13,12 +13,12 @@ struct Aggregators {
   atoms: Aggregator<Option<Vec<u8>>>,
   nodes: Aggregator<Option<u64>>,
   edges: Aggregator<Option<(u128, u64, u128)>>,
-  backedges: Aggregator<SetEvent<u128>>,
+  sets: Aggregator<SetEvent<u128>>,
 }
 
 impl Aggregators {
   fn new() -> Self {
-    Self { atoms: Aggregator::new(), nodes: Aggregator::new(), edges: Aggregator::new(), backedges: Aggregator::new() }
+    Self { atoms: Aggregator::new(), nodes: Aggregator::new(), edges: Aggregator::new(), sets: Aggregator::new() }
   }
 
   fn atoms(&mut self) -> &mut Aggregator<Option<Vec<u8>>> {
@@ -29,7 +29,7 @@ impl Aggregators {
     ObjectGraphAggregator {
       node_aggregator: &mut self.nodes,
       edge_aggregator: &mut self.edges,
-      backedge_aggregator: &mut self.backedges,
+      set_aggregator: &mut self.sets,
     }
   }
 }
@@ -45,7 +45,8 @@ pub struct ObjectStore {
   aggregators: Aggregators,
 }
 
-fn auto_commit(connection: &mut Connection) -> Transaction<'_> {
+/// Starts an *auto-commit* transaction.
+fn txn(connection: &mut Connection) -> Transaction<'_> {
   let mut res = connection.transaction_with_behavior(TransactionBehavior::Immediate).unwrap();
   res.set_drop_behavior(DropBehavior::Commit);
   res
@@ -53,7 +54,7 @@ fn auto_commit(connection: &mut Connection) -> Transaction<'_> {
 
 impl ObjectStore {
   pub fn new(mut connection: Connection, name: &'static str) -> Self {
-    let mut txn = auto_commit(&mut connection);
+    let mut txn = txn(&mut connection);
     let vector_history = VectorHistory::new(&mut txn, name);
     let atoms = ObjectSet::new(&mut txn, name, "atoms");
     let graph = ObjectGraph::new(&mut txn, name, "graph");
@@ -68,7 +69,7 @@ impl ObjectStore {
     Clock::new(self.vector_history.latest())
   }
   fn atoms_apply(&mut self, replica: u128, clock: Clock, action: <ObjectSet as ObservablePersistentState>::Action) {
-    let mut txn = auto_commit(&mut self.connection);
+    let mut txn = txn(&mut self.connection);
     if self
       .vector_history
       .push(&mut txn, (replica, clock, String::from("atoms"), postcard::to_allocvec(&action).unwrap()))
@@ -78,7 +79,7 @@ impl ObjectStore {
     }
   }
   fn graph_apply(&mut self, replica: u128, clock: Clock, action: <ObjectGraph as ObservablePersistentState>::Action) {
-    let mut txn = auto_commit(&mut self.connection);
+    let mut txn = txn(&mut self.connection);
     if self
       .vector_history
       .push(&mut txn, (replica, clock, String::from("graph"), postcard::to_allocvec(&action).unwrap()))
@@ -89,19 +90,22 @@ impl ObjectStore {
   }
 
   pub fn node(&mut self, id: u128) -> Option<u64> {
-    self.graph.node(&mut auto_commit(&mut self.connection), id)
+    self.graph.node(&mut txn(&mut self.connection), id)
   }
   pub fn atom(&mut self, id: u128) -> Option<&[u8]> {
-    self.atoms.get(&mut auto_commit(&mut self.connection), id)
+    self.atoms.get(&mut txn(&mut self.connection), id)
   }
   pub fn edge(&mut self, id: u128) -> Option<(u128, u64, u128)> {
-    self.graph.edge(&mut auto_commit(&mut self.connection), id)
+    self.graph.edge(&mut txn(&mut self.connection), id)
   }
   pub fn query_edge_src(&mut self, src: u128) -> Vec<u128> {
-    self.graph.query_edge_src(&mut auto_commit(&mut self.connection), src)
+    self.graph.query_edge_src(&mut txn(&mut self.connection), src)
   }
-  pub fn query_edge_label_dst(&mut self, label: u64, dst: u128) -> Vec<u128> {
-    self.graph.query_edge_label_dst(&mut auto_commit(&mut self.connection), label, dst)
+  pub fn query_edge_src_label(&mut self, src: u128, label: u64) -> Vec<u128> {
+    self.graph.query_edge_src_label(&mut txn(&mut self.connection), src, label)
+  }
+  pub fn query_edge_dst_label(&mut self, dst: u128, label: u64) -> Vec<u128> {
+    self.graph.query_edge_dst_label(&mut txn(&mut self.connection), dst, label)
   }
 
   pub fn set_node(&mut self, id: u128, value: Option<u64>) {
@@ -123,34 +127,34 @@ impl ObjectStore {
   }
 
   pub fn subscribe_node(&mut self, id: u128, port: u64) {
-    self.graph.subscribe_node(&mut auto_commit(&mut self.connection), &mut self.aggregators.graph(), id, port);
+    self.graph.subscribe_node(&mut txn(&mut self.connection), &mut self.aggregators.graph(), id, port);
   }
   pub fn unsubscribe_node(&mut self, id: u128, port: u64) {
     self.graph.unsubscribe_node(id, port);
   }
   pub fn subscribe_atom(&mut self, id: u128, port: u64) {
-    self.atoms.subscribe(&mut auto_commit(&mut self.connection), self.aggregators.atoms(), id, port);
+    self.atoms.subscribe(&mut txn(&mut self.connection), self.aggregators.atoms(), id, port);
   }
   pub fn unsubscribe_atom(&mut self, id: u128, port: u64) {
     self.atoms.unsubscribe(id, port);
   }
   pub fn subscribe_edge(&mut self, id: u128, port: u64) {
-    self.graph.subscribe_edge(&mut auto_commit(&mut self.connection), &mut self.aggregators.graph(), id, port);
+    self.graph.subscribe_edge(&mut txn(&mut self.connection), &mut self.aggregators.graph(), id, port);
   }
   pub fn unsubscribe_edge(&mut self, id: u128, port: u64) {
     self.graph.unsubscribe_edge(id, port);
   }
-  pub fn subscribe_backedge(&mut self, label: u64, dst: u128, port: u64) {
-    self.graph.subscribe_backedge(
-      &mut auto_commit(&mut self.connection),
-      &mut self.aggregators.graph(),
-      label,
-      dst,
-      port,
-    );
+  pub fn subscribe_multiedge(&mut self, src: u128, label: u64, port: u64) {
+    self.graph.subscribe_multiedge(&mut txn(&mut self.connection), &mut self.aggregators.graph(), src, label, port);
   }
-  pub fn unsubscribe_backedge(&mut self, label: u64, dst: u128, port: u64) {
-    self.graph.unsubscribe_backedge(label, dst, port);
+  pub fn unsubscribe_multiedge(&mut self, src: u128, label: u64, port: u64) {
+    self.graph.unsubscribe_multiedge(src, label, port);
+  }
+  pub fn subscribe_backedge(&mut self, dst: u128, label: u64, port: u64) {
+    self.graph.subscribe_backedge(&mut txn(&mut self.connection), &mut self.aggregators.graph(), dst, label, port);
+  }
+  pub fn unsubscribe_backedge(&mut self, dst: u128, label: u64, port: u64) {
+    self.graph.unsubscribe_backedge(dst, label, port);
   }
 
   pub fn sync_clocks(&mut self) -> Vec<u8> {
@@ -159,11 +163,11 @@ impl ObjectStore {
   }
   pub fn sync_actions(&mut self, clocks: &[u8]) -> Vec<u8> {
     let clocks = postcard::from_bytes::<HashMap<u128, Option<Clock>>>(clocks).unwrap();
-    let actions = self.vector_history.collect(&mut auto_commit(&mut self.connection), clocks);
+    let actions = self.vector_history.collect(&mut txn(&mut self.connection), clocks);
     postcard::to_allocvec::<Vec<(u128, Clock, String, Vec<u8>)>>(&actions).unwrap()
   }
   pub fn sync_apply(&mut self, actions: &[u8]) {
-    let mut txn = auto_commit(&mut self.connection);
+    let mut txn = txn(&mut self.connection);
     let actions = postcard::from_bytes::<Vec<(u128, Clock, String, Vec<u8>)>>(actions).unwrap();
     for (_replica, _clock, name, action) in self.vector_history.append(&mut txn, actions) {
       match name.as_str() {

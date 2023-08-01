@@ -39,6 +39,18 @@ pub fn access_store_with<R>(f: impl FnOnce(&mut ObjectStore) -> R) -> R {
   })
 }
 
+pub fn sync_clocks() -> Vec<u8> {
+  access_store_with(|store| store.sync_clocks())
+}
+
+pub fn sync_actions(clocks: &[u8]) -> Vec<u8> {
+  access_store_with(|store| store.sync_actions(clocks))
+}
+
+pub fn sync_apply(actions: &[u8]) {
+  access_store_with(|store| store.sync_apply(actions))
+}
+
 /// See: https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
 pub fn fnv64_hash(s: &'static str) -> u64 {
   const PRIME: u64 = 1099511628211;
@@ -101,6 +113,44 @@ impl<T: Model> Link<T> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Multilinks<T> {
+  src: u128,
+  label: u64,
+  _t: PhantomData<T>,
+}
+
+impl<T: Model> Multilinks<T> {
+  pub fn from_raw(src: u128, label: u64) -> Self {
+    Self { src, label, _t: Default::default() }
+  }
+  pub fn get(&self) -> Vec<T> {
+    access_store_with(|store| {
+      let mut res = store.query_edge_src_label(self.src, self.label);
+      for id in res.as_mut_slice() {
+        *id = store.edge(*id).unwrap().0;
+      }
+      res
+    })
+    .into_iter()
+    .filter_map(T::get)
+    .collect()
+  }
+  pub fn add(&self, dst: u128) {
+    access_store_with(|store| store.set_edge(rand::thread_rng().gen(), Some((self.src, self.label, dst))));
+  }
+  pub fn remove(&self, dst: u128) {
+    access_store_with(|store| {
+      for id in store.query_edge_src_label(self.src, self.label) {
+        if store.edge(id).unwrap().2 == dst {
+          store.set_edge(id, None);
+          break;
+        }
+      }
+    });
+  }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Backlinks<T: Model> {
   dst: u128,
   label: u64,
@@ -113,7 +163,7 @@ impl<T: Model> Backlinks<T> {
   }
   pub fn get(&self) -> Vec<T> {
     access_store_with(|store| {
-      let mut res = store.query_edge_label_dst(self.label, self.dst);
+      let mut res = store.query_edge_dst_label(self.dst, self.label);
       for id in res.as_mut_slice() {
         *id = store.edge(*id).unwrap().0;
       }

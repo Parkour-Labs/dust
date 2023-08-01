@@ -17,14 +17,15 @@ pub struct ObjectGraph {
   inner: pcrdt::ObjectGraph,
   node_subscriptions: HashMap<u128, Vec<Port>>,
   edge_subscriptions: HashMap<u128, Vec<Port>>,
-  backedge_subscriptions: HashMap<(u64, u128), Vec<Port>>,
+  multiedge_subscriptions: HashMap<(u128, u64), Vec<Port>>,
+  backedge_subscriptions: HashMap<(u128, u64), Vec<Port>>,
 }
 
 #[derive(Debug)]
 pub struct ObjectGraphAggregator<'a> {
   pub node_aggregator: &'a mut Aggregator<Option<u64>>,
   pub edge_aggregator: &'a mut Aggregator<Option<(u128, u64, u128)>>,
-  pub backedge_aggregator: &'a mut Aggregator<SetEvent<u128>>,
+  pub set_aggregator: &'a mut Aggregator<SetEvent<u128>>,
 }
 
 impl ObjectGraph {
@@ -34,6 +35,7 @@ impl ObjectGraph {
       inner: pcrdt::ObjectGraph::new(txn, collection, name),
       node_subscriptions: HashMap::new(),
       edge_subscriptions: HashMap::new(),
+      multiedge_subscriptions: HashMap::new(),
       backedge_subscriptions: HashMap::new(),
     }
   }
@@ -48,9 +50,14 @@ impl ObjectGraph {
     self.inner.query_edge_src(txn, src)
   }
 
-  /// Queries all edges with given label and destination.
-  pub fn query_edge_label_dst(&self, txn: &mut Transaction, label: u64, dst: u128) -> Vec<u128> {
-    self.inner.query_edge_label_dst(txn, label, dst)
+  /// Queries all edges with given source and label.
+  pub fn query_edge_src_label(&self, txn: &mut Transaction, src: u128, label: u64) -> Vec<u128> {
+    self.inner.query_edge_src_label(txn, src, label)
+  }
+
+  /// Queries all edges with given destination and label.
+  pub fn query_edge_dst_label(&self, txn: &mut Transaction, dst: u128, label: u64) -> Vec<u128> {
+    self.inner.query_edge_dst_label(txn, dst, label)
   }
 
   /// Loads node.
@@ -125,18 +132,35 @@ impl ObjectGraph {
   }
 
   /// Adds observer.
+  pub fn subscribe_multiedge(
+    &mut self,
+    txn: &mut Transaction,
+    ctx: &mut ObjectGraphAggregator<'_>,
+    src: u128,
+    label: u64,
+    port: Port,
+  ) {
+    self.multiedge_subscriptions.entry((src, label)).or_default().push(port);
+    for id in self.query_edge_src_label(txn, src, label) {
+      if let Some((src, _, _)) = self.edge(txn, id) {
+        ctx.set_aggregator.push(port, SetEvent::Insert(src));
+      }
+    }
+  }
+
+  /// Adds observer.
   pub fn subscribe_backedge(
     &mut self,
     txn: &mut Transaction,
     ctx: &mut ObjectGraphAggregator<'_>,
-    label: u64,
     dst: u128,
+    label: u64,
     port: Port,
   ) {
-    self.backedge_subscriptions.entry((label, dst)).or_default().push(port);
-    for id in self.query_edge_label_dst(txn, label, dst) {
+    self.backedge_subscriptions.entry((dst, label)).or_default().push(port);
+    for id in self.query_edge_dst_label(txn, dst, label) {
       if let Some((src, _, _)) = self.edge(txn, id) {
-        ctx.backedge_aggregator.push(port, SetEvent::Insert(src));
+        ctx.set_aggregator.push(port, SetEvent::Insert(src));
       }
     }
   }
@@ -162,8 +186,18 @@ impl ObjectGraph {
   }
 
   /// Removes observer.
-  pub fn unsubscribe_backedge(&mut self, label: u64, dst: u128, port: Port) {
-    if let Entry::Occupied(mut entry) = self.backedge_subscriptions.entry((label, dst)) {
+  pub fn unsubscribe_multiedge(&mut self, src: u128, label: u64, port: Port) {
+    if let Entry::Occupied(mut entry) = self.multiedge_subscriptions.entry((src, label)) {
+      entry.get_mut().retain(|&x| x != port);
+      if entry.get().is_empty() {
+        entry.remove();
+      }
+    }
+  }
+
+  /// Removes observer.
+  pub fn unsubscribe_backedge(&mut self, dst: u128, label: u64, port: Port) {
+    if let Entry::Occupied(mut entry) = self.backedge_subscriptions.entry((dst, label)) {
       entry.get_mut().retain(|&x| x != port);
       if entry.get().is_empty() {
         entry.remove();
@@ -180,9 +214,14 @@ impl ObjectGraph {
   ) {
     for &id in edges {
       if let Some((src, label, dst)) = self.inner.edge(txn, id) {
-        if let Some(ports) = self.backedge_subscriptions.get(&(label, dst)) {
+        if let Some(ports) = self.multiedge_subscriptions.get(&(src, label)) {
           for &port in ports {
-            ctx.backedge_aggregator.push(port, SetEvent::Remove(src));
+            ctx.set_aggregator.push(port, SetEvent::Remove(dst));
+          }
+        }
+        if let Some(ports) = self.backedge_subscriptions.get(&(dst, label)) {
+          for &port in ports {
+            ctx.set_aggregator.push(port, SetEvent::Remove(src));
           }
         }
       }
@@ -210,9 +249,14 @@ impl ObjectGraph {
         }
       }
       if let Some((src, label, dst)) = self.inner.edge(txn, id) {
-        if let Some(ports) = self.backedge_subscriptions.get(&(label, dst)) {
+        if let Some(ports) = self.multiedge_subscriptions.get(&(src, label)) {
           for &port in ports {
-            ctx.backedge_aggregator.push(port, SetEvent::Insert(src));
+            ctx.set_aggregator.push(port, SetEvent::Insert(dst));
+          }
+        }
+        if let Some(ports) = self.backedge_subscriptions.get(&(dst, label)) {
+          for &port in ports {
+            ctx.set_aggregator.push(port, SetEvent::Insert(src));
           }
         }
       }
