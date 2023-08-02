@@ -1,0 +1,3 @@
+[workspace]
+members = ["beacons", "beacons_macros"]
+resolver = "2"

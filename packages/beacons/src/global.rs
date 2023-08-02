@@ -51,20 +51,6 @@ pub fn sync_apply(actions: &[u8]) {
   access_store_with(|store| store.sync_apply(actions))
 }
 
-/// See: https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
-pub fn fnv64_hash(s: &'static str) -> u64 {
-  const PRIME: u64 = 1099511628211;
-  const BASIS: u64 = 14695981039346656037;
-  let mut res = BASIS;
-  for c in s.chars() {
-    let high = (c as u64) >> 8;
-    let low = (c as u64) & 0xFF;
-    res = (res * PRIME) ^ low;
-    res = (res * PRIME) ^ high;
-  }
-  res
-}
-
 pub trait Model: std::marker::Sized {
   fn id(&self) -> u128;
   fn get(id: u128) -> Option<Self>;

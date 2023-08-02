@@ -25,7 +25,7 @@ pub struct ObjectGraph {
 pub struct ObjectGraphAggregator<'a> {
   pub node_aggregator: &'a mut Aggregator<Option<u64>>,
   pub edge_aggregator: &'a mut Aggregator<Option<(u128, u64, u128)>>,
-  pub set_aggregator: &'a mut Aggregator<SetEvent<u128>>,
+  pub id_set_aggregator: &'a mut Aggregator<SetEvent<u128>>,
 }
 
 impl ObjectGraph {
@@ -143,7 +143,7 @@ impl ObjectGraph {
     self.multiedge_subscriptions.entry((src, label)).or_default().push(port);
     for id in self.query_edge_src_label(txn, src, label) {
       if let Some((src, _, _)) = self.edge(txn, id) {
-        ctx.set_aggregator.push(port, SetEvent::Insert(src));
+        ctx.id_set_aggregator.push(port, SetEvent::Insert(src));
       }
     }
   }
@@ -160,7 +160,7 @@ impl ObjectGraph {
     self.backedge_subscriptions.entry((dst, label)).or_default().push(port);
     for id in self.query_edge_dst_label(txn, dst, label) {
       if let Some((src, _, _)) = self.edge(txn, id) {
-        ctx.set_aggregator.push(port, SetEvent::Insert(src));
+        ctx.id_set_aggregator.push(port, SetEvent::Insert(src));
       }
     }
   }
@@ -216,12 +216,12 @@ impl ObjectGraph {
       if let Some((src, label, dst)) = self.inner.edge(txn, id) {
         if let Some(ports) = self.multiedge_subscriptions.get(&(src, label)) {
           for &port in ports {
-            ctx.set_aggregator.push(port, SetEvent::Remove(dst));
+            ctx.id_set_aggregator.push(port, SetEvent::Remove(dst));
           }
         }
         if let Some(ports) = self.backedge_subscriptions.get(&(dst, label)) {
           for &port in ports {
-            ctx.set_aggregator.push(port, SetEvent::Remove(src));
+            ctx.id_set_aggregator.push(port, SetEvent::Remove(src));
           }
         }
       }
@@ -251,12 +251,12 @@ impl ObjectGraph {
       if let Some((src, label, dst)) = self.inner.edge(txn, id) {
         if let Some(ports) = self.multiedge_subscriptions.get(&(src, label)) {
           for &port in ports {
-            ctx.set_aggregator.push(port, SetEvent::Insert(dst));
+            ctx.id_set_aggregator.push(port, SetEvent::Insert(dst));
           }
         }
         if let Some(ports) = self.backedge_subscriptions.get(&(dst, label)) {
           for &port in ports {
-            ctx.set_aggregator.push(port, SetEvent::Insert(src));
+            ctx.id_set_aggregator.push(port, SetEvent::Insert(src));
           }
         }
       }

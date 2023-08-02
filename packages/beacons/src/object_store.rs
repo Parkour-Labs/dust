@@ -13,12 +13,12 @@ struct Aggregators {
   atoms: Aggregator<Option<Vec<u8>>>,
   nodes: Aggregator<Option<u64>>,
   edges: Aggregator<Option<(u128, u64, u128)>>,
-  sets: Aggregator<SetEvent<u128>>,
+  id_sets: Aggregator<SetEvent<u128>>,
 }
 
 impl Aggregators {
   fn new() -> Self {
-    Self { atoms: Aggregator::new(), nodes: Aggregator::new(), edges: Aggregator::new(), sets: Aggregator::new() }
+    Self { atoms: Aggregator::new(), nodes: Aggregator::new(), edges: Aggregator::new(), id_sets: Aggregator::new() }
   }
 
   fn atoms(&mut self) -> &mut Aggregator<Option<Vec<u8>>> {
@@ -29,7 +29,7 @@ impl Aggregators {
     ObjectGraphAggregator {
       node_aggregator: &mut self.nodes,
       edge_aggregator: &mut self.edges,
-      set_aggregator: &mut self.sets,
+      id_set_aggregator: &mut self.id_sets,
     }
   }
 }

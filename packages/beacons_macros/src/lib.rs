@@ -1,7 +1,6 @@
-use std::num::Wrapping;
-
 use proc_macro2::TokenStream;
 use quote::quote;
+use std::num::Wrapping;
 use syn::{parse_macro_input, Field, GenericArgument, Ident, ItemStruct, LitInt, PathArguments, Type};
 
 const LINK: &str = "Link";
@@ -13,11 +12,8 @@ fn fnv64_hash(s: impl AsRef<str>) -> u64 {
   const PRIME: Wrapping<u64> = Wrapping(1099511628211);
   const BASIS: Wrapping<u64> = Wrapping(14695981039346656037);
   let mut res = BASIS;
-  for c in s.as_ref().chars() {
-    let high = Wrapping((c as u64) >> 8);
-    let low = Wrapping((c as u64) & 0xFF);
-    res = (res * PRIME) ^ low;
-    res = (res * PRIME) ^ high;
+  for c in s.as_ref().as_bytes() {
+    res = (res * PRIME) ^ Wrapping(*c as u64);
   }
   res.0
 }
@@ -53,11 +49,13 @@ fn create_mod_name(name: &Ident) -> Ident {
 fn unwrap_option_wrapper(outer: impl AsRef<str>, ty: &Type) -> Option<&Type> {
   if let Some(ty) = unwrap_type(outer, ty) {
     if let Some(ty) = unwrap_type(OPTION, ty) {
-      return Some(ty);
+      Some(ty)
+    } else {
+      Some(ty)
     }
-    return Some(ty);
+  } else {
+    None
   }
-  return None;
 }
 
 /// Rewrites a struct with an id field added in.
@@ -90,9 +88,11 @@ fn rewrite_struct(item_struct: &ItemStruct) -> TokenStream {
       }
     }
     syn::Fields::Unnamed(_) => {
-      panic!("Unnamed structs are not supported yet!");
+      panic!("Tuple structs are not supported.");
     }
-    syn::Fields::Unit => {}
+    syn::Fields::Unit => {
+      panic!("Empty structs are not supported.");
+    }
   };
   quote! {
     #vis struct #name {
@@ -102,7 +102,10 @@ fn rewrite_struct(item_struct: &ItemStruct) -> TokenStream {
   }
 }
 
-/// Creates a label const. The variable name of the const is given by [var_name], the value of the const is the hashed value given by calling [fnv64_hash] on the [hash_name], and the call_site specifies the location from which the code is generated.
+/// Creates a label const. The variable name of the const is given by [`name`],
+/// the value of the const is the hash value given by calling [`fnv64_hash`] on
+/// [`hash_name`], and the [`call_site`] specifies the location from where the
+/// code is generated.
 fn create_const_label_declaration(name: &Ident, hash_name: impl AsRef<str>) -> TokenStream {
   let hash_val = LitInt::new(&format!("{}", fnv64_hash(hash_name)), name.span());
   quote! {
@@ -115,7 +118,10 @@ fn create_label(name: &Ident) -> Ident {
   Ident::new(&format!("{}_LABEL", name_str), name.span())
 }
 
-/// Creates the label constants for the [item_struct]. This will create a constant named `LABEL` that holds the hash value for the struct's name. For each field, it will create a constant named `FIELDNAME_LABEL` with the value of calling fnv64_hash on `StructName.field_name`.
+/// Creates the label constants for the [`item_struct`]. This will create a
+/// constant named `LABEL` that holds the hash value for the struct's name.
+/// For each field, it will create a constant named `FIELDNAME_LABEL` with the
+/// value of calling [`fnv64_hash`] on `StructName.field_name`.
 fn create_labels_for_struct(item_struct: &ItemStruct) -> TokenStream {
   let mut labels = vec![];
   labels.push(create_const_label_declaration(
@@ -177,7 +183,7 @@ fn create_create_fn_body_for_field(field: &Field) -> TokenStream {
   let name = field.ident.as_ref().expect("Fields must be named.");
   let label = create_label(name);
   if let Some(ty) = unwrap_type(ATOM, &field.ty) {
-    if let Some(_) = unwrap_type(OPTION, ty) {
+    if let Some(_ty) = unwrap_type(OPTION, ty) {
       return quote! {
         {
           if let Some(#name) = #name {
@@ -200,7 +206,7 @@ fn create_create_fn_body_for_field(field: &Field) -> TokenStream {
     }
   }
   if let Some(ty) = unwrap_type(LINK, &field.ty) {
-    if let Some(_) = unwrap_type(OPTION, ty) {
+    if let Some(_ty) = unwrap_type(OPTION, ty) {
       return quote! {
          store.set_edge(rng.gen(), Some((id, Self::#label, #name.id())));
       };
@@ -226,8 +232,8 @@ fn create_create_fn(item_struct: &ItemStruct) -> TokenStream {
   match fields {
     syn::Fields::Named(named) => {
       for field in &named.named {
-        cst_params.push(create_create_fn_param_from_field(&field));
-        cst_bodies.push(create_create_fn_body_for_field(&field));
+        cst_params.push(create_create_fn_param_from_field(field));
+        cst_bodies.push(create_create_fn_body_for_field(field));
       }
     }
     syn::Fields::Unnamed(_) => {
@@ -269,12 +275,12 @@ fn create_get_fn_variable(field: &Field) -> TokenStream {
 fn create_get_fn_match_statement(field: &Field) -> TokenStream {
   let name = &field.ident.as_ref().unwrap();
   let label = create_label(name);
-  if let Some(_) = unwrap_option_wrapper(ATOM, &field.ty) {
+  if unwrap_option_wrapper(ATOM, &field.ty).is_some() {
     return quote! {
       Self::#label => #name = Some(Atom::from_raw(dst)),
     };
   }
-  if let Some(_) = unwrap_option_wrapper(LINK, &field.ty) {
+  if unwrap_option_wrapper(LINK, &field.ty).is_some() {
     return quote! {
       Self::#label => #name = Some(Link::from_raw(edge)),
     };
@@ -290,11 +296,9 @@ fn create_get_fn_constructor_args(field: &Field) -> TokenStream {
 }
 
 fn create_get_fn(item_struct: &ItemStruct) -> TokenStream {
-  let field_declarations = item_struct.fields.iter().map(|x| create_get_fn_variable(x)).collect::<Vec<TokenStream>>();
-  let match_statements =
-    item_struct.fields.iter().map(|x| create_get_fn_match_statement(x)).collect::<Vec<TokenStream>>();
-  let constructor_args =
-    item_struct.fields.iter().map(|x| create_get_fn_constructor_args(x)).collect::<Vec<TokenStream>>();
+  let field_declarations = item_struct.fields.iter().map(create_get_fn_variable).collect::<Vec<TokenStream>>();
+  let match_statements = item_struct.fields.iter().map(create_get_fn_match_statement).collect::<Vec<TokenStream>>();
+  let constructor_args = item_struct.fields.iter().map(create_get_fn_constructor_args).collect::<Vec<TokenStream>>();
   quote! {
     fn get(id: u128) -> Option<Self> {
       global::access_store_with(|store| {
@@ -321,10 +325,10 @@ fn create_get_fn(item_struct: &ItemStruct) -> TokenStream {
 fn model_impl(item_struct: &ItemStruct) -> TokenStream {
   let name = &item_struct.ident;
   let mod_name = create_mod_name(name);
-  let struct_def = rewrite_struct(&item_struct);
-  let labels = create_labels_for_struct(&item_struct);
-  let create_fn = create_create_fn(&item_struct);
-  let get_fn = create_get_fn(&item_struct);
+  let struct_def = rewrite_struct(item_struct);
+  let labels = create_labels_for_struct(item_struct);
+  let create_fn = create_create_fn(item_struct);
+  let get_fn = create_get_fn(item_struct);
 
   quote! {
     #struct_def
@@ -361,11 +365,22 @@ pub fn model(_attrs: proc_macro::TokenStream, tokens: proc_macro::TokenStream) -
 #[cfg(test)]
 mod test {
   use super::*;
+
   #[test]
   fn test1() {
-    let s = syn::parse_str::<ItemStruct>("pub struct Something { atom_one: Atom<String>, atom_two: Atom<Option<String>>, link_one: Link<Trivial>, link_two: Link<Option<Trivial>>, }").unwrap();
+    let s = syn::parse_str::<ItemStruct>(
+      "
+pub struct Something {
+  atom_one: Atom<String>,
+  atom_two: Atom<Option<String>>,
+  link_one: Link<Trivial>,
+  link_two: Link<Option<Trivial>>,
+}
+      ",
+    )
+    .unwrap();
     let res = model_impl(&s);
     println!("{}", res);
-    assert!(false);
+    // assert!(false);
   }
 }

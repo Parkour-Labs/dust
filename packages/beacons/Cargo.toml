@@ -4,12 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-[workspace]
-members = [
-  ".",
-  "./beacons-macros",
-]
-
 [dependencies]
 derive_more = "0.99.17"
 postcard = { version = "1.0.4", features = [ "alloc" ] }
@@ -17,4 +11,4 @@ rand = "0.8.5"
 rusqlite = "0.29.0"
 serde = { version = "1.0.164", features = [ "derive" ] }
 serde_json = "1.0.99"
-beacons-macros = { path = "./beacons-macros" }
+beacons_macros = { path = "../beacons_macros" }

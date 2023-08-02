@@ -42,13 +42,7 @@ impl Model for Trivial {
 
       // Load existing data.
       store.node(id)?;
-      for edge in store.query_edge_src(id) {
-        let (_, label, dst) = store.edge(edge)?;
-        match label {
-          /* (No code generated here) */
-          _ => (),
-        }
-      }
+      /* (No code generated here) */
 
       // Pack together. Fail if a field is not found.
       Some(Self {
