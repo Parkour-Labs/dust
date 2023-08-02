@@ -205,7 +205,7 @@ fn create_labels_for_struct(s: &Struct) -> TokenStream {
   quote! { #(#labels)* }
 }
 
-fn create_create_fn_param(field: &Field) -> TokenStream {
+fn create_new_fn_param(field: &Field) -> TokenStream {
   let name = &field.name;
   match &field.ty {
     FieldType::Atom(inner) => quote! { #name: &#inner, },
@@ -217,7 +217,7 @@ fn create_create_fn_param(field: &Field) -> TokenStream {
   }
 }
 
-fn create_create_fn_body(field: &Field) -> TokenStream {
+fn create_new_fn_body(field: &Field) -> TokenStream {
   let name = &field.name;
   let label = create_label(&field.name);
   match &field.ty {
@@ -250,14 +250,14 @@ fn create_create_fn_body(field: &Field) -> TokenStream {
   }
 }
 
-/// Creates the function that creates a new struct
-fn create_create_fn(s: &Struct) -> TokenStream {
+/// Creates the function that creates a new struct.
+fn create_new_fn(s: &Struct) -> TokenStream {
   let name = &s.name;
-  let params = s.fields.iter().map(create_create_fn_param);
-  let bodies = s.fields.iter().map(create_create_fn_body);
+  let params = s.fields.iter().map(create_new_fn_param);
+  let bodies = s.fields.iter().map(create_new_fn_body);
 
   quote! {
-    pub fn create(#(#params)*) -> Self {
+    pub fn new(#(#params)*) -> Self {
       let mut rng = rand::thread_rng();
       let id = rng.gen();
 
@@ -268,6 +268,15 @@ fn create_create_fn(s: &Struct) -> TokenStream {
       });
 
       Self::get(id).unwrap()
+    }
+  }
+}
+
+/// Creates the function that deletes an existing struct.
+fn create_delete_fn(_s: &Struct) -> TokenStream {
+  quote! {
+    pub fn delete(self) {
+      global::access_store_with(|store| store.set_node(self.id, None));
     }
   }
 }
@@ -342,26 +351,29 @@ fn model_impl(s: &Struct) -> TokenStream {
   let mod_name = create_mod_name(name);
   let struct_def = create_struct(s);
   let labels = create_labels_for_struct(s);
-  let create_fn = create_create_fn(s);
+  let new_fn = create_new_fn(s);
+  let delete_fn = create_delete_fn(s);
   let get_fn = create_get_fn(s);
 
   quote! {
     #struct_def
 
     pub use #mod_name::*;
-
     mod #mod_name {
+      use super::*;
+      use rand::Rng;
+      use beacons::global::{self, Atom, AtomOption, Backlinks, Link, LinkOption, Model, Multilinks};
+
       impl #name {
         #labels
-
-        #create_fn
+        #new_fn
+        #delete_fn
       }
 
       impl Model for #name {
         fn id(&self) -> u128 {
           self.id
         }
-
         #get_fn
       }
     }

@@ -11,6 +11,8 @@ class FfiBindings {
 
   late final add = _lookup<NativeFunction<Uint64 Function(Uint64, Uint64)>>('add').asFunction<int Function(int, int)>();
 
+  // TODO
+
   /// The global FFI bindings.
   static late final FfiBindings _bindings;
 

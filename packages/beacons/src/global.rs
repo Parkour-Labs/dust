@@ -151,13 +151,13 @@ impl<T: Model> Multilinks<T> {
     .filter_map(T::get)
     .collect()
   }
-  pub fn add(&self, dst: u128) {
-    access_store_with(|store| store.set_edge(rand::thread_rng().gen(), Some((self.src, self.label, dst))));
+  pub fn insert(&self, dst: &T) {
+    access_store_with(|store| store.set_edge(rand::thread_rng().gen(), Some((self.src, self.label, dst.id()))));
   }
-  pub fn remove(&self, dst: u128) {
+  pub fn remove(&self, dst: &T) {
     access_store_with(|store| {
       for id in store.query_edge_src_label(self.src, self.label) {
-        if store.edge(id).unwrap().2 == dst {
+        if store.edge(id).unwrap().2 == dst.id() {
           store.set_edge(id, None);
           break;
         }

@@ -1,8 +1,6 @@
 use rand::Rng;
 
-use crate::global::{AtomOption, LinkOption};
-
-use super::global::{self, Atom, Backlinks, Link, Model};
+use crate::global::{self, Atom, AtomOption, Backlinks, Link, LinkOption, Model};
 
 #[derive(Debug)]
 struct Trivial {
@@ -12,7 +10,7 @@ struct Trivial {
 impl Trivial {
   pub const LABEL: u64 = 0 /* Calculated from fnv64_hash("Trivial") */;
 
-  pub fn create(/* (No code generated here) */) -> Self {
+  pub fn new(/* (No code generated here) */) -> Self {
     let mut rng = rand::thread_rng();
     let id = rng.gen();
 
@@ -27,7 +25,7 @@ impl Trivial {
     Self::get(id).unwrap()
   }
 
-  pub fn remove(self) {
+  pub fn delete(self) {
     global::access_store_with(|store| store.set_node(self.id, None));
   }
 }
@@ -74,7 +72,7 @@ impl Something {
   pub const LINK_TWO_LABEL: u64 = 5 /* Calculated from fnv64_hash("Something.link_two") */;
   pub const LINK_THREE_LABEL: u64 = 6 /* Calculated from fnv64_hash("Something.link_three") */;
 
-  pub fn create(
+  pub fn new(
     atom_one: &String,
     atom_two: Option<&String>,
     link_one: &Trivial,
@@ -124,7 +122,7 @@ impl Something {
     Self::get(id).unwrap()
   }
 
-  pub fn remove(self) {
+  pub fn delete(self) {
     global::access_store_with(|store| store.set_node(self.id, None));
   }
 }
@@ -188,11 +186,11 @@ fn object_store_simple() {
 fn atom_link_simple() {
   global::init_in_memory();
 
-  let trivial = Trivial::create();
-  let trivial_again = Trivial::create();
+  let trivial = Trivial::new();
+  let trivial_again = Trivial::new();
 
-  let something = Something::create(&String::from("test"), Some(&String::from("2333")), &trivial, Some(&trivial), None);
-  let something_else = Something::create(&String::from("test"), None, &trivial, None, Some(&something));
+  let something = Something::new(&String::from("test"), Some(&String::from("2333")), &trivial, Some(&trivial), None);
+  let something_else = Something::new(&String::from("test"), None, &trivial, None, Some(&something));
 
   let something_id = something.id();
   let something_else_id = something_else.id();
@@ -227,12 +225,12 @@ fn atom_link_simple() {
   assert_eq!(something.backlink.get().len(), 2);
   assert_eq!(something_else.backlink.get().len(), 0);
 
-  trivial.remove();
-  trivial_again.remove();
-  // something.link_one.get(); // Panics.
+  trivial.delete();
+  trivial_again.delete();
+  assert!(std::panic::catch_unwind(|| something.link_one.get()).is_err()); // Panics.
   assert!(something.link_two.get().is_none());
-  // something_else.link_one.get(); // Panics.
+  assert!(std::panic::catch_unwind(|| something_else.link_one.get()).is_err()); // Panics.
   assert!(something_else.link_two.get().is_none());
-  something.remove();
-  something_else.remove();
+  something.delete();
+  something_else.delete();
 }
