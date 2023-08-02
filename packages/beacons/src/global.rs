@@ -57,44 +57,74 @@ pub trait Model: std::marker::Sized {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Atom<T: Serialize + DeserializeOwned> {
+pub struct AtomOption<T: Serialize + DeserializeOwned> {
   id: u128,
   _t: PhantomData<T>,
 }
 
-impl<T: Serialize + DeserializeOwned> Atom<T> {
+impl<T: Serialize + DeserializeOwned> AtomOption<T> {
   pub fn from_raw(id: u128) -> Self {
     Self { id, _t: Default::default() }
   }
   pub fn get(&self) -> Option<T> {
     access_store_with(|store| store.atom(self.id).map(|bytes| postcard::from_bytes(bytes).unwrap()))
   }
-  pub fn set(&self, value: &T) {
-    access_store_with(|store| store.set_atom(self.id, Some(postcard::to_allocvec(value).unwrap())));
-  }
-  pub fn remove(&self) {
-    access_store_with(|store| store.set_atom(self.id, None));
+  pub fn set(&self, value: Option<&T>) {
+    access_store_with(|store| store.set_atom(self.id, value.map(|inner| postcard::to_allocvec(inner).unwrap())));
   }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Link<T: Model> {
+pub struct Atom<T: Serialize + DeserializeOwned> {
+  inner: AtomOption<T>,
+}
+
+impl<T: Serialize + DeserializeOwned> Atom<T> {
+  pub fn from_raw(id: u128) -> Self {
+    Self { inner: AtomOption::from_raw(id) }
+  }
+  pub fn get(&self) -> T {
+    self.inner.get().unwrap()
+  }
+  pub fn set(&self, value: &T) {
+    self.inner.set(Some(value))
+  }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LinkOption<T: Model> {
   id: u128,
   _t: PhantomData<T>,
 }
 
-impl<T: Model> Link<T> {
+impl<T: Model> LinkOption<T> {
   pub fn from_raw(id: u128) -> Self {
     Self { id, _t: Default::default() }
   }
   pub fn get(&self) -> Option<T> {
     access_store_with(|store| store.edge(self.id)).and_then(|(_, _, dst)| T::get(dst))
   }
-  pub fn set(&self, value: &T) {
-    access_store_with(|store| store.set_edge_dst(self.id, value.id()));
+  pub fn set(&self, value: Option<&T>) {
+    access_store_with(|store| {
+      store.set_edge_dst(self.id, value.map_or_else(|| rand::thread_rng().gen(), |inner| inner.id()))
+    });
   }
-  pub fn remove(&self) {
-    access_store_with(|store| store.set_edge_dst(self.id, rand::thread_rng().gen()));
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Link<T: Model> {
+  inner: LinkOption<T>,
+}
+
+impl<T: Model> Link<T> {
+  pub fn from_raw(id: u128) -> Self {
+    Self { inner: LinkOption::from_raw(id) }
+  }
+  pub fn get(&self) -> T {
+    self.inner.get().unwrap()
+  }
+  pub fn set(&self, value: &T) {
+    self.inner.set(Some(value))
   }
 }
 

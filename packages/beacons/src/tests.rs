@@ -1,5 +1,7 @@
 use rand::Rng;
 
+use crate::global::{AtomOption, LinkOption};
+
 use super::global::{self, Atom, Backlinks, Link, Model};
 
 #[derive(Debug)]
@@ -56,12 +58,12 @@ impl Model for Trivial {
 #[derive(Debug)]
 struct Something {
   id: u128,
-  atom_one: Atom<String>,         // Not nullable.
-  atom_two: Atom<String>,         // Nullable.
-  link_one: Link<Trivial>,        // Not nullable.
-  link_two: Link<Trivial>,        // Nullable.
-  link_three: Link<Something>,    // Nullable.
-  backlink: Backlinks<Something>, // Backlink of `Something.link_three`.
+  atom_one: Atom<String>,
+  atom_two: AtomOption<String>,
+  link_one: Link<Trivial>,
+  link_two: LinkOption<Trivial>,
+  link_three: LinkOption<Something>,
+  backlink: Backlinks<Something>,
 }
 
 impl Something {
@@ -136,10 +138,10 @@ impl Model for Something {
     global::access_store_with(|store| {
       // Variables for existing data.
       let mut atom_one: Option<Atom<String>> = None;
-      let mut atom_two: Option<Atom<String>> = None;
+      let mut atom_two: Option<AtomOption<String>> = None;
       let mut link_one: Option<Link<Trivial>> = None;
-      let mut link_two: Option<Link<Trivial>> = None;
-      let mut link_three: Option<Link<Something>> = None;
+      let mut link_two: Option<LinkOption<Trivial>> = None;
+      let mut link_three: Option<LinkOption<Something>> = None;
 
       // Load existing data.
       store.node(id)?;
@@ -147,10 +149,10 @@ impl Model for Something {
         let (_, label, dst) = store.edge(edge)?;
         match label {
           Something::ATOM_ONE_LABEL => atom_one = Some(Atom::from_raw(dst)),
-          Something::ATOM_TWO_LABEL => atom_two = Some(Atom::from_raw(dst)),
+          Something::ATOM_TWO_LABEL => atom_two = Some(AtomOption::from_raw(dst)),
           Something::LINK_ONE_LABEL => link_one = Some(Link::from_raw(edge)),
-          Something::LINK_TWO_LABEL => link_two = Some(Link::from_raw(edge)),
-          Something::LINK_THREE_LABEL => link_three = Some(Link::from_raw(edge)),
+          Something::LINK_TWO_LABEL => link_two = Some(LinkOption::from_raw(edge)),
+          Something::LINK_THREE_LABEL => link_three = Some(LinkOption::from_raw(edge)),
           _ => (),
         }
       }
@@ -198,38 +200,38 @@ fn atom_link_simple() {
   let something_copy = Something::get(something_id).unwrap();
   let something_else_copy = Something::get(something_else_id).unwrap();
 
-  assert_eq!(something_copy.atom_one.get().unwrap(), "test");
+  assert_eq!(something_copy.atom_one.get(), "test");
   assert_eq!(something_copy.atom_two.get().unwrap(), "2333");
-  assert_eq!(something_copy.link_one.get().unwrap().id(), trivial.id());
+  assert_eq!(something_copy.link_one.get().id(), trivial.id());
   assert_eq!(something_copy.link_two.get().unwrap().id(), trivial.id());
   assert!(something_copy.link_three.get().is_none());
 
-  assert_eq!(something_else_copy.atom_one.get().unwrap(), "test");
+  assert_eq!(something_else_copy.atom_one.get(), "test");
   assert!(something_else_copy.atom_two.get().is_none());
-  assert_eq!(something_else_copy.link_one.get().unwrap().id(), trivial.id());
+  assert_eq!(something_else_copy.link_one.get().id(), trivial.id());
   assert!(something_else_copy.link_two.get().is_none());
   assert_eq!(something_else_copy.link_three.get().unwrap().id(), something.id());
 
-  something_copy.atom_two.remove();
+  something_copy.atom_two.set(None);
   assert!(something_copy.atom_two.get().is_none());
-  something_copy.atom_two.set(&String::from("gg"));
+  something_copy.atom_two.set(Some(&String::from("gg")));
   assert_eq!(something_copy.atom_two.get().unwrap(), "gg");
-  something_copy.link_two.remove();
+  something_copy.link_two.set(None);
   assert!(something_copy.link_two.get().is_none());
-  something_copy.link_two.set(&trivial_again);
+  something_copy.link_two.set(Some(&trivial_again));
   assert_eq!(something_copy.link_two.get().unwrap().id(), trivial_again.id());
 
   assert_eq!(something.backlink.get().len(), 1);
   assert_eq!(something_else.backlink.get().len(), 0);
-  something.link_three.set(&something);
+  something.link_three.set(Some(&something));
   assert_eq!(something.backlink.get().len(), 2);
   assert_eq!(something_else.backlink.get().len(), 0);
 
   trivial.remove();
   trivial_again.remove();
-  assert!(something.link_one.get().is_none());
+  // something.link_one.get(); // Panics.
   assert!(something.link_two.get().is_none());
-  assert!(something_else.link_one.get().is_none());
+  // something_else.link_one.get(); // Panics.
   assert!(something_else.link_two.get().is_none());
   something.remove();
   something_else.remove();
