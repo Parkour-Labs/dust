@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn test_trivial() {
   let s = syn::parse_str::<syn::ItemStruct>("pub struct Trivial;").unwrap();
-  let res = model_impl(&convert_struct(s));
+  let res = model_impl(&convert_struct(&s));
   println!("{}", res);
   // assert!(false);
 }
@@ -25,7 +25,7 @@ pub struct Something {
       ",
   )
   .unwrap();
-  let res = model_impl(&convert_struct(s));
+  let res = model_impl(&convert_struct(&s));
   println!("{}", res);
   // assert!(false);
 }

@@ -22,27 +22,27 @@ const UNSUPPORTED_TUPLE_STRUCTS: &str = "Tuple structs cannot be used.";
 const UNSUPPORTED_GENERIC_STRUCTS: &str = "Generic structs are not supported.";
 
 /// All supported field types.
-enum FieldType {
-  Atom(syn::Type),            // (content type)
-  Link(syn::Type),            // (destination type)
-  AtomOption(syn::Type),      // (content type)
-  LinkOption(syn::Type),      // (destination type)
-  Multilinks(u64, syn::Type), // (label, destination type)
-  Backlinks(u64, syn::Type),  // (label, source type)
+enum FieldType<'a> {
+  Atom(&'a syn::Type),            // (content type)
+  Link(&'a syn::Type),            // (destination type)
+  AtomOption(&'a syn::Type),      // (content type)
+  LinkOption(&'a syn::Type),      // (destination type)
+  Multilinks(u64, &'a syn::Type), // (label, destination type)
+  Backlinks(u64, &'a syn::Type),  // (label, source type)
 }
 
 /// A field to be mapped.
-struct Field {
-  name: syn::Ident,
-  vis: syn::Visibility,
-  ty: FieldType,
+struct Field<'a> {
+  name: &'a syn::Ident,
+  vis: &'a syn::Visibility,
+  ty: FieldType<'a>,
 }
 
 /// A struct to be mapped.
-struct Struct {
-  name: syn::Ident,
-  vis: syn::Visibility,
-  fields: Vec<Field>,
+struct Struct<'a> {
+  name: &'a syn::Ident,
+  vis: &'a syn::Visibility,
+  fields: Vec<Field<'a>>,
 }
 
 /*
@@ -91,7 +91,7 @@ fn create_mod_name(name: &syn::Ident) -> syn::Ident {
 }
 
 /// Tries to match the outermost "wrapper" of a type, returning the inner type.
-fn try_match_type(wrapper_name: impl AsRef<str>, ty: &syn::Type) -> Option<&syn::Type> {
+fn try_match_type<'a>(wrapper_name: impl AsRef<str>, ty: &'a syn::Type) -> Option<&'a syn::Type> {
   if let syn::Type::Path(path) = &ty {
     if let Some(segment) = path.path.segments.last() {
       if segment.ident == wrapper_name.as_ref() {
@@ -117,25 +117,25 @@ fn try_get_attr_value(attr_name: impl AsRef<str>, attrs: &Vec<syn::Attribute>) -
 }
 
 /// Converts [`syn::Field`] to [`Field`].
-fn convert_field(struct_name: &syn::Ident, field: syn::Field) -> Field {
-  let name = field.ident.expect("Unnamed fields cannot be used.");
-  let vis = field.vis;
+fn convert_field<'a>(struct_name: &syn::Ident, field: &'a syn::Field) -> Field<'a> {
+  let name = field.ident.as_ref().expect("Unnamed fields cannot be used.");
+  let vis = &field.vis;
   let ty = if let Some(inner) = try_match_type(ATOM, &field.ty) {
-    FieldType::Atom(inner.clone())
+    FieldType::Atom(inner)
   } else if let Some(inner) = try_match_type(LINK, &field.ty) {
-    FieldType::Link(inner.clone())
+    FieldType::Link(inner)
   } else if let Some(inner) = try_match_type(ATOM_OPTION, &field.ty) {
-    FieldType::AtomOption(inner.clone())
+    FieldType::AtomOption(inner)
   } else if let Some(inner) = try_match_type(LINK_OPTION, &field.ty) {
-    FieldType::LinkOption(inner.clone())
+    FieldType::LinkOption(inner)
   } else if let Some(inner) = try_match_type(MULTILINKS, &field.ty) {
     let label_name = format!("{}.{}", struct_name, name);
     let label = fnv64_hash(label_name);
-    FieldType::Multilinks(label, inner.clone())
+    FieldType::Multilinks(label, inner)
   } else if let Some(inner) = try_match_type(BACKLINKS, &field.ty) {
     let label_name = try_get_attr_value(BACKLINK_ATTRIBUTE, &field.attrs).expect(BACKLINK_ANNOT_NOT_FOUND_MSG);
     let label = fnv64_hash(label_name);
-    FieldType::Backlinks(label, inner.clone())
+    FieldType::Backlinks(label, inner)
   } else {
     panic!("{}", UNSUPPORTED_FIELD_TYPE_MSG);
   };
@@ -146,11 +146,11 @@ fn convert_field(struct_name: &syn::Ident, field: syn::Field) -> Field {
 }
 
 /// Converts [`syn::ItemStruct`] to [`Struct`].
-fn convert_struct(item_struct: syn::ItemStruct) -> Struct {
-  let name = item_struct.ident;
-  let vis = item_struct.vis;
-  let fields = match item_struct.fields {
-    syn::Fields::Named(named) => named.named.into_iter().map(|field| convert_field(&name, field)).collect(),
+fn convert_struct<'a>(item_struct: &'a syn::ItemStruct) -> Struct<'a> {
+  let name = &item_struct.ident;
+  let vis = &item_struct.vis;
+  let fields = match &item_struct.fields {
+    syn::Fields::Named(named) => named.named.iter().map(|ref field| convert_field(&name, field)).collect(),
     syn::Fields::Unnamed(_) => panic!("{}", UNSUPPORTED_TUPLE_STRUCTS),
     syn::Fields::Unit => Vec::new(),
   };
@@ -396,5 +396,5 @@ fn model_impl(s: &Struct) -> TokenStream {
 #[proc_macro_attribute]
 pub fn model(_attrs: proc_macro::TokenStream, tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
   let item_struct = parse_macro_input!(tokens as syn::ItemStruct);
-  model_impl(&convert_struct(item_struct)).into()
+  model_impl(&convert_struct(&item_struct)).into()
 }
