@@ -13,6 +13,13 @@ const ATOM_OPTION: &str = "AtomOption";
 const LINK_OPTION: &str = "LinkOption";
 const MULTILINKS: &str = "Multilinks";
 const BACKLINKS: &str = "Backlinks";
+const BACKLINK_ATTRIBUTE: &str = "backlink";
+const EXTRA_ID_FIELD_MSG: &str =
+  "Field with name `id` is not allowed. Beacons will automatically generate one for you.";
+const UNSUPPORTED_FIELD_TYPE_MSG: &str = "Field type must be wrapped inside either one of: `Atom`, `AtomOption`, `Link`, `LinkOption`, `Multilinks` or `Backlinks`.";
+const BACKLINK_ANNOT_NOT_FOUND_MSG: &str = "Backlinks must be annotated with `#[backlink(\"StructName.field_name\")]`";
+const UNSUPPORTED_TUPLE_STRUCTS: &str = "Tuple structs cannot be used.";
+const UNSUPPORTED_GENERIC_STRUCTS: &str = "Generic structs are not supported.";
 
 /// All supported field types.
 enum FieldType {
@@ -126,15 +133,14 @@ fn convert_field(struct_name: &syn::Ident, field: syn::Field) -> Field {
     let label = fnv64_hash(label_name);
     FieldType::Multilinks(label, inner.clone())
   } else if let Some(inner) = try_match_type(BACKLINKS, &field.ty) {
-    let label_name = try_get_attr_value("backlink", &field.attrs)
-      .expect("Backlinks must be annotated with `#[backlink(\"StructName.field_name\")]`");
+    let label_name = try_get_attr_value(BACKLINK_ATTRIBUTE, &field.attrs).expect(BACKLINK_ANNOT_NOT_FOUND_MSG);
     let label = fnv64_hash(label_name);
     FieldType::Backlinks(label, inner.clone())
   } else {
-    panic!("Field type must be wrapped inside either one of: `Atom`, `AtomOption`, `Link`, `LinkOption`, `Multilinks` or `Backlinks`.")
+    panic!("{}", UNSUPPORTED_FIELD_TYPE_MSG);
   };
   if name == ID {
-    panic!("Field with name `id` is not allowed. Beacons will automatically generate one for you.");
+    panic!("{}", EXTRA_ID_FIELD_MSG);
   }
   Field { name, vis, ty }
 }
@@ -145,11 +151,11 @@ fn convert_struct(item_struct: syn::ItemStruct) -> Struct {
   let vis = item_struct.vis;
   let fields = match item_struct.fields {
     syn::Fields::Named(named) => named.named.into_iter().map(|field| convert_field(&name, field)).collect(),
-    syn::Fields::Unnamed(_) => panic!("Tuple structs cannot be used."),
+    syn::Fields::Unnamed(_) => panic!("{}", UNSUPPORTED_TUPLE_STRUCTS),
     syn::Fields::Unit => Vec::new(),
   };
   if !item_struct.generics.params.is_empty() {
-    panic!("Generic structs cannot be used.");
+    panic!("{}", UNSUPPORTED_GENERIC_STRUCTS);
   }
   Struct { name, vis, fields }
 }
@@ -346,6 +352,10 @@ fn create_get_fn(s: &Struct) -> TokenStream {
   }
 }
 
+/// The implementation of the [`model`] proc macro. This is extracted out to a
+/// separate function just so that it is independent of the [`proc_macro`]
+/// trait's types, meaning that this code therefore could be used as a normal
+/// function.
 fn model_impl(s: &Struct) -> TokenStream {
   let name = &s.name;
   let mod_name = create_mod_name(name);
