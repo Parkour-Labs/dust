@@ -1,10 +1,7 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 use std::num::Wrapping;
-use syn::parse_macro_input;
-
-#[cfg(test)]
-mod tests;
+use syn::{parse_macro_input, spanned::Spanned};
 
 const ID: &str = "id";
 const ATOM: &str = "Atom";
@@ -27,8 +24,8 @@ enum FieldType<'a> {
   Link(&'a syn::Type),                   // (destination type)
   AtomOption(&'a syn::Type),             // (content type)
   LinkOption(&'a syn::Type),             // (destination type)
-  Multilinks(u64, &'a syn::Type),        // (label, destination type)
-  Backlinks(u64, &'a syn::Type, String), // (label, source type)
+  Multilinks(&'a syn::Type, syn::Ident), // (label, destination type)
+  Backlinks(&'a syn::Type, syn::Ident),  // (label, source type)
 }
 
 /// A field to be mapped.
@@ -117,7 +114,7 @@ fn try_get_attr_value(attr_name: impl AsRef<str>, attrs: &Vec<syn::Attribute>) -
 }
 
 /// Converts [`syn::Field`] to [`Field`].
-fn convert_field<'a>(struct_name: &syn::Ident, field: &'a syn::Field) -> Field<'a> {
+fn convert_field<'a>(field: &'a syn::Field) -> Field<'a> {
   let name = field.ident.as_ref().expect("Unnamed fields cannot be used.");
   let vis = &field.vis;
   let ty = if let Some(inner) = try_match_type(ATOM, &field.ty) {
@@ -129,13 +126,13 @@ fn convert_field<'a>(struct_name: &syn::Ident, field: &'a syn::Field) -> Field<'
   } else if let Some(inner) = try_match_type(LINK_OPTION, &field.ty) {
     FieldType::LinkOption(inner)
   } else if let Some(inner) = try_match_type(MULTILINKS, &field.ty) {
-    let label_name = format!("{}.{}", struct_name, name);
-    let label = fnv64_hash(label_name);
-    FieldType::Multilinks(label, inner)
+    let label_name = format!("{}_LABEL", name).to_uppercase();
+    let label = syn::Ident::new(&label_name, inner.span());
+    FieldType::Multilinks(inner, label)
   } else if let Some(inner) = try_match_type(BACKLINKS, &field.ty) {
     let label_name = try_get_attr_value(BACKLINK_ATTRIBUTE, &field.attrs).expect(BACKLINK_ANNOT_NOT_FOUND_MSG);
-    let label = fnv64_hash(format!("{}.{}", struct_name, label_name));
-    FieldType::Backlinks(label, inner, label_name)
+    let label_name = syn::Ident::new(&format!("{}_LABEL", label_name.to_uppercase()), inner.span());
+    FieldType::Backlinks(inner, label_name)
   } else {
     panic!("{}", UNSUPPORTED_FIELD_TYPE_MSG);
   };
@@ -150,7 +147,7 @@ fn convert_struct<'a>(item_struct: &'a syn::ItemStruct) -> Struct<'a> {
   let name = &item_struct.ident;
   let vis = &item_struct.vis;
   let fields = match &item_struct.fields {
-    syn::Fields::Named(named) => named.named.iter().map(|ref field| convert_field(&name, field)).collect(),
+    syn::Fields::Named(named) => named.named.iter().map(|ref field| convert_field(field)).collect(),
     syn::Fields::Unnamed(_) => panic!("{}", UNSUPPORTED_TUPLE_STRUCTS),
     syn::Fields::Unit => Vec::new(),
   };
@@ -172,8 +169,8 @@ fn create_struct(s: &Struct) -> TokenStream {
       FieldType::Link(inner) => quote! { #vis #name: Link<#inner> },
       FieldType::AtomOption(inner) => quote! { #vis #name: AtomOption<#inner> },
       FieldType::LinkOption(inner) => quote! { #vis #name: LinkOption<#inner> },
-      FieldType::Multilinks(_, inner) => quote! { #vis #name: Multilinks<#inner> },
-      FieldType::Backlinks(_, inner, _) => quote! { #vis #name: Backlinks<#inner> },
+      FieldType::Multilinks(inner, _) => quote! { #vis #name: Multilinks<#inner> },
+      FieldType::Backlinks(inner, _) => quote! { #vis #name: Backlinks<#inner> },
     }
   });
   quote! {
@@ -219,7 +216,7 @@ fn create_new_fn_param(field: &Field) -> TokenStream {
     FieldType::AtomOption(inner) => quote! { #name: Option<&#inner>, },
     FieldType::LinkOption(inner) => quote! { #name: Option<&#inner>, },
     FieldType::Multilinks(_, _) => quote! {},
-    FieldType::Backlinks(_, _, _) => quote! {},
+    FieldType::Backlinks(_, _) => quote! {},
   }
 }
 
@@ -252,7 +249,7 @@ fn create_new_fn_body(field: &Field) -> TokenStream {
       }
     },
     FieldType::Multilinks(_, _) => quote! {},
-    FieldType::Backlinks(_, _, _) => quote! {},
+    FieldType::Backlinks(_, _) => quote! {},
   }
 }
 
@@ -295,7 +292,7 @@ fn create_get_fn_field_decls(field: &Field) -> TokenStream {
     FieldType::AtomOption(inner) => quote! { let mut #name: Option<AtomOption<#inner>> = None; },
     FieldType::LinkOption(inner) => quote! { let mut #name: Option<LinkOption<#inner>> = None; },
     FieldType::Multilinks(_, _) => quote! {},
-    FieldType::Backlinks(_, _, _) => quote! {},
+    FieldType::Backlinks(_, _) => quote! {},
   }
 }
 
@@ -308,7 +305,7 @@ fn create_get_fn_match_arms(field: &Field) -> TokenStream {
     FieldType::AtomOption(_) => quote! { Self::#label => #name = Some(AtomOption::from_raw(dst)), },
     FieldType::LinkOption(_) => quote! { Self::#label => #name = Some(LinkOption::from_raw(edge)), },
     FieldType::Multilinks(_, _) => quote! {},
-    FieldType::Backlinks(_, _, _) => quote! {},
+    FieldType::Backlinks(_, _) => quote! {},
   }
 }
 
@@ -319,8 +316,8 @@ fn create_get_fn_ctor_args(field: &Field) -> TokenStream {
     FieldType::Link(_) => quote! { #name: #name?, },
     FieldType::AtomOption(_) => quote! { #name: #name?, },
     FieldType::LinkOption(_) => quote! { #name: #name?, },
-    FieldType::Multilinks(label, _) => quote! { #name: Multilinks::from_raw(id, #label), },
-    FieldType::Backlinks(label, _, _) => quote! { #name: Backlinks::from_raw(id, #label), },
+    FieldType::Multilinks(ty, label) => quote! { #name: Multilinks::from_raw(id, #ty::#label), },
+    FieldType::Backlinks(ty, label) => quote! { #name: Backlinks::from_raw(id, #ty::#label), },
   }
 }
 
@@ -416,4 +413,39 @@ fn model_impl(s: &Struct) -> TokenStream {
 pub fn model(_attrs: proc_macro::TokenStream, tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
   let item_struct = parse_macro_input!(tokens as syn::ItemStruct);
   model_impl(&convert_struct(&item_struct)).into()
+}
+
+#[cfg(test)]
+mod test {
+  use super::*;
+
+  #[test]
+  fn test_trivial() {
+    let s = syn::parse_str::<syn::ItemStruct>("pub struct Trivial;").unwrap();
+    let res = model_impl(&convert_struct(&s));
+    println!("{}", res);
+    // assert!(false);
+  }
+
+  #[test]
+  fn test_something() {
+    let s = syn::parse_str::<syn::ItemStruct>(
+      "
+      pub struct Something {
+        atom_one: Atom<String>,
+        atom_two: AtomOption<String>,
+        link_one: Link<Trivial>,
+        link_two: LinkOption<Trivial>,
+        link_three: LinkOption<Something>,
+        multilink: Multilinks<Something>,
+        #[backlink(\"link_three\")]
+        backlink: Backlinks<Something>,
+      }
+      ",
+    )
+    .unwrap();
+    let res = model_impl(&convert_struct(&s));
+    println!("{}", res);
+    // assert!(false);
+  }
 }
