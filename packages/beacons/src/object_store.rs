@@ -7,6 +7,7 @@ use crate::observable::{
   Aggregator, ObservablePersistentState, SetEvent,
 };
 use crate::persistent::vector_history::VectorHistory;
+use crate::{deserialize, serialize};
 
 #[derive(Debug, Clone)]
 struct Aggregators {
@@ -72,7 +73,7 @@ impl ObjectStore {
     let mut txn = txn(&mut self.connection);
     if self
       .vector_history
-      .push(&mut txn, (replica, clock, String::from("atoms"), postcard::to_allocvec(&action).unwrap()))
+      .push(&mut txn, (replica, clock, String::from("atoms"), serialize(&action).unwrap()))
       .is_some()
     {
       self.atoms.apply(&mut txn, self.aggregators.atoms(), action);
@@ -82,7 +83,7 @@ impl ObjectStore {
     let mut txn = txn(&mut self.connection);
     if self
       .vector_history
-      .push(&mut txn, (replica, clock, String::from("graph"), postcard::to_allocvec(&action).unwrap()))
+      .push(&mut txn, (replica, clock, String::from("graph"), serialize(&action).unwrap()))
       .is_some()
     {
       self.graph.apply(&mut txn, &mut self.aggregators.graph(), action);
@@ -159,24 +160,24 @@ impl ObjectStore {
 
   pub fn sync_clocks(&mut self) -> Vec<u8> {
     let clocks = self.vector_history.latests();
-    postcard::to_allocvec::<HashMap<u128, Option<Clock>>>(&clocks).unwrap()
+    serialize::<HashMap<u128, Option<Clock>>>(&clocks).unwrap()
   }
   pub fn sync_actions(&mut self, clocks: &[u8]) -> Vec<u8> {
-    let clocks = postcard::from_bytes::<HashMap<u128, Option<Clock>>>(clocks).unwrap();
+    let clocks = deserialize::<HashMap<u128, Option<Clock>>>(clocks).unwrap();
     let actions = self.vector_history.collect(&mut txn(&mut self.connection), clocks);
-    postcard::to_allocvec::<Vec<(u128, Clock, String, Vec<u8>)>>(&actions).unwrap()
+    serialize::<Vec<(u128, Clock, String, Vec<u8>)>>(&actions).unwrap()
   }
   pub fn sync_apply(&mut self, actions: &[u8]) {
     let mut txn = txn(&mut self.connection);
-    let actions = postcard::from_bytes::<Vec<(u128, Clock, String, Vec<u8>)>>(actions).unwrap();
+    let actions = deserialize::<Vec<(u128, Clock, String, Vec<u8>)>>(actions).unwrap();
     for (_replica, _clock, name, action) in self.vector_history.append(&mut txn, actions) {
       match name.as_str() {
         "atoms" => {
-          let action = postcard::from_bytes(&action).unwrap();
+          let action = deserialize(&action).unwrap();
           self.atoms.apply(&mut txn, self.aggregators.atoms(), action);
         }
         "graph" => {
-          let action = postcard::from_bytes(&action).unwrap();
+          let action = deserialize(&action).unwrap();
           self.graph.apply(&mut txn, &mut self.aggregators.graph(), action);
         }
         _ => {}

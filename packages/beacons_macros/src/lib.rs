@@ -230,7 +230,7 @@ fn create_new_fn_body(field: &Field) -> TokenStream {
     FieldType::Atom(_) => quote! {
       let dst = rng.gen();
       store.set_edge(rng.gen(), Some((id, Self::#label, dst)));
-      store.set_atom(dst, Some(postcard::to_allocvec(#name).unwrap()));
+      store.set_atom(dst, Some(serialize(#name).unwrap()));
     },
     FieldType::Link(_) => quote! {
       store.set_edge(rng.gen(), Some((id, Self::#label, #name.id())));
@@ -239,7 +239,7 @@ fn create_new_fn_body(field: &Field) -> TokenStream {
       if let Some(#name) = #name {
         let dst = rng.gen();
         store.set_edge(rng.gen(), Some((id, Self::#label, dst)));
-        store.set_atom(dst, Some(postcard::to_allocvec(#name).unwrap()));
+        store.set_atom(dst, Some(serialize(#name).unwrap()));
       } else {
         store.set_edge(rng.gen(), Some((id, Self::#label, rng.gen())));
       }
@@ -373,6 +373,7 @@ fn model_impl(s: &Struct) -> TokenStream {
       use super::*;
       use rand::Rng;
       use beacons::global::{self, Atom, AtomOption, Backlinks, Link, LinkOption, Model, Multilinks};
+      use beacons::{deserialize, serialize};
 
       impl #name {
         #labels

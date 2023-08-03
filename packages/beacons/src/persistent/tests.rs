@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 use super::vector_history::{VectorHistory, VectorHistoryStore};
 use crate::joinable::{ByMax, Clock, State};
+use crate::{deserialize, serialize};
 
 struct MockVectorHistoryStore {
   replicas: Vec<u128>,
@@ -272,8 +273,8 @@ fn vector_history_random_core<T: State>(
         let name = String::from("");
         let action = rand_action();
         assert_eq!(
-          history.push(&mut store, (replica, clock, name.clone(), postcard::to_allocvec(&action).unwrap())).is_some(),
-          mock.push((replica, clock, name, postcard::to_allocvec(&action).unwrap())).is_some()
+          history.push(&mut store, (replica, clock, name.clone(), serialize(&action).unwrap())).is_some(),
+          mock.push((replica, clock, name, serialize(&action).unwrap())).is_some()
         );
         history.assert_invariants(&mut store);
       }
@@ -288,7 +289,7 @@ fn vector_history_random_core<T: State>(
           assert_eq!(lhs.0, rhs.0);
           assert_eq!(lhs.1, rhs.1);
           assert_eq!(lhs.2, rhs.2);
-          assert!(action_eq(postcard::from_bytes(&lhs.3).unwrap(), postcard::from_bytes(&rhs.3).unwrap()));
+          assert!(action_eq(deserialize(&lhs.3).unwrap(), deserialize(&rhs.3).unwrap()));
         }
       }
       _ => panic!(),

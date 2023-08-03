@@ -5,6 +5,7 @@ use serde::{de::DeserializeOwned, ser::Serialize};
 
 use crate::joinable::{crdt as jcrdt, Clock, Joinable, Minimum, State};
 use crate::persistent::{PersistentGammaJoinable, PersistentJoinable, PersistentState};
+use crate::{deserialize, serialize};
 
 /// A *persistent* last-writer-win register.
 #[derive(Debug, Clone)]
@@ -35,7 +36,7 @@ CREATE TABLE IF NOT EXISTS \"{collection}.{name}\" (
       .query_row((), |row| {
         let clock = row.get(0).unwrap();
         let value = row.get_ref(1).unwrap().as_blob().unwrap();
-        Ok(jcrdt::Register::from(Clock::from_be_bytes(clock), postcard::from_bytes(value).unwrap()))
+        Ok(jcrdt::Register::from(Clock::from_be_bytes(clock), deserialize(value).unwrap()))
       })
       .optional()
       .unwrap();
@@ -49,7 +50,7 @@ CREATE TABLE IF NOT EXISTS \"{collection}.{name}\" (
     txn
       .prepare_cached(&format!("REPLACE INTO \"{col}.{name}\" VALUES (X'', ?, ?)"))
       .unwrap()
-      .execute((self.inner.clock().to_be_bytes(), postcard::to_allocvec(self.inner.value()).unwrap()))
+      .execute((self.inner.clock().to_be_bytes(), serialize(self.inner.value()).unwrap()))
       .unwrap();
   }
 

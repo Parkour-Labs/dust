@@ -1,6 +1,7 @@
 use rand::Rng;
 
 use crate::global::{self, Atom, AtomOption, Backlinks, Link, LinkOption, Model};
+use crate::serialize;
 
 #[derive(Debug)]
 struct Trivial {
@@ -89,13 +90,13 @@ impl Something {
       // Create `Something.atom_one`.
       let atom_one_id = rng.gen();
       store.set_edge(rng.gen(), Some((id, Something::ATOM_ONE_LABEL, atom_one_id)));
-      store.set_atom(atom_one_id, Some(postcard::to_allocvec(atom_one).unwrap()));
+      store.set_atom(atom_one_id, Some(serialize(atom_one).unwrap()));
 
       // Create `Something.atom_two`.
       if let Some(atom_two) = atom_two {
         let atom_two_id = rng.gen();
         store.set_edge(rng.gen(), Some((id, Something::ATOM_TWO_LABEL, atom_two_id)));
-        store.set_atom(atom_two_id, Some(postcard::to_allocvec(atom_two).unwrap()));
+        store.set_atom(atom_two_id, Some(serialize(atom_two).unwrap()));
       } else {
         store.set_edge(rng.gen(), Some((id, Something::ATOM_TWO_LABEL, rng.gen())));
       }
