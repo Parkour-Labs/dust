@@ -23,12 +23,12 @@ const UNSUPPORTED_GENERIC_STRUCTS: &str = "Generic structs are not supported.";
 
 /// All supported field types.
 enum FieldType<'a> {
-  Atom(&'a syn::Type),            // (content type)
-  Link(&'a syn::Type),            // (destination type)
-  AtomOption(&'a syn::Type),      // (content type)
-  LinkOption(&'a syn::Type),      // (destination type)
-  Multilinks(u64, &'a syn::Type), // (label, destination type)
-  Backlinks(u64, &'a syn::Type),  // (label, source type)
+  Atom(&'a syn::Type),                   // (content type)
+  Link(&'a syn::Type),                   // (destination type)
+  AtomOption(&'a syn::Type),             // (content type)
+  LinkOption(&'a syn::Type),             // (destination type)
+  Multilinks(u64, &'a syn::Type),        // (label, destination type)
+  Backlinks(u64, &'a syn::Type, String), // (label, source type)
 }
 
 /// A field to be mapped.
@@ -134,8 +134,8 @@ fn convert_field<'a>(struct_name: &syn::Ident, field: &'a syn::Field) -> Field<'
     FieldType::Multilinks(label, inner)
   } else if let Some(inner) = try_match_type(BACKLINKS, &field.ty) {
     let label_name = try_get_attr_value(BACKLINK_ATTRIBUTE, &field.attrs).expect(BACKLINK_ANNOT_NOT_FOUND_MSG);
-    let label = fnv64_hash(label_name);
-    FieldType::Backlinks(label, inner)
+    let label = fnv64_hash(format!("{}.{}", struct_name, label_name));
+    FieldType::Backlinks(label, inner, label_name)
   } else {
     panic!("{}", UNSUPPORTED_FIELD_TYPE_MSG);
   };
@@ -173,7 +173,7 @@ fn create_struct(s: &Struct) -> TokenStream {
       FieldType::AtomOption(inner) => quote! { #vis #name: AtomOption<#inner> },
       FieldType::LinkOption(inner) => quote! { #vis #name: LinkOption<#inner> },
       FieldType::Multilinks(_, inner) => quote! { #vis #name: Multilinks<#inner> },
-      FieldType::Backlinks(_, inner) => quote! { #vis #name: Backlinks<#inner> },
+      FieldType::Backlinks(_, inner, _) => quote! { #vis #name: Backlinks<#inner> },
     }
   });
   quote! {
@@ -219,7 +219,7 @@ fn create_new_fn_param(field: &Field) -> TokenStream {
     FieldType::AtomOption(inner) => quote! { #name: Option<&#inner>, },
     FieldType::LinkOption(inner) => quote! { #name: Option<&#inner>, },
     FieldType::Multilinks(_, _) => quote! {},
-    FieldType::Backlinks(_, _) => quote! {},
+    FieldType::Backlinks(_, _, _) => quote! {},
   }
 }
 
@@ -252,7 +252,7 @@ fn create_new_fn_body(field: &Field) -> TokenStream {
       }
     },
     FieldType::Multilinks(_, _) => quote! {},
-    FieldType::Backlinks(_, _) => quote! {},
+    FieldType::Backlinks(_, _, _) => quote! {},
   }
 }
 
@@ -295,7 +295,7 @@ fn create_get_fn_field_decls(field: &Field) -> TokenStream {
     FieldType::AtomOption(inner) => quote! { let mut #name: Option<AtomOption<#inner>> = None; },
     FieldType::LinkOption(inner) => quote! { let mut #name: Option<LinkOption<#inner>> = None; },
     FieldType::Multilinks(_, _) => quote! {},
-    FieldType::Backlinks(_, _) => quote! {},
+    FieldType::Backlinks(_, _, _) => quote! {},
   }
 }
 
@@ -308,7 +308,7 @@ fn create_get_fn_match_arms(field: &Field) -> TokenStream {
     FieldType::AtomOption(_) => quote! { Self::#label => #name = Some(AtomOption::from_raw(dst)), },
     FieldType::LinkOption(_) => quote! { Self::#label => #name = Some(LinkOption::from_raw(edge)), },
     FieldType::Multilinks(_, _) => quote! {},
-    FieldType::Backlinks(_, _) => quote! {},
+    FieldType::Backlinks(_, _, _) => quote! {},
   }
 }
 
@@ -320,7 +320,7 @@ fn create_get_fn_ctor_args(field: &Field) -> TokenStream {
     FieldType::AtomOption(_) => quote! { #name: #name?, },
     FieldType::LinkOption(_) => quote! { #name: #name?, },
     FieldType::Multilinks(label, _) => quote! { #name: Multilinks::from_raw(id, #label), },
-    FieldType::Backlinks(label, _) => quote! { #name: Backlinks::from_raw(id, #label), },
+    FieldType::Backlinks(label, _, _) => quote! { #name: Backlinks::from_raw(id, #label), },
   }
 }
 
@@ -351,6 +351,24 @@ fn create_get_fn(s: &Struct) -> TokenStream {
     }
   }
 }
+
+// fn create_phantom_fn(s: &Struct) -> TokenStream {
+//   let backlinks = s
+//     .fields
+//     .iter()
+//     .map(|x| &x.ty)
+//     .filter_map(|x| match x {
+//       FieldType::Backlinks(_, ty, name) => Some((*ty, name)),
+//       _ => None,
+//     })
+//     .collect::<Vec<(&syn::Type, &String)>>();
+
+//   quote! {
+//     fn __phantom() {
+
+//     }
+//   }
+// }
 
 /// The implementation of the [`model`] proc macro. This is extracted out to a
 /// separate function just so that it is independent of the [`proc_macro`]
