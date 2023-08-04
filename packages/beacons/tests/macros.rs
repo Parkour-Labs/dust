@@ -13,7 +13,7 @@ struct Something {
   link_one: Link<Trivial>,
   link_two: LinkOption<Trivial>,
   link_three: LinkOption<Something>,
-  #[backlink("Something.link_three")]
+  #[backlink(link_three)]
   backlink: Backlinks<Something>,
 }
 

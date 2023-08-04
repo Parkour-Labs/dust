@@ -14,9 +14,11 @@ const BACKLINK_ATTRIBUTE: &str = "backlink";
 const EXTRA_ID_FIELD_MSG: &str =
   "Field with name `id` is not allowed. Beacons will automatically generate one for you.";
 const UNSUPPORTED_FIELD_TYPE_MSG: &str = "Field type must be wrapped inside either one of: `Atom`, `AtomOption`, `Link`, `LinkOption`, `Multilinks` or `Backlinks`.";
-const BACKLINK_ANNOT_NOT_FOUND_MSG: &str = "Backlinks must be annotated with `#[backlink(\"StructName.field_name\")]`";
+const BACKLINK_ANNOT_NOT_FOUND_MSG: &str = "Backlinks must be annotated with `#[backlink(field_name)]`.";
 const UNSUPPORTED_TUPLE_STRUCTS: &str = "Tuple structs cannot be used.";
+const UNSUPPORTED_TUPLE_VARIANTS: &str = "Tuple variants cannot be used.";
 const UNSUPPORTED_GENERIC_STRUCTS: &str = "Generic structs are not supported.";
+const UNSUPPORTED_GENERIC_ENUMS: &str = "Generic enums are not supported.";
 
 /// All supported field types.
 enum FieldType<'a> {
@@ -42,14 +44,12 @@ struct Struct<'a> {
   fields: Vec<Field<'a>>,
 }
 
-/*
 /// An enum to be mapped.
-struct Enum {
-  name: syn::Ident,
-  vis: syn::Visibility,
-  variants: Vec<Struct>,
+struct Enum<'a> {
+  name: &'a syn::Ident,
+  vis: &'a syn::Visibility,
+  variants: Vec<(String, Vec<Field<'a>>)>, // Vec<(name, fields)>
 }
-*/
 
 /// Hashes the string [s] to a value of desired.
 fn fnv64_hash(s: impl AsRef<str>) -> u64 {
@@ -88,7 +88,7 @@ fn create_mod_name(name: &syn::Ident) -> syn::Ident {
 }
 
 /// Tries to match the outermost "wrapper" of a type, returning the inner type.
-fn try_match_type<'a>(wrapper_name: impl AsRef<str>, ty: &'a syn::Type) -> Option<&'a syn::Type> {
+fn try_match_type(wrapper_name: impl AsRef<str>, ty: &syn::Type) -> Option<&syn::Type> {
   if let syn::Type::Path(path) = &ty {
     if let Some(segment) = path.path.segments.last() {
       if segment.ident == wrapper_name.as_ref() {
@@ -103,18 +103,18 @@ fn try_match_type<'a>(wrapper_name: impl AsRef<str>, ty: &'a syn::Type) -> Optio
   None
 }
 
-/// Tries to access attribute value in the style of `#[name("value")]`.
+/// Tries to access attribute value in the style of `#[name(identifier)]`.
 fn try_get_attr_value(attr_name: impl AsRef<str>, attrs: &Vec<syn::Attribute>) -> Option<String> {
   for attr in attrs {
     if attr.style == syn::AttrStyle::Outer && attr.path().is_ident(&attr_name) {
-      return attr.parse_args::<syn::LitStr>().ok().map(|lit| lit.value());
+      return attr.parse_args::<syn::Ident>().ok().map(|lit| lit.to_string());
     }
   }
   None
 }
 
 /// Converts [`syn::Field`] to [`Field`].
-fn convert_field<'a>(field: &'a syn::Field) -> Field<'a> {
+fn convert_field(field: &syn::Field) -> Field<'_> {
   let name = field.ident.as_ref().expect("Unnamed fields cannot be used.");
   let vis = &field.vis;
   let ty = if let Some(inner) = try_match_type(ATOM, &field.ty) {
@@ -126,13 +126,12 @@ fn convert_field<'a>(field: &'a syn::Field) -> Field<'a> {
   } else if let Some(inner) = try_match_type(LINK_OPTION, &field.ty) {
     FieldType::LinkOption(inner)
   } else if let Some(inner) = try_match_type(MULTILINKS, &field.ty) {
-    let label_name = format!("{}_LABEL", name).to_uppercase();
-    let label = syn::Ident::new(&label_name, inner.span());
+    let label = syn::Ident::new(&format!("{}_LABEL", name).to_uppercase(), inner.span());
     FieldType::Multilinks(inner, label)
   } else if let Some(inner) = try_match_type(BACKLINKS, &field.ty) {
-    let label_name = try_get_attr_value(BACKLINK_ATTRIBUTE, &field.attrs).expect(BACKLINK_ANNOT_NOT_FOUND_MSG);
-    let label_name = syn::Ident::new(&format!("{}_LABEL", label_name.to_uppercase()), inner.span());
-    FieldType::Backlinks(inner, label_name)
+    let name = try_get_attr_value(BACKLINK_ATTRIBUTE, &field.attrs).expect(BACKLINK_ANNOT_NOT_FOUND_MSG);
+    let label = syn::Ident::new(&format!("{}_LABEL", name).to_uppercase(), inner.span());
+    FieldType::Backlinks(inner, label)
   } else {
     panic!("{}", UNSUPPORTED_FIELD_TYPE_MSG);
   };
@@ -143,11 +142,11 @@ fn convert_field<'a>(field: &'a syn::Field) -> Field<'a> {
 }
 
 /// Converts [`syn::ItemStruct`] to [`Struct`].
-fn convert_struct<'a>(item_struct: &'a syn::ItemStruct) -> Struct<'a> {
+fn convert_struct(item_struct: &syn::ItemStruct) -> Struct<'_> {
   let name = &item_struct.ident;
   let vis = &item_struct.vis;
   let fields = match &item_struct.fields {
-    syn::Fields::Named(named) => named.named.iter().map(|ref field| convert_field(field)).collect(),
+    syn::Fields::Named(named) => named.named.iter().map(convert_field).collect(),
     syn::Fields::Unnamed(_) => panic!("{}", UNSUPPORTED_TUPLE_STRUCTS),
     syn::Fields::Unit => Vec::new(),
   };
@@ -157,8 +156,30 @@ fn convert_struct<'a>(item_struct: &'a syn::ItemStruct) -> Struct<'a> {
   Struct { name, vis, fields }
 }
 
+/// Converts [`syn::ItemEnum`] to [`Enum`].
+fn convert_enum(item_enum: &syn::ItemEnum) -> Enum<'_> {
+  let name = &item_enum.ident;
+  let vis = &item_enum.vis;
+  let variants = item_enum.variants.iter().map(|variant| {
+    let fields = match &variant.fields {
+      // We DO NOT distinguish same field name under different variants
+      // (e.g. both `FileNode.Folder.name` and `FileNode.File.name` are mapped to `FileNode.name`).
+      syn::Fields::Named(named) => named.named.iter().map(convert_field).collect(),
+      syn::Fields::Unnamed(_) => panic!("{}", UNSUPPORTED_TUPLE_VARIANTS),
+      syn::Fields::Unit => Vec::new(),
+    };
+    // We DO distinguish same variant names under different enums
+    // (e.g. `FileNode.File` and `ExternalData.File` are not the same).
+    (format!("{}.{}", name, variant.ident), fields)
+  });
+  if !item_enum.generics.params.is_empty() {
+    panic!("{}", UNSUPPORTED_GENERIC_ENUMS);
+  }
+  Enum { name, vis, variants: variants.collect() }
+}
+
 /// Rewrites a struct with an added `id` field.
-fn create_struct(s: &Struct) -> TokenStream {
+fn create_struct_def(s: &Struct) -> TokenStream {
   let name = &s.name;
   let vis = &s.vis;
   let fields = s.fields.iter().map(|field| {
@@ -185,7 +206,7 @@ fn create_struct(s: &Struct) -> TokenStream {
 /// the value of the const is the hash value given by calling [`fnv64_hash`] on
 /// [`hash_name`], and the [`call_site`] specifies the location from where the
 /// code is generated.
-fn create_const_label_decl(name: &syn::Ident, hash_name: impl AsRef<str>) -> TokenStream {
+fn create_label_decl(name: &syn::Ident, hash_name: impl AsRef<str>) -> TokenStream {
   let hash_val = syn::LitInt::new(&format!("{}", fnv64_hash(hash_name)), name.span());
   quote! { pub const #name: u64 = #hash_val; }
 }
@@ -199,11 +220,11 @@ fn create_label(name: &syn::Ident) -> syn::Ident {
 /// constant named `LABEL` that holds the hash value for the struct's name.
 /// For each field, it will create a constant named `FIELDNAME_LABEL` with the
 /// value of calling [`fnv64_hash`] on `StructName.field_name`.
-fn create_labels_for_struct(s: &Struct) -> TokenStream {
+fn create_label_decls(s: &Struct) -> TokenStream {
   let mut labels = Vec::new();
-  labels.push(create_const_label_decl(&syn::Ident::new("LABEL", s.name.span()), s.name.to_string()));
+  labels.push(create_label_decl(&syn::Ident::new("LABEL", s.name.span()), s.name.to_string()));
   for field in &s.fields {
-    labels.push(create_const_label_decl(&create_label(&field.name), format!("{}.{}", s.name, &field.name)));
+    labels.push(create_label_decl(&create_label(field.name), format!("{}.{}", s.name, &field.name)));
   }
   quote! { #(#labels)* }
 }
@@ -222,7 +243,7 @@ fn create_new_fn_param(field: &Field) -> TokenStream {
 
 fn create_new_fn_body(field: &Field) -> TokenStream {
   let name = &field.name;
-  let label = create_label(&field.name);
+  let label = create_label(field.name);
   match &field.ty {
     FieldType::Atom(_) => quote! {
       let dst = rng.gen();
@@ -298,7 +319,7 @@ fn create_get_fn_field_decls(field: &Field) -> TokenStream {
 
 fn create_get_fn_match_arms(field: &Field) -> TokenStream {
   let name = &field.name;
-  let label = create_label(&field.name);
+  let label = create_label(field.name);
   match &field.ty {
     FieldType::Atom(_) => quote! { Self::#label => #name = Some(Atom::from_raw(dst)), },
     FieldType::Link(_) => quote! { Self::#label => #name = Some(Link::from_raw(edge)), },
@@ -374,8 +395,8 @@ fn create_get_fn(s: &Struct) -> TokenStream {
 fn model_impl(s: &Struct) -> TokenStream {
   let name = &s.name;
   let mod_name = create_mod_name(name);
-  let struct_def = create_struct(s);
-  let labels = create_labels_for_struct(s);
+  let struct_def = create_struct_def(s);
+  let label_decls = create_label_decls(s);
   let new_fn = create_new_fn(s);
   let delete_fn = create_delete_fn(s);
   let get_fn = create_get_fn(s);
@@ -391,7 +412,7 @@ fn model_impl(s: &Struct) -> TokenStream {
       use beacons::{deserialize, serialize};
 
       impl #name {
-        #labels
+        #label_decls
         #new_fn
         #delete_fn
       }
@@ -438,7 +459,7 @@ mod test {
         link_two: LinkOption<Trivial>,
         link_three: LinkOption<Something>,
         multilink: Multilinks<Something>,
-        #[backlink(\"link_three\")]
+        #[backlink(link_three)]
         backlink: Backlinks<Something>,
       }
       ",
