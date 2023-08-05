@@ -1,0 +1,43 @@
+build-android: rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android i686-linux-android
+  cargo install cargo-ndk
+  cd native/ && cargo ndk -t armeabi-v7a -t arm64-v8a -o ../build/binaries/android build --release
+  flutter build apk --release --obfuscate --split-debug-info=./build/debug/
+
+run-android: rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android i686-linux-android
+  cargo install cargo-ndk
+  cd native/ && cargo ndk -t armeabi-v7a -t arm64-v8a -o ../build/binaries/android build --release
+  flutter run
+
+build-macos: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+  cd native/ && cargo build --target aarch64-apple-darwin --release
+  cd native/ && cargo build --target x86_64-apple-darwin --release
+  mkdir -p build/binaries/macos/
+  lipo "native/target/aarch64-apple-darwin/release/libnative.dylib" "native/target/x86_64-apple-darwin/release/libnative.dylib" -output "build/binaries/macos/libnative.dylib" -create
+  flutter build macos --release --obfuscate --split-debug-info=./build/debug/
+
+run-macos: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+  cd native/ && cargo build --target aarch64-apple-darwin
+  cd native/ && cargo build --target x86_64-apple-darwin
+  mkdir -p build/binaries/macos/
+  lipo "native/target/aarch64-apple-darwin/debug/libnative.dylib" "native/target/x86_64-apple-darwin/debug/libnative.dylib" -output "build/binaries/macos/libnative.dylib" -create
+  flutter run
+
+build-ios: rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
+  cd native/ && cargo build --target aarch64-apple-ios --release
+  cd native/ && cargo build --target aarch64-apple-ios-sim --release
+  cd native/ && cargo build --target x86_64-apple-ios --release
+  mkdir -p build/binaries/ios/
+  lipo "native/target/aarch64-apple-ios/release/libnative.dylib" "native/target/x86_64-apple-ios/release/libnative.dylib" -output "build/binaries/ios/libnative.dylib" -create
+  flutter build ipa --release --obfuscate --split-debug-info=./build/debug/
+
+run-ios: rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
+  cd native/ && cargo build --target aarch64-apple-ios
+  cd native/ && cargo build --target aarch64-apple-ios-sim
+  cd native/ && cargo build --target x86_64-apple-ios
+  mkdir -p build/binaries/ios/
+  lipo "native/target/aarch64-apple-ios/debug/libnative.dylib" "native/target/x86_64-apple-ios/debug/libnative.dylib" -output "build/binaries/ios/libnative.dylib" -create
+  flutter run
+
+edit-dust: cd packages/dust/packages/dust-rs/ && hx Cargo.toml
+
+edit-native: cd native/ && hx src/lib.rs
