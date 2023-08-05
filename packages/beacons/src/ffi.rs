@@ -1,5 +1,6 @@
 // use super::global::*;
 
+/*
 #[repr(C)]
 pub struct Id {
   high: u64,
@@ -23,6 +24,35 @@ impl From<Id> for u128 {
     ((value.high as u128) << 64) ^ (value.low as u128)
   }
 }
+*/
+
+pub fn add(left: u64, right: u64) -> u64 {
+  left + right
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! export_symbol {
+  ( fn $name:ident( $($arg:ident: $type:ty),* ) -> $ret:ty ) => {
+    #[no_mangle]
+    pub unsafe extern "C" fn $name( $($arg: $type),* ) -> $ret {
+      $crate::ffi::$name( $($arg),* )
+    }
+  };
+  ( fn $name:ident( $($arg:ident: $type:ty),* ) ) => {
+    export_symbol!(fn $name( $($arg: $type),* ) -> ());
+  }
+}
+
+/// As a workaround for rust-lang/rust#6342, you can use this macro to export
+/// all FFI functions in the root crate.
+/// See: https://github.com/rust-lang/rfcs/issues/2771
+#[macro_export]
+macro_rules! export_symbols {
+  () => {
+    export_symbol!(fn add(left: u64, right: u64) -> u64);
+  };
+}
 
 /*
 #[repr(C)]
@@ -36,11 +66,6 @@ pub struct Events {
   ptr: *mut Event,
   len: usize,
   cap: usize,
-}
-
-#[no_mangle]
-pub extern "C" fn add(left: u64, right: u64) -> u64 {
-  left + right
 }
 
 #[no_mangle]

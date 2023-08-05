@@ -1,25 +1,28 @@
 //! An *observable* and *persistent* last-writer-win register.
 
+use std::marker::PhantomData;
+
 use rusqlite::Transaction;
 use serde::{de::DeserializeOwned, ser::Serialize};
 
 use crate::joinable::{Clock, Minimum};
 use crate::observable::{
-  Aggregator, ObservablePersistentGammaJoinable, ObservablePersistentJoinable, ObservablePersistentState, Port,
+  Events, ObservablePersistentGammaJoinable, ObservablePersistentJoinable, ObservablePersistentState, Port,
 };
 use crate::persistent::{crdt as pcrdt, PersistentJoinable, PersistentState};
 
 /// An *observable* and *persistent* last-writer-win register.
 #[derive(Debug, Clone)]
-pub struct Register<T: Minimum + Clone + Serialize + DeserializeOwned> {
+pub struct Register<T: Minimum + Clone + Serialize + DeserializeOwned, E: Events<T>> {
   inner: pcrdt::Register<T>,
   subscriptions: Vec<Port>,
+  _events: PhantomData<E>,
 }
 
-impl<T: Minimum + Clone + Serialize + DeserializeOwned> Register<T> {
+impl<T: Minimum + Clone + Serialize + DeserializeOwned, E: Events<T>> Register<T, E> {
   /// Creates or loads data.
   pub fn new(txn: &mut Transaction, collection: &'static str, name: &'static str) -> Self {
-    Self { inner: pcrdt::Register::new(txn, collection, name), subscriptions: Vec::new() }
+    Self { inner: pcrdt::Register::new(txn, collection, name), subscriptions: Vec::new(), _events: Default::default() }
   }
 
   /// Saves data.
@@ -43,7 +46,7 @@ impl<T: Minimum + Clone + Serialize + DeserializeOwned> Register<T> {
   }
 
   /// Adds observer.
-  pub fn subscribe(&mut self, _txn: &mut Transaction, ctx: &mut Aggregator<T>, port: Port) {
+  pub fn subscribe(&mut self, _txn: &mut Transaction, ctx: &mut E, port: Port) {
     self.subscriptions.push(port);
     ctx.push(port, self.value().clone());
   }
@@ -53,24 +56,24 @@ impl<T: Minimum + Clone + Serialize + DeserializeOwned> Register<T> {
     self.subscriptions.retain(|&x| x != port);
   }
 
-  fn notifies(&self, ctx: &mut Aggregator<T>) {
+  fn notifies(&self, ctx: &mut E) {
     for &port in &self.subscriptions {
       ctx.push(port, self.value().clone());
     }
   }
 }
 
-impl<T: Minimum + Clone + Serialize + DeserializeOwned> ObservablePersistentState for Register<T> {
+impl<T: Minimum + Clone + Serialize + DeserializeOwned, E: Events<T>> ObservablePersistentState for Register<T, E> {
   type State = <pcrdt::Register<T> as PersistentState>::State;
   type Action = <pcrdt::Register<T> as PersistentState>::Action;
   type Transaction<'a> = Transaction<'a>;
-  type Context<'a> = Aggregator<T>;
+  type Context<'a> = E;
 
   fn initial(txn: &mut Transaction, collection: &'static str, name: &'static str) -> Self {
     Self::new(txn, collection, name)
   }
 
-  fn apply(&mut self, txn: &mut Transaction, ctx: &mut Aggregator<T>, a: Self::Action) {
+  fn apply(&mut self, txn: &mut Transaction, ctx: &mut E, a: Self::Action) {
     self.inner.apply(txn, a);
     self.notifies(ctx);
   }
@@ -84,15 +87,18 @@ impl<T: Minimum + Clone + Serialize + DeserializeOwned> ObservablePersistentStat
   }
 }
 
-impl<T: Minimum + Clone + Serialize + DeserializeOwned> ObservablePersistentJoinable for Register<T> {
-  fn preq(&mut self, txn: &mut Transaction, _ctx: &mut Aggregator<T>, t: &Self::State) -> bool {
+impl<T: Minimum + Clone + Serialize + DeserializeOwned, E: Events<T>> ObservablePersistentJoinable for Register<T, E> {
+  fn preq(&mut self, txn: &mut Transaction, _ctx: &mut E, t: &Self::State) -> bool {
     self.inner.preq(txn, t)
   }
 
-  fn join(&mut self, txn: &mut Transaction, ctx: &mut Aggregator<T>, t: Self::State) {
+  fn join(&mut self, txn: &mut Transaction, ctx: &mut E, t: Self::State) {
     self.inner.join(txn, t);
     self.notifies(ctx);
   }
 }
 
-impl<T: Minimum + Clone + Serialize + DeserializeOwned> ObservablePersistentGammaJoinable for Register<T> {}
+impl<T: Minimum + Clone + Serialize + DeserializeOwned, E: Events<T>> ObservablePersistentGammaJoinable
+  for Register<T, E>
+{
+}

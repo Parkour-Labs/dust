@@ -3,7 +3,7 @@ use rusqlite::Connection;
 use serde::{de::DeserializeOwned, ser::Serialize};
 use std::{cell::Cell, marker::PhantomData};
 
-use crate::object_store::ObjectStore;
+use crate::store::Store;
 use crate::{deserialize, serialize};
 
 const INITIAL_COMMANDS: &str = "
@@ -16,22 +16,22 @@ PRAGMA busy_timeout = 3000;
 ";
 
 thread_local! {
-  static OBJECT_STORE: Cell<Option<ObjectStore>> = Cell::new(None);
+  static OBJECT_STORE: Cell<Option<Store>> = Cell::new(None);
 }
 
 pub fn init(path: &str) {
   let conn = Connection::open(path).unwrap();
   conn.execute_batch(INITIAL_COMMANDS).unwrap();
-  OBJECT_STORE.with(|cell| cell.set(Some(ObjectStore::new(conn, ""))));
+  OBJECT_STORE.with(|cell| cell.set(Some(Store::new(conn, ""))));
 }
 
 pub fn init_in_memory() {
   let conn = Connection::open_in_memory().unwrap();
   conn.execute_batch(INITIAL_COMMANDS).unwrap();
-  OBJECT_STORE.with(|cell| cell.set(Some(ObjectStore::new(conn, ""))));
+  OBJECT_STORE.with(|cell| cell.set(Some(Store::new(conn, ""))));
 }
 
-pub fn access_store_with<R>(f: impl FnOnce(&mut ObjectStore) -> R) -> R {
+pub fn access_store_with<R>(f: impl FnOnce(&mut Store) -> R) -> R {
   OBJECT_STORE.with(|cell| {
     let mut store = cell.take().unwrap();
     let res = f(&mut store);

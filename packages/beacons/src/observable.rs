@@ -30,6 +30,11 @@ pub enum SetEvent<T> {
   Remove(T),
 }
 
+pub trait Events<T> {
+  fn push(&mut self, port: Port, event: T);
+}
+
+/*
 #[derive(Debug, Clone)]
 pub struct Aggregator<T> {
   events: Vec<(Port, T)>,
@@ -56,3 +61,4 @@ impl<T> Into<Vec<(Port, T)>> for Aggregator<T> {
     self.events
   }
 }
+*/

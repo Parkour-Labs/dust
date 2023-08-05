@@ -3,32 +3,29 @@
 use rusqlite::Transaction;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::marker::PhantomData;
 
 use crate::joinable::Clock;
 use crate::observable::{
-  Aggregator, ObservablePersistentGammaJoinable, ObservablePersistentJoinable, ObservablePersistentState, Port,
-  SetEvent,
+  Events, ObservablePersistentGammaJoinable, ObservablePersistentJoinable, ObservablePersistentState, Port, SetEvent,
 };
 use crate::persistent::{crdt as pcrdt, PersistentJoinable, PersistentState};
 
 /// An *observable* and *persistent* last-writer-win object graph.
 #[derive(Debug, Clone)]
-pub struct ObjectGraph {
+pub struct ObjectGraph<E: ObjectGraphEvents> {
   inner: pcrdt::ObjectGraph,
   node_subscriptions: HashMap<u128, Vec<Port>>,
   edge_subscriptions: HashMap<u128, Vec<Port>>,
   multiedge_subscriptions: HashMap<(u128, u64), Vec<Port>>,
   backedge_subscriptions: HashMap<(u128, u64), Vec<Port>>,
+  _events: PhantomData<E>,
 }
 
-#[derive(Debug)]
-pub struct ObjectGraphAggregator<'a> {
-  pub node_aggregator: &'a mut Aggregator<Option<u64>>,
-  pub edge_aggregator: &'a mut Aggregator<Option<(u128, u64, u128)>>,
-  pub id_set_aggregator: &'a mut Aggregator<SetEvent<u128>>,
-}
+pub trait ObjectGraphEvents: Events<Option<u64>> + Events<Option<(u128, u64, u128)>> + Events<SetEvent<u128>> {}
+impl<T: Events<Option<u64>> + Events<Option<(u128, u64, u128)>> + Events<SetEvent<u128>>> ObjectGraphEvents for T {}
 
-impl ObjectGraph {
+impl<E: ObjectGraphEvents> ObjectGraph<E> {
   /// Creates or loads data.
   pub fn new(txn: &mut Transaction, collection: &'static str, name: &'static str) -> Self {
     Self {
@@ -37,6 +34,7 @@ impl ObjectGraph {
       edge_subscriptions: HashMap::new(),
       multiedge_subscriptions: HashMap::new(),
       backedge_subscriptions: HashMap::new(),
+      _events: Default::default(),
     }
   }
 
@@ -120,47 +118,33 @@ impl ObjectGraph {
   }
 
   /// Adds observer.
-  pub fn subscribe_node(&mut self, txn: &mut Transaction, ctx: &mut ObjectGraphAggregator<'_>, id: u128, port: Port) {
+  pub fn subscribe_node(&mut self, txn: &mut Transaction, ctx: &mut E, id: u128, port: Port) {
     self.node_subscriptions.entry(id).or_default().push(port);
-    ctx.node_aggregator.push(port, self.node(txn, id));
+    ctx.push(port, self.node(txn, id));
   }
 
   /// Adds observer.
-  pub fn subscribe_edge(&mut self, txn: &mut Transaction, ctx: &mut ObjectGraphAggregator<'_>, id: u128, port: Port) {
+  pub fn subscribe_edge(&mut self, txn: &mut Transaction, ctx: &mut E, id: u128, port: Port) {
     self.edge_subscriptions.entry(id).or_default().push(port);
-    ctx.edge_aggregator.push(port, self.edge(txn, id));
+    ctx.push(port, self.edge(txn, id));
   }
 
   /// Adds observer.
-  pub fn subscribe_multiedge(
-    &mut self,
-    txn: &mut Transaction,
-    ctx: &mut ObjectGraphAggregator<'_>,
-    src: u128,
-    label: u64,
-    port: Port,
-  ) {
+  pub fn subscribe_multiedge(&mut self, txn: &mut Transaction, ctx: &mut E, src: u128, label: u64, port: Port) {
     self.multiedge_subscriptions.entry((src, label)).or_default().push(port);
     for id in self.query_edge_src_label(txn, src, label) {
       if let Some((src, _, _)) = self.edge(txn, id) {
-        ctx.id_set_aggregator.push(port, SetEvent::Insert(src));
+        ctx.push(port, SetEvent::Insert(src));
       }
     }
   }
 
   /// Adds observer.
-  pub fn subscribe_backedge(
-    &mut self,
-    txn: &mut Transaction,
-    ctx: &mut ObjectGraphAggregator<'_>,
-    dst: u128,
-    label: u64,
-    port: Port,
-  ) {
+  pub fn subscribe_backedge(&mut self, txn: &mut Transaction, ctx: &mut E, dst: u128, label: u64, port: Port) {
     self.backedge_subscriptions.entry((dst, label)).or_default().push(port);
     for id in self.query_edge_dst_label(txn, dst, label) {
       if let Some((src, _, _)) = self.edge(txn, id) {
-        ctx.id_set_aggregator.push(port, SetEvent::Insert(src));
+        ctx.push(port, SetEvent::Insert(src));
       }
     }
   }
@@ -205,58 +189,46 @@ impl ObjectGraph {
     }
   }
 
-  fn notifies_pre(
-    &mut self,
-    txn: &mut Transaction,
-    ctx: &mut ObjectGraphAggregator<'_>,
-    _nodes: &[u128],
-    edges: &[u128],
-  ) {
+  fn notifies_pre(&mut self, txn: &mut Transaction, ctx: &mut E, _nodes: &[u128], edges: &[u128]) {
     for &id in edges {
       if let Some((src, label, dst)) = self.inner.edge(txn, id) {
         if let Some(ports) = self.multiedge_subscriptions.get(&(src, label)) {
           for &port in ports {
-            ctx.id_set_aggregator.push(port, SetEvent::Remove(dst));
+            ctx.push(port, SetEvent::Remove(dst));
           }
         }
         if let Some(ports) = self.backedge_subscriptions.get(&(dst, label)) {
           for &port in ports {
-            ctx.id_set_aggregator.push(port, SetEvent::Remove(src));
+            ctx.push(port, SetEvent::Remove(src));
           }
         }
       }
     }
   }
 
-  fn notifies_post(
-    &mut self,
-    txn: &mut Transaction,
-    ctx: &mut ObjectGraphAggregator<'_>,
-    nodes: &[u128],
-    edges: &[u128],
-  ) {
+  fn notifies_post(&mut self, txn: &mut Transaction, ctx: &mut E, nodes: &[u128], edges: &[u128]) {
     for &id in nodes {
       if let Some(ports) = self.node_subscriptions.get(&id) {
         for &port in ports {
-          ctx.node_aggregator.push(port, self.inner.node(txn, id));
+          ctx.push(port, self.inner.node(txn, id));
         }
       }
     }
     for &id in edges {
       if let Some(ports) = self.edge_subscriptions.get(&id) {
         for &port in ports {
-          ctx.edge_aggregator.push(port, self.inner.edge(txn, id));
+          ctx.push(port, self.inner.edge(txn, id));
         }
       }
       if let Some((src, label, dst)) = self.inner.edge(txn, id) {
         if let Some(ports) = self.multiedge_subscriptions.get(&(src, label)) {
           for &port in ports {
-            ctx.id_set_aggregator.push(port, SetEvent::Insert(dst));
+            ctx.push(port, SetEvent::Insert(dst));
           }
         }
         if let Some(ports) = self.backedge_subscriptions.get(&(dst, label)) {
           for &port in ports {
-            ctx.id_set_aggregator.push(port, SetEvent::Insert(src));
+            ctx.push(port, SetEvent::Insert(src));
           }
         }
       }
@@ -264,17 +236,17 @@ impl ObjectGraph {
   }
 }
 
-impl ObservablePersistentState for ObjectGraph {
+impl<E: ObjectGraphEvents> ObservablePersistentState for ObjectGraph<E> {
   type State = <pcrdt::ObjectGraph as PersistentState>::State;
   type Action = <pcrdt::ObjectGraph as PersistentState>::Action;
   type Transaction<'a> = Transaction<'a>;
-  type Context<'a> = ObjectGraphAggregator<'a>;
+  type Context<'a> = E;
 
   fn initial(txn: &mut Transaction, collection: &'static str, name: &'static str) -> Self {
     Self::new(txn, collection, name)
   }
 
-  fn apply(&mut self, txn: &mut Transaction, ctx: &mut ObjectGraphAggregator<'_>, a: Self::Action) {
+  fn apply(&mut self, txn: &mut Transaction, ctx: &mut E, a: Self::Action) {
     let nodes: Vec<u128> = a.0.keys().copied().collect();
     let edges: Vec<u128> = a.1.keys().copied().collect();
     self.notifies_pre(txn, ctx, &nodes, &edges);
@@ -291,12 +263,12 @@ impl ObservablePersistentState for ObjectGraph {
   }
 }
 
-impl ObservablePersistentJoinable for ObjectGraph {
-  fn preq(&mut self, txn: &mut Transaction, _ctx: &mut ObjectGraphAggregator<'_>, t: &Self::State) -> bool {
+impl<E: ObjectGraphEvents> ObservablePersistentJoinable for ObjectGraph<E> {
+  fn preq(&mut self, txn: &mut Transaction, _ctx: &mut E, t: &Self::State) -> bool {
     self.inner.preq(txn, t)
   }
 
-  fn join(&mut self, txn: &mut Transaction, ctx: &mut ObjectGraphAggregator<'_>, t: Self::State) {
+  fn join(&mut self, txn: &mut Transaction, ctx: &mut E, t: Self::State) {
     let nodes: Vec<u128> = t.inner.0.keys().copied().collect();
     let edges: Vec<u128> = t.inner.1.keys().copied().collect();
     self.notifies_pre(txn, ctx, &nodes, &edges);
@@ -305,4 +277,4 @@ impl ObservablePersistentJoinable for ObjectGraph {
   }
 }
 
-impl ObservablePersistentGammaJoinable for ObjectGraph {}
+impl<E: ObjectGraphEvents> ObservablePersistentGammaJoinable for ObjectGraph<E> {}

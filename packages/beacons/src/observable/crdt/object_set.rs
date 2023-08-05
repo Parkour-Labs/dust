@@ -3,24 +3,30 @@
 use rusqlite::Transaction;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::marker::PhantomData;
 
 use crate::joinable::Clock;
 use crate::observable::{
-  Aggregator, ObservablePersistentGammaJoinable, ObservablePersistentJoinable, ObservablePersistentState, Port,
+  Events, ObservablePersistentGammaJoinable, ObservablePersistentJoinable, ObservablePersistentState, Port,
 };
 use crate::persistent::{crdt as pcrdt, PersistentJoinable, PersistentState};
 
 /// An *observable* and *persistent* last-writer-win element map.
 #[derive(Debug, Clone)]
-pub struct ObjectSet {
+pub struct ObjectSet<E: Events<Option<Vec<u8>>>> {
   inner: pcrdt::ObjectSet,
   subscriptions: HashMap<u128, Vec<Port>>,
+  _events: PhantomData<E>,
 }
 
-impl ObjectSet {
+impl<E: Events<Option<Vec<u8>>>> ObjectSet<E> {
   /// Creates or loads data.
   pub fn new(txn: &mut Transaction, collection: &'static str, name: &'static str) -> Self {
-    Self { inner: pcrdt::ObjectSet::new(txn, collection, name), subscriptions: HashMap::new() }
+    Self {
+      inner: pcrdt::ObjectSet::new(txn, collection, name),
+      subscriptions: HashMap::new(),
+      _events: Default::default(),
+    }
   }
 
   /// Loads element.
@@ -54,7 +60,7 @@ impl ObjectSet {
   }
 
   /// Adds observer.
-  pub fn subscribe(&mut self, txn: &mut Transaction, ctx: &mut Aggregator<Option<Vec<u8>>>, id: u128, port: Port) {
+  pub fn subscribe(&mut self, txn: &mut Transaction, ctx: &mut E, id: u128, port: Port) {
     self.subscriptions.entry(id).or_default().push(port);
     ctx.push(port, self.get(txn, id).map(Vec::from));
   }
@@ -69,7 +75,7 @@ impl ObjectSet {
     }
   }
 
-  fn notifies(&mut self, txn: &mut Transaction, ctx: &mut Aggregator<Option<Vec<u8>>>, ids: &[u128]) {
+  fn notifies(&mut self, txn: &mut Transaction, ctx: &mut E, ids: &[u128]) {
     for &id in ids {
       if let Some(ports) = self.subscriptions.get(&id) {
         for &port in ports {
@@ -80,17 +86,17 @@ impl ObjectSet {
   }
 }
 
-impl ObservablePersistentState for ObjectSet {
+impl<E: Events<Option<Vec<u8>>>> ObservablePersistentState for ObjectSet<E> {
   type State = <pcrdt::ObjectSet as PersistentState>::State;
   type Action = <pcrdt::ObjectSet as PersistentState>::Action;
   type Transaction<'a> = Transaction<'a>;
-  type Context<'a> = Aggregator<Option<Vec<u8>>>;
+  type Context<'a> = E;
 
   fn initial(txn: &mut Transaction, collection: &'static str, name: &'static str) -> Self {
     Self::new(txn, collection, name)
   }
 
-  fn apply(&mut self, txn: &mut Transaction, ctx: &mut Aggregator<Option<Vec<u8>>>, a: Self::Action) {
+  fn apply(&mut self, txn: &mut Transaction, ctx: &mut E, a: Self::Action) {
     let ids: Vec<u128> = a.keys().copied().collect();
     self.inner.apply(txn, a);
     self.notifies(txn, ctx, &ids);
@@ -105,16 +111,16 @@ impl ObservablePersistentState for ObjectSet {
   }
 }
 
-impl ObservablePersistentJoinable for ObjectSet {
-  fn preq(&mut self, txn: &mut Transaction, _ctx: &mut Aggregator<Option<Vec<u8>>>, t: &Self::State) -> bool {
+impl<E: Events<Option<Vec<u8>>>> ObservablePersistentJoinable for ObjectSet<E> {
+  fn preq(&mut self, txn: &mut Transaction, _ctx: &mut E, t: &Self::State) -> bool {
     self.inner.preq(txn, t)
   }
 
-  fn join(&mut self, txn: &mut Transaction, ctx: &mut Aggregator<Option<Vec<u8>>>, t: Self::State) {
+  fn join(&mut self, txn: &mut Transaction, ctx: &mut E, t: Self::State) {
     let ids: Vec<u128> = t.inner.keys().copied().collect();
     self.inner.join(txn, t);
     self.notifies(txn, ctx, &ids);
   }
 }
 
-impl ObservablePersistentGammaJoinable for ObjectSet {}
+impl<E: Events<Option<Vec<u8>>>> ObservablePersistentGammaJoinable for ObjectSet<E> {}

@@ -9,5 +9,5 @@ beacons_macros = { path = "../beacons_macros" }
 bincode = "1.3.3"
 derive_more = "0.99.17"
 rand = "0.8.5"
-rusqlite = "0.29.0"
-serde = { version = "1.0.164", features = [ "derive" ] }
+rusqlite = { version = "0.29.0", features = ["bundled"] }
+serde = { version = "1.0.164", features = ["derive"] }
