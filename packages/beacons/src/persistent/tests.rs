@@ -4,45 +4,28 @@ use serde::{de::DeserializeOwned, ser::Serialize};
 use std::collections::HashMap;
 
 use super::vector_history::{VectorHistory, VectorHistoryStore};
-use crate::joinable::{ByMax, Clock, State};
+use crate::joinable::{ByMax, State};
 use crate::{deserialize, serialize};
 
 struct MockVectorHistoryStore {
-  replicas: Vec<u128>,
-  data: Vec<(u128, Clock, String, Vec<u8>)>,
+  replicas: Vec<u64>,
+  data: Vec<(u64, u64, String, Vec<u8>)>,
 }
 
 impl VectorHistoryStore for MockVectorHistoryStore {
-  fn init(&mut self, _name: &str) -> u128 {
+  fn init(&mut self, _name: &str) -> u64 {
     rand::thread_rng().gen()
   }
 
-  fn get_replicas(&mut self, _name: &str) -> Vec<u128> {
+  fn get_replicas(&mut self, _name: &str) -> Vec<u64> {
     self.replicas.clone()
   }
 
-  fn put_replica(&mut self, _name: &str, replica: u128) {
+  fn put_replica(&mut self, _name: &str, replica: u64) {
     self.replicas.push(replica);
   }
 
-  fn get_by_replica_clock_range(
-    &mut self,
-    _name: &str,
-    replica: u128,
-    lower: Option<Clock>,
-    upper: Clock,
-  ) -> Vec<(Clock, String, Vec<u8>)> {
-    let mut res: Vec<(Clock, String, Vec<u8>)> = self
-      .data
-      .iter()
-      .filter(|(r, c, _, _)| *r == replica && Some(*c) > lower && *c <= upper)
-      .map(|(_, c, n, a)| (*c, n.clone(), a.clone()))
-      .collect();
-    res.sort_unstable_by_key(|(c, _, _)| *c);
-    res
-  }
-
-  fn get_by_replica_clock_max(&mut self, _name: &str, replica: u128) -> Option<(Clock, String, Vec<u8>)> {
+  fn get_action_latest(&mut self, _name: &str, replica: u64) -> Option<(u64, String, Vec<u8>)> {
     self
       .data
       .iter()
@@ -51,13 +34,24 @@ impl VectorHistoryStore for MockVectorHistoryStore {
       .map(|(_, c, n, a)| (*c, n.clone(), a.clone()))
   }
 
-  fn put_by_replica(&mut self, _name: &str, replica: u128, item: (Clock, &str, &[u8])) {
+  fn get_actions(&mut self, _name: &str, replica: u64, lower: u64, upper: u64) -> Vec<(u64, String, Vec<u8>)> {
+    let mut res: Vec<(u64, String, Vec<u8>)> = self
+      .data
+      .iter()
+      .filter(|(r, c, _, _)| *r == replica && *c > lower && *c <= upper)
+      .map(|(_, c, n, a)| (*c, n.clone(), a.clone()))
+      .collect();
+    res.sort_unstable_by_key(|(c, _, _)| *c);
+    res
+  }
+
+  fn put_action(&mut self, _name: &str, replica: u64, item: (u64, &str, &[u8])) {
     self.data.push((replica, item.0, String::from(item.1), Vec::from(item.2)));
   }
 }
 
 struct MockVectorHistory {
-  data: HashMap<u128, Vec<(Clock, String, Vec<u8>)>>,
+  data: HashMap<u64, Vec<(u64, String, Vec<u8>)>>,
 }
 
 impl MockVectorHistory {
@@ -65,42 +59,32 @@ impl MockVectorHistory {
     Self { data: HashMap::new() }
   }
 
-  fn clocks(&self) -> HashMap<u128, Option<Clock>> {
-    self.data.iter().map(|(replica, entry)| (*replica, entry.last().map(|(fst, _, _)| *fst))).collect()
+  fn nexts(&self) -> HashMap<u64, u64> {
+    self.data.iter().map(|(replica, entry)| (*replica, entry.last().map(|(fst, _, _)| *fst).unwrap_or(0))).collect()
   }
 
-  fn clock(&self) -> Option<Clock> {
-    self.data.values().fold(None, |acc, entry| acc.max(entry.last().map(|(fst, _, _)| *fst)))
-  }
-
-  fn push(&mut self, item: (u128, Clock, String, Vec<u8>)) -> Option<(u128, Clock, String, Vec<u8>)> {
-    let (replica, clock, name, action) = item.clone();
+  fn push(&mut self, item: (u64, u64, String, Vec<u8>)) -> Option<(u64, u64, String, Vec<u8>)> {
+    let (replica, serial, name, action) = item.clone();
     let entry = self.data.entry(replica).or_insert_with(Vec::new);
-    if entry.last().map(|(fst, _, _)| *fst) < Some(clock) {
-      entry.push((clock, name, action));
+    if entry.last().map(|(fst, _, _)| *fst).unwrap_or(0) < serial {
+      entry.push((serial, name, action));
       Some(item)
     } else {
       None
     }
   }
 
-  fn actions(&mut self, mut clocks: HashMap<u128, Option<Clock>>) -> Vec<(u128, Clock, String, Vec<u8>)> {
+  fn actions(&mut self, mut clocks: HashMap<u64, u64>) -> Vec<(u64, u64, String, Vec<u8>)> {
     let mut res = Vec::new();
     for (replica, entry) in self.data.iter_mut() {
-      let begin = clocks.remove(replica).unwrap_or(None);
-      let start = entry.partition_point(|(fst, _, _)| Some(*fst) <= begin);
+      let begin = clocks.remove(replica).unwrap_or(0);
+      let start = entry.partition_point(|(fst, _, _)| *fst <= begin);
       for (clock, name, action) in entry[start..].iter().cloned() {
         res.push((*replica, clock, name, action));
       }
     }
     res
   }
-}
-
-macro_rules! clock {
-  ( $val:expr ) => {
-    Clock::from($val)
-  };
 }
 
 macro_rules! string {
@@ -115,24 +99,24 @@ fn vector_history_push_simple() {
   let mut history = VectorHistory::new(&mut store, "");
   history.assert_invariants(&mut store);
 
-  assert!(history.push(&mut store, (1, clock!(3), string!(""), vec![1])).is_some());
-  assert!(history.push(&mut store, (1, clock!(2), string!(""), vec![2])).is_none());
-  assert!(history.push(&mut store, (1, clock!(3), string!(""), vec![3])).is_none());
-  assert!(history.push(&mut store, (1, clock!(4), string!(""), vec![4])).is_some());
-  assert!(history.push(&mut store, (1, clock!(5), string!(""), vec![5])).is_some());
-  assert!(history.push(&mut store, (1, clock!(6), string!(""), vec![6])).is_some());
-  assert!(history.push(&mut store, (2, clock!(3), string!(""), vec![7])).is_some());
-  assert!(history.push(&mut store, (2, clock!(2), string!(""), vec![8])).is_none());
+  assert!(history.push(&mut store, (1, 3, string!(""), vec![1])).is_some());
+  assert!(history.push(&mut store, (1, 2, string!(""), vec![2])).is_none());
+  assert!(history.push(&mut store, (1, 3, string!(""), vec![3])).is_none());
+  assert!(history.push(&mut store, (1, 4, string!(""), vec![4])).is_some());
+  assert!(history.push(&mut store, (1, 5, string!(""), vec![5])).is_some());
+  assert!(history.push(&mut store, (1, 6, string!(""), vec![6])).is_some());
+  assert!(history.push(&mut store, (2, 3, string!(""), vec![7])).is_some());
+  assert!(history.push(&mut store, (2, 2, string!(""), vec![8])).is_none());
   history.assert_invariants(&mut store);
 
   assert_eq!(
     store.data,
     vec![
-      (1, clock!(3), string!(""), vec![1]),
-      (1, clock!(4), string!(""), vec![4]),
-      (1, clock!(5), string!(""), vec![5]),
-      (1, clock!(6), string!(""), vec![6]),
-      (2, clock!(3), string!(""), vec![7])
+      (1, 3, string!(""), vec![1]),
+      (1, 4, string!(""), vec![4]),
+      (1, 5, string!(""), vec![5]),
+      (1, 6, string!(""), vec![6]),
+      (2, 3, string!(""), vec![7])
     ]
   );
 }
@@ -142,92 +126,68 @@ fn vector_history_load_unload_collect_simple() {
   let mut store = MockVectorHistoryStore {
     replicas: vec![1, 2, 3, 4],
     data: vec![
-      (1, clock!(3), string!(""), vec![1]),
-      (1, clock!(4), string!(""), vec![2]),
-      (1, clock!(5), string!(""), vec![3]),
-      (1, clock!(6), string!(""), vec![4]),
-      (2, clock!(3), string!(""), vec![5]),
-      (2, clock!(5), string!(""), vec![6]),
-      (2, clock!(6), string!(""), vec![7]),
-      (3, clock!(5), string!(""), vec![8]),
+      (1, 3, string!(""), vec![1]),
+      (1, 4, string!(""), vec![2]),
+      (1, 5, string!(""), vec![3]),
+      (1, 6, string!(""), vec![4]),
+      (2, 3, string!(""), vec![5]),
+      (2, 5, string!(""), vec![6]),
+      (2, 6, string!(""), vec![7]),
+      (3, 5, string!(""), vec![8]),
     ],
   };
   let mut history = VectorHistory::new(&mut store, "");
   history.assert_invariants(&mut store);
-  assert_eq!(history.latest(), Some(clock!(6)));
 
-  assert!(history.push(&mut store, (1, clock!(4), string!(""), vec![9])).is_none());
-  assert!(history.push(&mut store, (1, clock!(6), string!(""), vec![9])).is_none());
-  assert!(history.push(&mut store, (3, clock!(4), string!(""), vec![9])).is_none());
-  assert!(history.push(&mut store, (3, clock!(6), string!(""), vec![9])).is_some());
-  assert!(history.push(&mut store, (5, clock!(7), string!(""), vec![10])).is_some());
-  assert_eq!(history.latest(), Some(clock!(7)));
+  assert!(history.push(&mut store, (1, 4, string!(""), vec![9])).is_none());
+  assert!(history.push(&mut store, (1, 6, string!(""), vec![9])).is_none());
+  assert!(history.push(&mut store, (3, 4, string!(""), vec![9])).is_none());
+  assert!(history.push(&mut store, (3, 6, string!(""), vec![9])).is_some());
+  assert!(history.push(&mut store, (5, 7, string!(""), vec![10])).is_some());
   history.assert_invariants(&mut store);
 
-  history.unload_until(
-    vec![
-      (0, Some(clock!(7))),
-      (1, Some(clock!(7))),
-      (2, Some(clock!(7))),
-      (3, Some(clock!(7))),
-      (4, Some(clock!(7))),
-      (5, Some(clock!(7))),
-    ]
-    .as_slice(),
-  );
-  history.assert_invariants(&mut store);
-  assert_eq!(history.latest(), Some(clock!(7)));
-
-  assert_eq!(
-    {
-      let mut lhs = history.collect(&mut store, HashMap::from([(1, Some(clock!(3))), (2, Some(clock!(3)))]));
-      lhs.sort_by_key(|(replica, _, _, _)| *replica);
-      lhs
-    },
-    vec![
-      (1, clock!(4), string!(""), vec![2]),
-      (1, clock!(5), string!(""), vec![3]),
-      (1, clock!(6), string!(""), vec![4]),
-      (2, clock!(5), string!(""), vec![6]),
-      (2, clock!(6), string!(""), vec![7]),
-      (3, clock!(5), string!(""), vec![8]),
-      (3, clock!(6), string!(""), vec![9]),
-      (5, clock!(7), string!(""), vec![10]),
-    ]
-  );
-  assert_eq!(history.latest(), Some(clock!(7)));
+  history.unload_until(vec![(0, 7), (1, 7), (2, 7), (3, 7), (4, 7), (5, 7)].as_slice());
   history.assert_invariants(&mut store);
 
   assert_eq!(
     {
-      let mut lhs = history.collect(&mut store, HashMap::from([(1, Some(clock!(2))), (2, Some(clock!(2)))]));
+      let mut lhs = history.collect(&mut store, HashMap::from([(1, 3), (2, 3)]));
       lhs.sort_by_key(|(replica, _, _, _)| *replica);
       lhs
     },
     vec![
-      (1, clock!(3), string!(""), vec![1]),
-      (1, clock!(4), string!(""), vec![2]),
-      (1, clock!(5), string!(""), vec![3]),
-      (1, clock!(6), string!(""), vec![4]),
-      (2, clock!(3), string!(""), vec![5]),
-      (2, clock!(5), string!(""), vec![6]),
-      (2, clock!(6), string!(""), vec![7]),
-      (3, clock!(5), string!(""), vec![8]),
-      (3, clock!(6), string!(""), vec![9]),
-      (5, clock!(7), string!(""), vec![10]),
+      (1, 4, string!(""), vec![2]),
+      (1, 5, string!(""), vec![3]),
+      (1, 6, string!(""), vec![4]),
+      (2, 5, string!(""), vec![6]),
+      (2, 6, string!(""), vec![7]),
+      (3, 5, string!(""), vec![8]),
+      (3, 6, string!(""), vec![9]),
+      (5, 7, string!(""), vec![10]),
     ]
   );
-  assert_eq!(history.latest(), Some(clock!(7)));
   history.assert_invariants(&mut store);
-}
 
-fn random_option_clock() -> Option<Clock> {
-  let value = rand::thread_rng().gen_range(0..10);
-  if value % 20 == 0 {
-    None
-  } else {
-    Some(Clock::from(value))
-  }
+  assert_eq!(
+    {
+      let mut lhs = history.collect(&mut store, HashMap::from([(1, 2), (2, 2)]));
+      lhs.sort_by_key(|(replica, _, _, _)| *replica);
+      lhs
+    },
+    vec![
+      (1, 3, string!(""), vec![1]),
+      (1, 4, string!(""), vec![2]),
+      (1, 5, string!(""), vec![3]),
+      (1, 6, string!(""), vec![4]),
+      (2, 3, string!(""), vec![5]),
+      (2, 5, string!(""), vec![6]),
+      (2, 6, string!(""), vec![7]),
+      (3, 5, string!(""), vec![8]),
+      (3, 6, string!(""), vec![9]),
+      (5, 7, string!(""), vec![10]),
+    ]
+  );
+  history.assert_invariants(&mut store);
 }
 
 fn vector_history_random_core<T: State>(
@@ -242,7 +202,7 @@ fn vector_history_random_core<T: State>(
   let mut rng = rand::thread_rng();
 
   for _ in 0..1000 {
-    match rng.gen_range(0..=6) {
+    match rng.gen_range(0..=5) {
       0 => {
         let this = history.this();
         history = VectorHistory::new(&mut store, "");
@@ -250,36 +210,35 @@ fn vector_history_random_core<T: State>(
         assert_eq!(this, history.this());
       }
       1 => {
-        let mut lhs = history.latests();
-        let mut rhs = mock.clocks();
-        lhs.retain(|_, v| v.is_some());
-        rhs.retain(|_, v| v.is_some());
+        let mut lhs = history.nexts();
+        let mut rhs = mock.nexts();
+        lhs.retain(|_, v| *v != 0);
+        rhs.retain(|_, v| *v != 0);
         assert_eq!(lhs, rhs);
       }
-      2 => assert_eq!(history.latest(), mock.clock()),
-      3 => {
-        let begins = mock.data.keys().map(|key| (*key, random_option_clock())).collect::<Vec<_>>();
+      2 => {
+        let begins = mock.data.keys().map(|key| (*key, rng.gen_range(0..10))).collect::<Vec<_>>();
         history.load_until(&mut store, &begins);
         history.assert_invariants(&mut store);
       }
-      4 => {
-        let begins = mock.data.keys().map(|key| (*key, random_option_clock())).collect::<Vec<_>>();
+      3 => {
+        let begins = mock.data.keys().map(|key| (*key, rng.gen_range(0..10))).collect::<Vec<_>>();
         history.unload_until(&begins);
         history.assert_invariants(&mut store);
       }
-      5 => {
+      4 => {
         let replica = rng.gen_range(0..10);
-        let clock = Clock::from(rng.gen_range(0..10));
+        let serial = rng.gen_range(0..10);
         let name = String::from("");
         let action = rand_action();
         assert_eq!(
-          history.push(&mut store, (replica, clock, name.clone(), serialize(&action).unwrap())).is_some(),
-          mock.push((replica, clock, name, serialize(&action).unwrap())).is_some()
+          history.push(&mut store, (replica, serial, name.clone(), serialize(&action).unwrap())).is_some(),
+          mock.push((replica, serial, name, serialize(&action).unwrap())).is_some()
         );
         history.assert_invariants(&mut store);
       }
-      6 => {
-        let clocks = mock.data.keys().map(|key| (*key, random_option_clock())).collect::<HashMap<_, _>>();
+      5 => {
+        let clocks = mock.data.keys().map(|key| (*key, rng.gen_range(0..10))).collect::<HashMap<_, _>>();
         let mut lhs = history.collect(&mut store, clocks.clone());
         let mut rhs = mock.actions(clocks.clone());
         lhs.sort_by_key(|(fst, snd, _, _)| (*fst, *snd));

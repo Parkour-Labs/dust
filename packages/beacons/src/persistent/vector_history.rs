@@ -4,22 +4,20 @@ use rand::Rng;
 use rusqlite::{OptionalExtension, Transaction};
 use std::collections::{HashMap, VecDeque};
 
-use crate::joinable::{Clock, Maximum};
-
 /// A [`VectorHistory`] stores an action history for each replica.
 #[derive(Debug, Clone)]
 pub struct VectorHistory {
-  data: HashMap<u128, ReplicaHistory>,
-  this: u128,
-  name: &'static str,
+  data: HashMap<u64, ReplicaHistory>, // Maps replica ID -> (loaded replica history).
+  this: u64,                          // Current replica ID.
+  name: &'static str,                 // Collection name.
 }
 
 /// Action history and metadata for one replica.
 #[derive(Debug, Clone)]
 struct ReplicaHistory {
-  actions: VecDeque<(Clock, String, Vec<u8>)>,
-  begin: Option<Clock>,
-  latest: Option<Clock>,
+  actions: VecDeque<(u64, String, Vec<u8>)>, // Array of (serial, structure name, content).
+  serial_begin: u64,                         // Left open.
+  serial_next: u64,                          // Right closed.
 }
 
 impl VectorHistory {
@@ -27,18 +25,22 @@ impl VectorHistory {
     // All replica metadata must be loaded.
     assert_eq!(store.get_replicas(self.name).len(), self.data.len());
     // Per-replica invariants:
-    for (replica, entry) in self.data.iter() {
-      // `begin` must be less than or equal to `latest`.
-      assert!(entry.begin <= entry.latest);
-      // The last element in store must agree with `latest`.
-      assert_eq!(store.get_by_replica_clock_max(self.name, *replica).map(|(clock, _, _)| clock), entry.latest);
-      // All actions with clock value strictly greater than `begin` must be loaded.
+    for (&replica, entry) in self.data.iter() {
+      // `serial_begin` must be less than or equal to `serial_next`.
+      assert!(entry.serial_begin <= entry.serial_next);
+      // The last element in store must agree with `serial_next`.
       assert_eq!(
-        store.get_by_replica_clock_range(self.name, *replica, entry.begin, Clock::maximum()).len(),
+        store.get_action_latest(self.name, replica).map(|(serial, _, _)| serial).unwrap_or(0),
+        entry.serial_next
+      );
+      // All actions with serial value strictly greater than `serial_begin` must be loaded.
+      assert_eq!(
+        store.get_actions(self.name, replica, entry.serial_begin, entry.serial_next).len(),
         entry.actions.len()
       );
-      // Clock values must be strictly monotone increasing.
+      // Serial values must be strictly monotone increasing.
       if !entry.actions.is_empty() {
+        assert!(0 < entry.actions.front().unwrap().0);
         for ((fsta, _, _), (fstb, _, _)) in entry.actions.iter().zip(entry.actions.range(1..)) {
           assert!(fsta < fstb);
         }
@@ -49,88 +51,89 @@ impl VectorHistory {
   /// Creates a vector history from a backing store.
   pub fn new(store: &mut impl VectorHistoryStore, name: &'static str) -> Self {
     let this = store.init(name);
-    let mut data = HashMap::new();
-    for replica in store.get_replicas(name) {
-      let latest = store.get_by_replica_clock_max(name, replica).map(|(clock, _, _)| clock);
-      let entry = ReplicaHistory { actions: VecDeque::new(), begin: latest, latest };
-      data.insert(replica, entry);
-    }
+    let data = store
+      .get_replicas(name)
+      .into_iter()
+      .map(|replica| {
+        let latest = store.get_action_latest(name, replica).map(|(serial, _, _)| serial).unwrap_or(0);
+        let entry = ReplicaHistory { actions: VecDeque::new(), serial_begin: latest, serial_next: latest };
+        (replica, entry)
+      })
+      .collect();
     Self { data, this, name }
   }
 
-  /// Returns the latest clock values for each replica.
-  pub fn latests(&self) -> HashMap<u128, Option<Clock>> {
-    self.data.iter().map(|(replica, entry)| (*replica, entry.latest)).collect()
+  /// Returns the next serial values for each replica.
+  pub fn nexts(&self) -> HashMap<u64, u64> {
+    self.data.iter().map(|(&replica, entry)| (replica, entry.serial_next)).collect()
   }
 
-  /// Returns the latest clock value across all replicas.
-  pub fn latest(&self) -> Option<Clock> {
-    self.data.values().fold(None, |acc, entry| acc.max(entry.latest))
+  /// Returns the next serial value for this replica.
+  pub fn next_this(&self) -> u64 {
+    self.data.get(&self.this).map(|entry| entry.serial_next).unwrap_or(0)
   }
 
   /// Returns this replica ID.
-  pub fn this(&self) -> u128 {
+  pub fn this(&self) -> u64 {
     self.this
   }
 
-  /// Moves `begin` backwards.
-  /// Absent entries from `begins` are ignored (equiv. assumed to be [`Some(Maximum::maximum())`]).
-  pub fn load_until(&mut self, store: &mut impl VectorHistoryStore, begins: &[(u128, Option<Clock>)]) {
-    for (replica, begin) in begins.iter().copied() {
+  /// Moves `serial_begin` backwards.
+  /// Absent entries from `begins` are ignored (equiv. assumed to be `u64::MAX`).
+  pub fn load_until(&mut self, store: &mut impl VectorHistoryStore, begins: &[(u64, u64)]) {
+    for &(replica, begin) in begins.iter() {
       if let Some(entry) = self.data.get_mut(&replica) {
-        if begin < entry.begin {
-          let items = store.get_by_replica_clock_range(self.name, replica, begin, entry.begin.unwrap()); // No panic.
-          for (clock, name, action) in items.into_iter().rev() {
-            entry.actions.push_front((clock, name, action));
+        if begin < entry.serial_begin {
+          for item in store.get_actions(self.name, replica, begin, entry.serial_begin).into_iter().rev() {
+            entry.actions.push_front(item);
           }
-          entry.begin = begin;
+          entry.serial_begin = begin;
         }
       }
     }
   }
 
   /// Moves `begin` forwards.
-  /// Absent entries from `begins` are ignored (equiv. assumed to be [`None`]).
-  pub fn unload_until(&mut self, begins: &[(u128, Option<Clock>)]) {
-    for (replica, begin) in begins.iter().copied() {
+  /// Absent entries from `begins` are ignored (equiv. assumed to be `0`).
+  pub fn unload_until(&mut self, begins: &[(u64, u64)]) {
+    for &(replica, begin) in begins.iter() {
       if let Some(entry) = self.data.get_mut(&replica) {
-        let begin = begin.min(entry.latest);
-        if begin > entry.begin {
-          let start = entry.actions.partition_point(|(fst, _, _)| Some(*fst) <= begin);
-          entry.actions.drain(..start);
-          entry.begin = begin;
+        let begin = begin.min(entry.serial_next);
+        if begin > entry.serial_begin {
+          entry.actions.drain(..entry.actions.partition_point(|(fst, _, _)| *fst <= begin));
+          entry.serial_begin = begin;
         }
       }
     }
   }
 
-  /// Pushes to history. Clock values must be strictly monotone increasing. Invalid entries are ignored.
+  /// Pushes to history. Serial values must be strictly monotone increasing. Invalid entries are ignored.
   pub fn push(
     &mut self,
     store: &mut impl VectorHistoryStore,
-    item: (u128, Clock, String, Vec<u8>),
-  ) -> Option<(u128, Clock, String, Vec<u8>)> {
-    let (replica, clock, name, action) = item;
+    item: (u64, u64, String, Vec<u8>),
+  ) -> Option<(u64, u64, String, Vec<u8>)> {
+    let (replica, serial, name, action) = item;
     let entry = self.data.entry(replica).or_insert_with(|| {
       store.put_replica(self.name, replica);
-      ReplicaHistory { actions: VecDeque::new(), begin: None, latest: None }
+      ReplicaHistory { actions: VecDeque::new(), serial_begin: 0, serial_next: 0 }
     });
-    if entry.latest < Some(clock) {
-      entry.latest = Some(clock);
-      entry.actions.push_back((clock, name.clone(), action.clone()));
-      store.put_by_replica(self.name, replica, (clock, &name, &action));
-      Some((replica, clock, name, action))
+    if entry.serial_next < serial {
+      entry.serial_next = serial;
+      entry.actions.push_back((serial, name.clone(), action.clone()));
+      store.put_action(self.name, replica, (serial, &name, &action));
+      Some((replica, serial, name, action))
     } else {
       None
     }
   }
 
-  /// Appends to history. Clock values must be strictly monotone increasing. Invalid entries are ignored.
+  /// Appends to history. Serial values must be strictly monotone increasing. Invalid entries are ignored.
   pub fn append(
     &mut self,
     store: &mut impl VectorHistoryStore,
-    items: Vec<(u128, Clock, String, Vec<u8>)>,
-  ) -> Vec<(u128, Clock, String, Vec<u8>)> {
+    items: Vec<(u64, u64, String, Vec<u8>)>,
+  ) -> Vec<(u64, u64, String, Vec<u8>)> {
     let mut res = Vec::new();
     for item in items {
       if let Some(item) = self.push(store, item) {
@@ -141,23 +144,23 @@ impl VectorHistory {
   }
 
   /// Returns all actions strictly later than given time stamps.
-  /// Absent entries from `clocks` are assumed to be [`None`].
+  /// Absent entries from `serials` are assumed to be `0`.
   pub fn collect(
     &mut self,
     store: &mut impl VectorHistoryStore,
-    mut clocks: HashMap<u128, Option<Clock>>,
-  ) -> Vec<(u128, Clock, String, Vec<u8>)> {
+    mut serials: HashMap<u64, u64>,
+  ) -> Vec<(u64, u64, String, Vec<u8>)> {
     let mut res = Vec::new();
     let mut begins = Vec::new();
     for replica in self.data.keys() {
-      begins.push((*replica, clocks.remove(replica).unwrap_or(None)));
+      begins.push((*replica, serials.remove(replica).unwrap_or(0)));
     }
     self.load_until(store, begins.as_slice());
     for (replica, begin) in begins {
       let entry = self.data.get_mut(&replica).unwrap(); // No panic.
-      let start = entry.actions.partition_point(|(fst, _, _)| Some(*fst) <= begin);
-      for (clock, name, action) in entry.actions.range(start..).cloned() {
-        res.push((replica, clock, name, action));
+      let start = entry.actions.partition_point(|(fst, _, _)| *fst <= begin);
+      for (serial, name, action) in entry.actions.range(start..).cloned() {
+        res.push((replica, serial, name, action));
       }
     }
     res
@@ -166,22 +169,16 @@ impl VectorHistory {
 
 /// Database interface for [`VectorHistory`].
 pub trait VectorHistoryStore {
-  fn init(&mut self, collection: &str) -> u128;
-  fn get_replicas(&mut self, collection: &str) -> Vec<u128>;
-  fn put_replica(&mut self, collection: &str, replica: u128);
-  fn get_by_replica_clock_range(
-    &mut self,
-    collection: &str,
-    replica: u128,
-    lower: Option<Clock>,
-    upper: Clock,
-  ) -> Vec<(Clock, String, Vec<u8>)>;
-  fn get_by_replica_clock_max(&mut self, collection: &str, replica: u128) -> Option<(Clock, String, Vec<u8>)>;
-  fn put_by_replica(&mut self, collection: &str, replica: u128, item: (Clock, &str, &[u8]));
+  fn init(&mut self, collection: &str) -> u64;
+  fn get_replicas(&mut self, collection: &str) -> Vec<u64>;
+  fn put_replica(&mut self, collection: &str, replica: u64);
+  fn get_action_latest(&mut self, collection: &str, replica: u64) -> Option<(u64, String, Vec<u8>)>;
+  fn get_actions(&mut self, collection: &str, replica: u64, lower: u64, upper: u64) -> Vec<(u64, String, Vec<u8>)>;
+  fn put_action(&mut self, collection: &str, replica: u64, item: (u64, &str, &[u8]));
 }
 
 impl<'a> VectorHistoryStore for Transaction<'a> {
-  fn init(&mut self, collection: &str) -> u128 {
+  fn init(&mut self, collection: &str) -> u64 {
     self
       .execute_batch(&format!(
         "
@@ -197,10 +194,10 @@ CREATE TABLE IF NOT EXISTS \"{collection}.vector_history.replicas\" (
 
 CREATE TABLE IF NOT EXISTS \"{collection}.vector_history\" (
   replica BLOB NOT NULL,
-  clock BLOB NOT NULL,
+  serial BLOB NOT NULL,
   name BLOB NOT NULL,
   action BLOB NOT NULL,
-  PRIMARY KEY (replica, clock)
+  PRIMARY KEY (replica, serial)
 ) STRICT, WITHOUT ROWID;
         "
       ))
@@ -209,12 +206,12 @@ CREATE TABLE IF NOT EXISTS \"{collection}.vector_history\" (
     let this = self
       .prepare_cached(&format!("SELECT replica FROM \"{collection}.vector_history.this\""))
       .unwrap()
-      .query_row((), |row| Ok(u128::from_be_bytes(row.get(0).unwrap())))
+      .query_row((), |row| Ok(u64::from_be_bytes(row.get(0).unwrap())))
       .optional()
       .unwrap();
 
     this.unwrap_or_else(|| {
-      let random: u128 = rand::thread_rng().gen();
+      let random: u64 = rand::thread_rng().gen();
       self
         .prepare_cached(&format!("REPLACE INTO \"{collection}.vector_history.this\" VALUES (?)"))
         .unwrap()
@@ -224,17 +221,17 @@ CREATE TABLE IF NOT EXISTS \"{collection}.vector_history\" (
     })
   }
 
-  fn get_replicas(&mut self, collection: &str) -> Vec<u128> {
+  fn get_replicas(&mut self, collection: &str) -> Vec<u64> {
     self
       .prepare_cached(&format!("SELECT replica FROM \"{collection}.vector_history.replicas\""))
       .unwrap()
-      .query_map((), |row| Ok(u128::from_be_bytes(row.get(0).unwrap())))
+      .query_map((), |row| Ok(u64::from_be_bytes(row.get(0).unwrap())))
       .unwrap()
       .collect::<Result<_, _>>()
       .unwrap()
   }
 
-  fn put_replica(&mut self, collection: &str, replica: u128) {
+  fn put_replica(&mut self, collection: &str, replica: u64) {
     self
       .prepare_cached(&format!("REPLACE INTO \"{collection}.vector_history.replicas\" VALUES (?)"))
       .unwrap()
@@ -242,41 +239,15 @@ CREATE TABLE IF NOT EXISTS \"{collection}.vector_history\" (
       .unwrap();
   }
 
-  fn get_by_replica_clock_range(
-    &mut self,
-    collection: &str,
-    replica: u128,
-    lower: Option<Clock>,
-    upper: Clock,
-  ) -> Vec<(Clock, String, Vec<u8>)> {
-    let lower = lower.map_or(0, |clock| u128::from(clock) + 1).to_be_bytes();
-    let upper = upper.to_be_bytes();
+  fn get_action_latest(&mut self, collection: &str, replica: u64) -> Option<(u64, String, Vec<u8>)> {
     self
       .prepare_cached(&format!(
-        "SELECT clock, name, action FROM \"{collection}.vector_history\" WHERE replica = ? AND clock >= ? AND clock <= ? ORDER BY clock ASC"
-      ))
-      .unwrap()
-      .query_map((replica.to_be_bytes(), lower, upper), |row| {
-        Ok((
-          Clock::from_be_bytes(row.get(0).unwrap()),
-          String::from_utf8(row.get(1).unwrap()).unwrap(),
-          row.get(2).unwrap(),
-        ))
-      })
-      .unwrap()
-      .collect::<Result<_, _>>()
-      .unwrap()
-  }
-
-  fn get_by_replica_clock_max(&mut self, collection: &str, replica: u128) -> Option<(Clock, String, Vec<u8>)> {
-    self
-      .prepare_cached(&format!(
-        "SELECT clock, name, action FROM \"{collection}.vector_history\" WHERE replica = ? ORDER BY clock DESC LIMIT 1"
+        "SELECT serial, name, action FROM \"{collection}.vector_history\" WHERE replica = ? ORDER BY serial DESC LIMIT 1"
       ))
       .unwrap()
       .query_row((replica.to_be_bytes(),), |row| {
         Ok((
-          Clock::from_be_bytes(row.get(0).unwrap()),
+          u64::from_be_bytes(row.get(0).unwrap()),
           String::from_utf8(row.get(1).unwrap()).unwrap(),
           row.get(2).unwrap(),
         ))
@@ -285,7 +256,25 @@ CREATE TABLE IF NOT EXISTS \"{collection}.vector_history\" (
       .unwrap()
   }
 
-  fn put_by_replica(&mut self, collection: &str, replica: u128, item: (Clock, &str, &[u8])) {
+  fn get_actions(&mut self, collection: &str, replica: u64, lower: u64, upper: u64) -> Vec<(u64, String, Vec<u8>)> {
+    self
+      .prepare_cached(&format!(
+        "SELECT serial, name, action FROM \"{collection}.vector_history\" WHERE replica = ? AND serial > ? AND serial <= ? ORDER BY serial ASC"
+      ))
+      .unwrap()
+      .query_map((replica.to_be_bytes(), lower.to_be_bytes(), upper.to_be_bytes()), |row| {
+        Ok((
+          u64::from_be_bytes(row.get(0).unwrap()),
+          String::from_utf8(row.get(1).unwrap()).unwrap(),
+          row.get(2).unwrap(),
+        ))
+      })
+      .unwrap()
+      .collect::<Result<_, _>>()
+      .unwrap()
+  }
+
+  fn put_action(&mut self, collection: &str, replica: u64, item: (u64, &str, &[u8])) {
     self
       .prepare_cached(&format!("REPLACE INTO \"{collection}.vector_history\" VALUES (?, ?, ?, ?)"))
       .unwrap()

@@ -24,6 +24,7 @@ pub trait PersistentState {
   type State;
   type Action;
   type Transaction<'a>;
+
   fn initial(txn: &mut Self::Transaction<'_>, collection: &'static str, name: &'static str) -> Self;
   fn apply(&mut self, txn: &mut Self::Transaction<'_>, a: Self::Action);
   fn id() -> Self::Action;

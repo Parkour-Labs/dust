@@ -1,6 +1,3 @@
-pub mod register;
-pub use register::Register;
-
 pub mod object_set;
 pub use object_set::ObjectSet;
 

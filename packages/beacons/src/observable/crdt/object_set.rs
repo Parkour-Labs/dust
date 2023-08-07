@@ -5,7 +5,6 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
-use crate::joinable::Clock;
 use crate::observable::{
   Events, ObservablePersistentGammaJoinable, ObservablePersistentJoinable, ObservablePersistentState, Port,
 };
@@ -50,8 +49,13 @@ impl<E: Events<Option<Vec<u8>>>> ObjectSet<E> {
   }
 
   /// Makes modification of element.
-  pub fn action(clock: Clock, id: u128, value: Option<Vec<u8>>) -> <Self as ObservablePersistentState>::Action {
-    pcrdt::ObjectSet::action(clock, id, value)
+  pub fn action(
+    &mut self,
+    txn: &mut Transaction,
+    id: u128,
+    value: Option<Vec<u8>>,
+  ) -> <Self as ObservablePersistentState>::Action {
+    self.inner.action(txn, id, value)
   }
 
   /// Frees memory.

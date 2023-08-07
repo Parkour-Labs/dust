@@ -40,8 +40,8 @@ pub fn access_store_with<R>(f: impl FnOnce(&mut Store) -> R) -> R {
   })
 }
 
-pub fn sync_clocks() -> Vec<u8> {
-  access_store_with(|store| store.sync_clocks())
+pub fn sync_serial() -> Vec<u8> {
+  access_store_with(|store| store.sync_serial())
 }
 
 pub fn sync_actions(clocks: &[u8]) -> Vec<u8> {

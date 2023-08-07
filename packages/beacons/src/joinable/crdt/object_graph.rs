@@ -45,12 +45,14 @@ impl ObjectGraph {
     *self.inner.1.get(&id)?.value()
   }
   /// Makes modification of node value.
-  pub fn action_node(clock: Clock, id: u128, value: Option<u64>) -> <Self as State>::Action {
-    (HashMap::from([(id, Register::action(clock, value))]), HashMap::new())
+  pub fn action_node(&self, id: u128, value: Option<u64>) -> <Self as State>::Action {
+    let pred = self.inner.0.get(&id).map(|elem| elem.clock());
+    (HashMap::from([(id, Register::action(Clock::new(pred), value))]), HashMap::new())
   }
   /// Makes modification of edge value.
-  pub fn action_edge(clock: Clock, id: u128, value: Option<(u128, u64, u128)>) -> <Self as State>::Action {
-    (HashMap::new(), HashMap::from([(id, Register::action(clock, value))]))
+  pub fn action_edge(&self, id: u128, value: Option<(u128, u64, u128)>) -> <Self as State>::Action {
+    let pred = self.inner.1.get(&id).map(|elem| elem.clock());
+    (HashMap::new(), HashMap::from([(id, Register::action(Clock::new(pred), value))]))
   }
 }
 

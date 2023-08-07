@@ -78,8 +78,14 @@ CREATE TABLE IF NOT EXISTS \"{collection}.{name}\" (
   }
 
   /// Makes modification of element.
-  pub fn action(clock: Clock, id: u128, value: Option<Vec<u8>>) -> <Self as PersistentState>::Action {
-    jcrdt::ObjectSet::action(clock, id, value)
+  pub fn action(
+    &mut self,
+    txn: &mut Transaction,
+    id: u128,
+    value: Option<Vec<u8>>,
+  ) -> <Self as PersistentState>::Action {
+    self.load(txn, id);
+    self.inner.action(id, value)
   }
 
   fn loads(&mut self, txn: &mut Transaction, ids: impl Iterator<Item = u128>) {

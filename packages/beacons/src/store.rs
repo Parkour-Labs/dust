@@ -1,7 +1,6 @@
 use rusqlite::{Connection, DropBehavior, Transaction, TransactionBehavior};
 use std::collections::HashMap;
 
-use crate::joinable::Clock;
 use crate::observable::{
   crdt::{ObjectGraph, ObjectSet},
   Events, ObservablePersistentState, Port, SetEvent,
@@ -57,7 +56,7 @@ impl Events<SetEvent<u128>> for EventBus {
 #[derive(Debug)]
 pub struct Store {
   connection: Connection,
-  // name: &'static str,
+  // name: String,
   vector_history: VectorHistory,
 
   atoms: ObjectSet<EventBus>,
@@ -75,48 +74,11 @@ fn txn(connection: &mut Connection) -> Transaction<'_> {
 impl Store {
   pub fn new(mut connection: Connection, name: &'static str) -> Self {
     let mut txn = txn(&mut connection);
-    let vector_history = VectorHistory::new(&mut txn, name);
     let atoms = ObjectSet::new(&mut txn, name, "atoms");
     let graph = ObjectGraph::new(&mut txn, name, "graph");
+    let vector_history = VectorHistory::new(&mut txn, name);
     std::mem::drop(txn);
     Self { connection, vector_history, atoms, graph, event_bus: EventBus::new() }
-  }
-
-  fn this(&self) -> u128 {
-    self.vector_history.this()
-  }
-  fn new_clock(&self) -> Clock {
-    Clock::new(self.vector_history.latest())
-  }
-  fn atoms_apply(
-    &mut self,
-    replica: u128,
-    clock: Clock,
-    action: <ObjectSet<EventBus> as ObservablePersistentState>::Action,
-  ) {
-    let mut txn = txn(&mut self.connection);
-    if self
-      .vector_history
-      .push(&mut txn, (replica, clock, String::from("atoms"), serialize(&action).unwrap()))
-      .is_some()
-    {
-      self.atoms.apply(&mut txn, &mut self.event_bus, action);
-    }
-  }
-  fn graph_apply(
-    &mut self,
-    replica: u128,
-    clock: Clock,
-    action: <ObjectGraph<EventBus> as ObservablePersistentState>::Action,
-  ) {
-    let mut txn = txn(&mut self.connection);
-    if self
-      .vector_history
-      .push(&mut txn, (replica, clock, String::from("graph"), serialize(&action).unwrap()))
-      .is_some()
-    {
-      self.graph.apply(&mut txn, &mut self.event_bus, action);
-    }
   }
 
   pub fn node(&mut self, id: u128) -> Option<u64> {
@@ -139,16 +101,31 @@ impl Store {
   }
 
   pub fn set_node(&mut self, id: u128, value: Option<u64>) {
-    let clock = self.new_clock();
-    self.graph_apply(self.this(), clock, ObjectGraph::<EventBus>::action_node(clock, id, value));
+    let mut txn = txn(&mut self.connection);
+    let action = self.graph.action_node(&mut txn, id, value);
+    let this = self.vector_history.this();
+    let next = self.vector_history.next_this() + 1;
+    if self.vector_history.push(&mut txn, (this, next, String::from("graph"), serialize(&action).unwrap())).is_some() {
+      self.graph.apply(&mut txn, &mut self.event_bus, action);
+    }
   }
   pub fn set_atom(&mut self, id: u128, value: Option<Vec<u8>>) {
-    let clock = self.new_clock();
-    self.atoms_apply(self.this(), clock, ObjectSet::<EventBus>::action(clock, id, value));
+    let mut txn = txn(&mut self.connection);
+    let action = self.atoms.action(&mut txn, id, value);
+    let this = self.vector_history.this();
+    let next = self.vector_history.next_this() + 1;
+    if self.vector_history.push(&mut txn, (this, next, String::from("atoms"), serialize(&action).unwrap())).is_some() {
+      self.atoms.apply(&mut txn, &mut self.event_bus, action);
+    }
   }
   pub fn set_edge(&mut self, id: u128, value: Option<(u128, u64, u128)>) {
-    let clock = self.new_clock();
-    self.graph_apply(self.this(), clock, ObjectGraph::<EventBus>::action_edge(clock, id, value));
+    let mut txn = txn(&mut self.connection);
+    let action = self.graph.action_edge(&mut txn, id, value);
+    let this = self.vector_history.this();
+    let next = self.vector_history.next_this() + 1;
+    if self.vector_history.push(&mut txn, (this, next, String::from("graph"), serialize(&action).unwrap())).is_some() {
+      self.graph.apply(&mut txn, &mut self.event_bus, action);
+    }
   }
   pub fn set_edge_dst(&mut self, id: u128, dst: u128) {
     if let Some((src, label, _)) = self.edge(id) {
@@ -187,18 +164,18 @@ impl Store {
     self.graph.unsubscribe_backedge(dst, label, port);
   }
 
-  pub fn sync_clocks(&mut self) -> Vec<u8> {
-    let clocks = self.vector_history.latests();
-    serialize::<HashMap<u128, Option<Clock>>>(&clocks).unwrap()
+  pub fn sync_serial(&mut self) -> Vec<u8> {
+    let nexts = self.vector_history.nexts();
+    serialize::<HashMap<u64, u64>>(&nexts).unwrap()
   }
-  pub fn sync_actions(&mut self, clocks: &[u8]) -> Vec<u8> {
-    let clocks = deserialize::<HashMap<u128, Option<Clock>>>(clocks).unwrap();
+  pub fn sync_actions(&mut self, nexts: &[u8]) -> Vec<u8> {
+    let clocks = deserialize::<HashMap<u64, u64>>(nexts).unwrap();
     let actions = self.vector_history.collect(&mut txn(&mut self.connection), clocks);
-    serialize::<Vec<(u128, Clock, String, Vec<u8>)>>(&actions).unwrap()
+    serialize::<Vec<(u64, u64, String, Vec<u8>)>>(&actions).unwrap()
   }
   pub fn sync_apply(&mut self, actions: &[u8]) {
     let mut txn = txn(&mut self.connection);
-    let actions = deserialize::<Vec<(u128, Clock, String, Vec<u8>)>>(actions).unwrap();
+    let actions = deserialize::<Vec<(u64, u64, String, Vec<u8>)>>(actions).unwrap();
     for (_replica, _clock, name, action) in self.vector_history.append(&mut txn, actions) {
       match name.as_str() {
         "atoms" => {

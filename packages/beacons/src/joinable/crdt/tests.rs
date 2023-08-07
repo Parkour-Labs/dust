@@ -37,22 +37,17 @@ fn object_set_simple() {
   assert_eq!(a.get(1), None);
   assert_eq!(a.get(2), None);
 
-  a.apply(ObjectSet::action(Clock::from(3), 2, Some(vec![2, 3, 3])));
+  a.apply(a.action(2, Some(vec![2, 3, 3])));
   assert_eq!(a.get(0), None);
   assert_eq!(a.get(1), None);
   assert_eq!(a.get(2), Some(vec![2, 3, 3].as_slice()));
 
-  a.apply(ObjectSet::action(Clock::from(4), 1, Some(vec![2, 3, 3, 3])));
+  a.apply(a.action(1, Some(vec![2, 3, 3, 3])));
   assert_eq!(a.get(0), None);
   assert_eq!(a.get(1), Some(vec![2, 3, 3, 3].as_slice()));
   assert_eq!(a.get(2), Some(vec![2, 3, 3].as_slice()));
 
-  a.apply(ObjectSet::action(Clock::from(2), 2, Some(vec![2, 3, 3, 3, 3])));
-  assert_eq!(a.get(0), None);
-  assert_eq!(a.get(1), Some(vec![2, 3, 3, 3].as_slice()));
-  assert_eq!(a.get(2), Some(vec![2, 3, 3].as_slice()));
-
-  a.apply(ObjectSet::action(Clock::from(5), 2, None));
+  a.apply(a.action(2, None));
   assert_eq!(a.get(0), None);
   assert_eq!(a.get(1), Some(vec![2, 3, 3, 3].as_slice()));
   assert_eq!(a.get(2), None);
@@ -66,29 +61,22 @@ fn object_graph_simple() {
   assert_eq!(a.edge(0), None);
   assert_eq!(a.edge(1), None);
 
-  a.apply(ObjectGraph::action_node(Clock::from(3), 0, Some(233)));
-  a.apply(ObjectGraph::action_edge(Clock::from(3), 0, Some((0, 233, 1))));
+  a.apply(a.action_node(0, Some(233)));
+  a.apply(a.action_edge(0, Some((0, 233, 1))));
   assert_eq!(a.node(0), Some(233));
   assert_eq!(a.node(1), None);
   assert_eq!(a.edge(0), Some((0, 233, 1)));
   assert_eq!(a.edge(1), None);
 
-  a.apply(ObjectGraph::action_node(Clock::from(4), 0, Some(2333)));
-  a.apply(ObjectGraph::action_edge(Clock::from(4), 0, Some((0, 2333, 1))));
+  a.apply(a.action_node(0, Some(2333)));
+  a.apply(a.action_edge(0, Some((0, 2333, 1))));
   assert_eq!(a.node(0), Some(2333));
   assert_eq!(a.node(1), None);
   assert_eq!(a.edge(0), Some((0, 2333, 1)));
   assert_eq!(a.edge(1), None);
 
-  a.apply(ObjectGraph::action_node(Clock::from(2), 0, Some(23333)));
-  a.apply(ObjectGraph::action_edge(Clock::from(2), 0, Some((0, 23333, 1))));
-  assert_eq!(a.node(0), Some(2333));
-  assert_eq!(a.node(1), None);
-  assert_eq!(a.edge(0), Some((0, 2333, 1)));
-  assert_eq!(a.edge(1), None);
-
-  a.apply(ObjectGraph::action_node(Clock::from(5), 0, None));
-  a.apply(ObjectGraph::action_edge(Clock::from(5), 0, None));
+  a.apply(a.action_node(0, None));
+  a.apply(a.action_edge(0, None));
   assert_eq!(a.node(0), None);
   assert_eq!(a.node(1), None);
   assert_eq!(a.edge(0), None);

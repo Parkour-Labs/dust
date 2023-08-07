@@ -41,8 +41,9 @@ impl ObjectSet {
     }
   }
   /// Makes modification of element.
-  pub fn action(clock: Clock, id: u128, value: Option<Vec<u8>>) -> <Self as State>::Action {
-    HashMap::from([(id, Register::action(clock, value))])
+  pub fn action(&self, id: u128, value: Option<Vec<u8>>) -> <Self as State>::Action {
+    let pred = self.inner.get(&id).map(|elem| elem.clock());
+    HashMap::from([(id, Register::action(Clock::new(pred), value))])
   }
 }
 

@@ -207,13 +207,25 @@ CREATE INDEX IF NOT EXISTS \"{collection}.{name}.edges.idx_dst_label\" ON \"{col
   }
 
   /// Makes modification of node value.
-  pub fn action_node(clock: Clock, id: u128, value: Option<u64>) -> <Self as PersistentState>::Action {
-    jcrdt::ObjectGraph::action_node(clock, id, value)
+  pub fn action_node(
+    &mut self,
+    txn: &mut Transaction,
+    id: u128,
+    value: Option<u64>,
+  ) -> <Self as PersistentState>::Action {
+    self.load_node(txn, id);
+    self.inner.action_node(id, value)
   }
 
   /// Makes modification of edge value.
-  pub fn action_edge(clock: Clock, id: u128, value: Option<(u128, u64, u128)>) -> <Self as PersistentState>::Action {
-    jcrdt::ObjectGraph::action_edge(clock, id, value)
+  pub fn action_edge(
+    &mut self,
+    txn: &mut Transaction,
+    id: u128,
+    value: Option<(u128, u64, u128)>,
+  ) -> <Self as PersistentState>::Action {
+    self.load_edge(txn, id);
+    self.inner.action_edge(id, value)
   }
 
   fn loads(&mut self, txn: &mut Transaction, nodes: impl Iterator<Item = u128>, edges: impl Iterator<Item = u128>) {

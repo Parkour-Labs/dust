@@ -5,7 +5,6 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
-use crate::joinable::Clock;
 use crate::observable::{
   Events, ObservablePersistentGammaJoinable, ObservablePersistentJoinable, ObservablePersistentState, Port, SetEvent,
 };
@@ -99,17 +98,23 @@ impl<E: ObjectGraphEvents> ObjectGraph<E> {
   }
 
   /// Makes modification of node value.
-  pub fn action_node(clock: Clock, id: u128, value: Option<u64>) -> <Self as ObservablePersistentState>::Action {
-    pcrdt::ObjectGraph::action_node(clock, id, value)
+  pub fn action_node(
+    &mut self,
+    txn: &mut Transaction,
+    id: u128,
+    value: Option<u64>,
+  ) -> <Self as ObservablePersistentState>::Action {
+    self.inner.action_node(txn, id, value)
   }
 
   /// Makes modification of edge value.
   pub fn action_edge(
-    clock: Clock,
+    &mut self,
+    txn: &mut Transaction,
     id: u128,
     value: Option<(u128, u64, u128)>,
   ) -> <Self as ObservablePersistentState>::Action {
-    pcrdt::ObjectGraph::action_edge(clock, id, value)
+    self.inner.action_edge(txn, id, value)
   }
 
   /// Frees memory.
