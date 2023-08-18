@@ -21,8 +21,8 @@ pub trait AtomSetEvents {
   fn push(&mut self, port: u64, value: Option<Vec<u8>>);
 }
 
-/// Type alias for action: `(id, clock, bucket, value)`.
-type Action = (u128, Clock, u64, Option<Vec<u8>>);
+/// Type alias for item: `(clock, bucket, value)`.
+type Item = (Clock, u64, Option<Vec<u8>>);
 
 impl AtomSet {
   /// Creates or loads data.
@@ -90,16 +90,15 @@ impl AtomSet {
   }
 
   /// Modifies element.
-  pub fn set(&mut self, store: &mut impl AtomSetStore, ctx: &mut impl AtomSetEvents, action: Action) -> bool {
-    let id = action.0;
-    let res = self.inner.set(store, action);
+  pub fn set(&mut self, store: &mut impl AtomSetStore, ctx: &mut impl AtomSetEvents, id: u128, item: Item) -> bool {
+    let res = self.inner.set(store, id, item);
     self.notify(store, ctx, id);
     res
   }
 
   /// Returns all actions strictly later than given clock values.
   /// Absent entries are assumed to be `None`.
-  pub fn actions(&mut self, store: &mut impl AtomSetStore, version: HashMap<u64, Clock>) -> Vec<Action> {
+  pub fn actions(&mut self, store: &mut impl AtomSetStore, version: HashMap<u64, Clock>) -> Vec<(u128, Item)> {
     self.inner.actions(store, version)
   }
 
@@ -108,20 +107,20 @@ impl AtomSet {
     &mut self,
     store: &mut impl AtomSetStore,
     ctx: &mut impl AtomSetEvents,
-    mut actions: Vec<Action>,
-  ) -> Vec<Action> {
-    actions.retain(|action| self.set(store, ctx, action.clone()));
+    mut actions: Vec<(u128, Item)>,
+  ) -> Vec<(u128, Item)> {
+    actions.retain(|(id, item)| self.set(store, ctx, *id, item.clone()));
     actions
   }
 }
 
 /// A helper function.
-fn read_row(row: &Row<'_>) -> Result<Action> {
+fn read_row(row: &Row<'_>) -> (u128, Item) {
   let id = row.get(0).unwrap();
   let clock = row.get(1).unwrap();
   let bucket = row.get(2).unwrap();
   let value = row.get(3).unwrap();
-  Ok((u128::from_be_bytes(id), Clock::from_be_bytes(clock), u64::from_be_bytes(bucket), value))
+  (u128::from_be_bytes(id), (Clock::from_be_bytes(clock), u64::from_be_bytes(bucket), value))
 }
 
 /// A helper function.
@@ -154,16 +153,16 @@ impl<'a> SetStore<Vec<u8>> for Transaction<'a> {
       .unwrap();
   }
 
-  fn get_data(&mut self, name: &str, id: u128) -> Option<Action> {
+  fn get_data(&mut self, name: &str, id: u128) -> Option<Item> {
     self
       .prepare_cached(&format!("SELECT id, clock, bucket, value FROM \"{name}.data\" WHERE id = ?"))
       .unwrap()
-      .query_row((id.to_be_bytes(),), read_row)
+      .query_row((id.to_be_bytes(),), |row| Ok(read_row(row).1))
       .optional()
       .unwrap()
   }
 
-  fn set_data(&mut self, name: &str, id: u128, clock: Clock, bucket: u64, value: &Option<Vec<u8>>) {
+  fn set_data(&mut self, name: &str, id: u128, bucket: u64, clock: Clock, value: &Option<Vec<u8>>) {
     self
       .prepare_cached(&format!("REPLACE INTO \"{name}.data\" VALUES (?, ?, ?, ?)"))
       .unwrap()
@@ -171,14 +170,14 @@ impl<'a> SetStore<Vec<u8>> for Transaction<'a> {
       .unwrap();
   }
 
-  fn query_data(&mut self, name: &str, lower: Option<Clock>, bucket: u64) -> Vec<Action> {
+  fn query_data(&mut self, name: &str, bucket: u64, lower: Option<Clock>) -> Vec<(u128, Item)> {
     self
       .prepare_cached(&format!(
         "SELECT id, clock, bucket, value FROM \"{name}.data\" INDEXED BY \"{name}.data.idx_bucket_clock\"
         WHERE bucket = ? AND clock > ? ORDER BY clock ASC"
       ))
       .unwrap()
-      .query_map((bucket.to_be_bytes(), lower.map(|lower| Clock::to_be_bytes(&lower))), read_row)
+      .query_map((bucket.to_be_bytes(), lower.map(|lower| Clock::to_be_bytes(&lower))), |row| Ok(read_row(row)))
       .unwrap()
       .map(Result::unwrap)
       .collect()

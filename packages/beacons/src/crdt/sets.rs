@@ -67,6 +67,7 @@ impl VersionClock for Clock {
   fn serialize(&self) -> Self::SqlType {
     self.to_be_bytes()
   }
+
   fn deserialize(data: Self::SqlType) -> Self {
     Clock::from_be_bytes(data)
   }
@@ -76,21 +77,21 @@ impl VersionClock for Clock {
 #[derive(Debug, Clone)]
 pub struct Set<T: Ord + Clone> {
   version: Version<Clock>,
-  inner: HashMap<u128, Option<(Clock, u64, Option<T>)>>,
+  inner: HashMap<u128, Option<Item<T>>>,
 }
 
-/// Type alias for action: `(id, clock, bucket, value)`.
-type Action<T> = (u128, Clock, u64, Option<T>);
+/// Type alias for item: `(clock, bucket, value)`.
+type Item<T> = (Clock, u64, Option<T>);
 
 /// A helper function.
 #[allow(clippy::type_complexity)]
 fn load<'a, T>(
   name: &'static str,
-  inner: &'a mut HashMap<u128, Option<(Clock, u64, Option<T>)>>,
+  inner: &'a mut HashMap<u128, Option<Item<T>>>,
   store: &mut impl SetStore<T>,
   id: u128,
-) -> &'a mut Option<(Clock, u64, Option<T>)> {
-  inner.entry(id).or_insert_with(|| store.get_data(name, id).map(|(_, clock, bucket, value)| (clock, bucket, value)))
+) -> &'a mut Option<Item<T>> {
+  inner.entry(id).or_insert_with(|| store.get_data(name, id))
 }
 
 impl<T: Ord + Clone> Set<T> {
@@ -145,30 +146,30 @@ impl<T: Ord + Clone> Set<T> {
   }
 
   /// Modifies element.
-  pub fn set(&mut self, store: &mut impl SetStore<T>, action: Action<T>) -> bool {
-    let (id, clock, bucket, value) = action;
-    let mut new = (clock, bucket, value);
+  pub fn set(&mut self, store: &mut impl SetStore<T>, id: u128, mut item: Item<T>) -> bool {
     let name = self.name();
     let entry = load(name, &mut self.inner, store, id);
     let less = match entry {
-      Some(inner) => inner < &mut new,
+      Some(inner) => inner < &mut item,
       None => true,
     };
     if less {
+      let clock = item.0;
+      let bucket = item.1;
       self.version.update(store, bucket, clock);
-      store.set_data(name, id, new.0, new.1, &new.2);
-      *entry = Some(new);
+      store.set_data(name, id, bucket, clock, &item.2);
+      *entry = Some(item);
     }
     less
   }
 
   /// Returns all actions strictly later than given clock values.
   /// Absent entries are assumed to be `None`.
-  pub fn actions(&mut self, store: &mut impl SetStore<T>, version: HashMap<u64, Clock>) -> Vec<Action<T>> {
+  pub fn actions(&mut self, store: &mut impl SetStore<T>, version: HashMap<u64, Clock>) -> Vec<(u128, Item<T>)> {
     let mut res = Vec::new();
     for &bucket in self.buckets().keys() {
       let lower = version.get(&bucket).copied();
-      for elem in store.query_data(self.name(), lower, bucket) {
+      for elem in store.query_data(self.name(), bucket, lower) {
         res.push(elem);
       }
     }
@@ -179,7 +180,7 @@ impl<T: Ord + Clone> Set<T> {
 /// Database interface for [`Set`].
 pub trait SetStore<T>: VersionStore<Clock> {
   fn init_data(&mut self, name: &str);
-  fn get_data(&mut self, name: &str, id: u128) -> Option<Action<T>>;
-  fn set_data(&mut self, name: &str, id: u128, clock: Clock, bucket: u64, value: &Option<T>);
-  fn query_data(&mut self, name: &str, lower: Option<Clock>, bucket: u64) -> Vec<Action<T>>;
+  fn get_data(&mut self, name: &str, id: u128) -> Option<Item<T>>;
+  fn set_data(&mut self, name: &str, id: u128, bucket: u64, clock: Clock, value: &Option<T>);
+  fn query_data(&mut self, name: &str, bucket: u64, lower: Option<Clock>) -> Vec<(u128, Item<T>)>; // Exclusive.
 }
