@@ -140,3 +140,45 @@ impl<'a, T: VersionClock> VersionStore<T> for Transaction<'a> {
       .unwrap();
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use rusqlite::Connection;
+
+  #[test]
+  fn version_store_simple() {
+    let mut conn = Connection::open_in_memory().unwrap();
+    let mut txn = conn.transaction().unwrap();
+    let mut version = Version::new("name", &mut txn);
+    let this = version.this();
+    assert_eq!(version.name(), "name");
+    assert_eq!(version.buckets().len(), 0);
+
+    version.update(&mut txn, 1, 3u64);
+    assert_eq!(version.buckets().get(&1).unwrap(), &3);
+    version.update(&mut txn, 1, 2u64);
+    assert_eq!(version.buckets().get(&1).unwrap(), &3);
+    version.update(&mut txn, 1, 3u64);
+    assert_eq!(version.buckets().get(&1).unwrap(), &3);
+    version.update(&mut txn, 1, 4u64);
+    assert_eq!(version.buckets().get(&1).unwrap(), &4);
+    version.update(&mut txn, 2, 3u64);
+    assert_eq!(version.buckets().get(&2).unwrap(), &3);
+    version.update(&mut txn, 2, 2u64);
+    assert_eq!(version.buckets().get(&2).unwrap(), &3);
+
+    let mut version = Version::new("name", &mut txn);
+    assert_eq!(version.name(), "name");
+    assert_eq!(version.this(), this);
+    assert_eq!(version.buckets(), &HashMap::from([(1, 4u64), (2, 3u64)]));
+
+    version.update(&mut txn, 3, 3u64);
+    assert_eq!(version.buckets(), &HashMap::from([(1, 4u64), (2, 3u64), (3, 3u64)]));
+
+    let version = Version::<u64>::new("another_name", &mut txn);
+    assert_eq!(version.name(), "another_name");
+    assert_ne!(version.this(), this);
+    assert_eq!(version.buckets().len(), 0);
+  }
+}

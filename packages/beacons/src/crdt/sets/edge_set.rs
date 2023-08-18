@@ -90,7 +90,7 @@ impl EdgeSet {
   }
 
   /// Adds observer.
-  pub fn subscribe_edge(&mut self, store: &mut impl EdgeSetStore, ctx: &mut impl EdgeSetEvents, id: u128, port: u64) {
+  pub fn subscribe(&mut self, store: &mut impl EdgeSetStore, ctx: &mut impl EdgeSetEvents, id: u128, port: u64) {
     insert(&mut self.subscriptions, id, port);
     ctx.push_edge(port, self.inner.value(store, id).copied());
   }
@@ -126,7 +126,7 @@ impl EdgeSet {
   }
 
   /// Removes observer.
-  pub fn unsubscribe_edge(&mut self, id: u128, port: u64) {
+  pub fn unsubscribe(&mut self, id: u128, port: u64) {
     remove(&mut self.subscriptions, id, &port);
   }
 
@@ -374,7 +374,7 @@ impl<'a> EdgeSetStore for Transaction<'a> {
   fn query_id_dst_by_src_label(&mut self, name: &str, src: u128, label: u64) -> Vec<(u128, u128)> {
     self
       .prepare_cached(&format!(
-        "SELECT dst FROM \"{name}.data\" INDEXED BY \"{name}.data.idx_src_label\"
+        "SELECT id, dst FROM \"{name}.data\" INDEXED BY \"{name}.data.idx_src_label\"
         WHERE src = ? AND label = ?"
       ))
       .unwrap()
@@ -387,7 +387,7 @@ impl<'a> EdgeSetStore for Transaction<'a> {
   fn query_id_src_by_dst_label(&mut self, name: &str, dst: u128, label: u64) -> Vec<(u128, u128)> {
     self
       .prepare_cached(&format!(
-        "SELECT src FROM \"{name}.data\" INDEXED BY \"{name}.data.idx_label_dst\"
+        "SELECT id, src FROM \"{name}.data\" INDEXED BY \"{name}.data.idx_label_dst\"
         WHERE label = ? AND dst = ?"
       ))
       .unwrap()

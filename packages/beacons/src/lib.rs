@@ -2,18 +2,14 @@ pub mod crdt;
 pub mod ffi;
 pub mod global;
 pub mod store;
+pub use beacons_macros::*;
+
+use bincode::{ErrorKind, Options};
+use serde::{Deserialize, Serialize};
 use std::{
   collections::{hash_map::Entry, HashMap},
   hash::Hash,
 };
-
-pub use beacons_macros::*;
-
-#[cfg(test)]
-mod tests;
-
-use bincode::{ErrorKind, Options};
-use serde::{Deserialize, Serialize};
 
 /// A wrapper around `bincode`.
 pub fn serialize<T: Serialize>(value: &T) -> Result<Vec<u8>, Box<ErrorKind>> {
@@ -33,9 +29,47 @@ fn insert<K: Eq + Hash, V: Eq>(map: &mut HashMap<K, Vec<V>>, key: K, value: V) {
 /// Multimap remove.
 fn remove<K: Eq + Hash, V: Eq>(map: &mut HashMap<K, Vec<V>>, key: K, value: &V) {
   if let Entry::Occupied(mut entry) = map.entry(key) {
-    entry.get_mut().retain(|x| x != value);
-    if entry.get().is_empty() {
-      entry.remove();
+    if let Some(index) = entry.get().iter().position(|x| x == value) {
+      entry.get_mut().remove(index);
+      if entry.get().is_empty() {
+        entry.remove();
+      }
     }
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn serde_simple() {
+    assert_eq!(serialize(&1u64).unwrap(), [0, 0, 0, 0, 0, 0, 0, 1]);
+    assert_eq!(serialize(&-2i64).unwrap(), [255, 255, 255, 255, 255, 255, 255, 254]);
+    assert_eq!(deserialize::<u64>(&[0, 0, 0, 0, 0, 0, 0, 1]).unwrap(), 1u64);
+    assert_eq!(deserialize::<i64>(&[255, 255, 255, 255, 255, 255, 255, 254]).unwrap(), -2i64);
+  }
+
+  #[test]
+  fn multimap_simple() {
+    let mut map = HashMap::<u64, Vec<u64>>::new();
+
+    insert(&mut map, 0, 233);
+    insert(&mut map, 1, 233);
+    insert(&mut map, 1, 233);
+    insert(&mut map, 1, 234);
+    insert(&mut map, 0, 234);
+    insert(&mut map, 0, 234);
+    assert_eq!(map.get(&0).unwrap(), &[233, 234, 234]);
+    assert_eq!(map.get(&1).unwrap(), &[233, 233, 234]);
+
+    remove(&mut map, 0, &233);
+    assert_eq!(map.get(&0).unwrap(), &[234, 234]);
+    remove(&mut map, 0, &234);
+    assert_eq!(map.get(&0).unwrap(), &[234]);
+    remove(&mut map, 0, &235);
+    assert_eq!(map.get(&0).unwrap(), &[234]);
+    remove(&mut map, 0, &234);
+    assert_eq!(map.get(&0), None);
   }
 }

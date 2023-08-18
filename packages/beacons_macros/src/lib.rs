@@ -1,7 +1,7 @@
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use std::num::Wrapping;
-use syn::{parse_macro_input, spanned::Spanned};
+use syn::parse_macro_input;
 
 const ID: &str = "id";
 const ATOM: &str = "Atom";
@@ -84,7 +84,7 @@ fn camel_to_snake(s: impl AsRef<str>) -> String {
 /// Creates the module name.
 fn create_mod_name(name: &syn::Ident) -> syn::Ident {
   let snake_case = camel_to_snake(name.to_string());
-  syn::Ident::new(&snake_case, name.span())
+  syn::Ident::new(&snake_case, Span::call_site())
 }
 
 /// Tries to match the outermost "wrapper" of a type, returning the inner type.
@@ -126,11 +126,11 @@ fn convert_field(field: &syn::Field) -> Field<'_> {
   } else if let Some(inner) = try_match_type(LINK_OPTION, &field.ty) {
     FieldType::LinkOption(inner)
   } else if let Some(inner) = try_match_type(MULTILINKS, &field.ty) {
-    let label = syn::Ident::new(&format!("{}_LABEL", name).to_uppercase(), inner.span());
+    let label = syn::Ident::new(&format!("{}_LABEL", name).to_uppercase(), Span::call_site());
     FieldType::Multilinks(inner, label)
   } else if let Some(inner) = try_match_type(BACKLINKS, &field.ty) {
     let name = try_get_attr_value(BACKLINK_ATTRIBUTE, &field.attrs).expect(BACKLINK_ANNOT_NOT_FOUND_MSG);
-    let label = syn::Ident::new(&format!("{}_LABEL", name).to_uppercase(), inner.span());
+    let label = syn::Ident::new(&format!("{}_LABEL", name).to_uppercase(), Span::call_site());
     FieldType::Backlinks(inner, label)
   } else {
     panic!("{}", UNSUPPORTED_FIELD_TYPE_MSG);
@@ -207,13 +207,13 @@ fn create_struct_def(s: &Struct) -> TokenStream {
 /// [`hash_name`], and the [`call_site`] specifies the location from where the
 /// code is generated.
 fn create_label_decl(name: &syn::Ident, hash_name: impl AsRef<str>) -> TokenStream {
-  let hash_val = syn::LitInt::new(&format!("{}", fnv64_hash(hash_name)), name.span());
+  let hash_val = syn::LitInt::new(&format!("{}", fnv64_hash(hash_name)), Span::call_site());
   quote! { pub const #name: u64 = #hash_val; }
 }
 
 fn create_label(name: &syn::Ident) -> syn::Ident {
   let name_str = name.to_string().to_uppercase();
-  syn::Ident::new(&format!("{}_LABEL", name_str), name.span())
+  syn::Ident::new(&format!("{}_LABEL", name_str), Span::call_site())
 }
 
 /// Creates the label constants for the [`item_struct`]. This will create a
@@ -222,7 +222,7 @@ fn create_label(name: &syn::Ident) -> syn::Ident {
 /// value of calling [`fnv64_hash`] on `StructName.field_name`.
 fn create_label_decls(s: &Struct) -> TokenStream {
   let mut labels = Vec::new();
-  labels.push(create_label_decl(&syn::Ident::new("LABEL", s.name.span()), s.name.to_string()));
+  labels.push(create_label_decl(&syn::Ident::new("LABEL", Span::call_site()), s.name.to_string()));
   for field in &s.fields {
     labels.push(create_label_decl(&create_label(field.name), format!("{}.{}", s.name, &field.name)));
   }
@@ -353,8 +353,7 @@ fn create_get_fn(s: &Struct) -> TokenStream {
         #(#field_decls)*
 
         store.node(id)?;
-        for edge in store.query_edge_src(id) {
-          let (_, label, dst) = store.edge(edge)?;
+        for (edge, (_, label, dst)) in store.edges_by_src(id) {
           match label {
             #(#match_arms)*
             _ => (),
@@ -369,24 +368,6 @@ fn create_get_fn(s: &Struct) -> TokenStream {
     }
   }
 }
-
-// fn create_phantom_fn(s: &Struct) -> TokenStream {
-//   let backlinks = s
-//     .fields
-//     .iter()
-//     .map(|x| &x.ty)
-//     .filter_map(|x| match x {
-//       FieldType::Backlinks(_, ty, name) => Some((*ty, name)),
-//       _ => None,
-//     })
-//     .collect::<Vec<(&syn::Type, &String)>>();
-
-//   quote! {
-//     fn __phantom() {
-
-//     }
-//   }
-// }
 
 /// The implementation of the [`model`] proc macro. This is extracted out to a
 /// separate function just so that it is independent of the [`proc_macro`]

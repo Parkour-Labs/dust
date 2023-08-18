@@ -108,13 +108,13 @@ impl Store {
     self.nodes.set(&mut txn(&mut self.conn), &mut self.events, (id, next, this, value));
   }
   pub fn set_atom(&mut self, id: u128, value: Option<Vec<u8>>) {
-    let this = self.nodes.this();
-    let next = self.nodes.next();
+    let this = self.atoms.this();
+    let next = self.atoms.next();
     self.atoms.set(&mut txn(&mut self.conn), &mut self.events, (id, next, this, value));
   }
   pub fn set_edge(&mut self, id: u128, value: Option<(u128, u64, u128)>) {
-    let this = self.nodes.this();
-    let next = self.nodes.next();
+    let this = self.edges.this();
+    let next = self.edges.next();
     self.edges.set(&mut txn(&mut self.conn), &mut self.events, (id, next, this, value));
   }
   pub fn set_edge_dst(&mut self, id: u128, dst: u128) {
@@ -136,10 +136,10 @@ impl Store {
     self.atoms.unsubscribe(id, port);
   }
   pub fn subscribe_edge(&mut self, id: u128, port: u64) {
-    self.edges.subscribe_edge(&mut txn(&mut self.conn), &mut self.events, id, port);
+    self.edges.subscribe(&mut txn(&mut self.conn), &mut self.events, id, port);
   }
   pub fn unsubscribe_edge(&mut self, id: u128, port: u64) {
-    self.edges.unsubscribe_edge(id, port);
+    self.edges.unsubscribe(id, port);
   }
   pub fn subscribe_multiedge(&mut self, src: u128, label: u64, port: u64) {
     self.edges.subscribe_multiedge(&mut txn(&mut self.conn), &mut self.events, src, label, port);

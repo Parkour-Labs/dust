@@ -1,5 +1,4 @@
-/*
-use beacons::global::{self, Atom, AtomOption, Backlinks, Link, LinkOption, Model};
+use beacons::global::{self, Atom, AtomOption, Backlinks, Link, LinkOption, Model, Multilinks};
 use beacons::model;
 
 #[derive(Debug)]
@@ -13,7 +12,7 @@ struct Something {
   atom_two: AtomOption<String>,
   link_one: Link<Trivial>,
   link_two: LinkOption<Trivial>,
-  link_three: LinkOption<Something>,
+  link_three: Multilinks<Something>,
   #[backlink(link_three)]
   backlink: Backlinks<Something>,
 }
@@ -25,8 +24,9 @@ fn atom_link_simple() {
   let trivial = Trivial::new();
   let trivial_again = Trivial::new();
 
-  let something = Something::new(&String::from("test"), Some(&String::from("2333")), &trivial, Some(&trivial), None);
-  let something_else = Something::new(&String::from("test"), None, &trivial, None, Some(&something));
+  let something = Something::new(&String::from("test"), Some(&String::from("2333")), &trivial, Some(&trivial));
+  let something_else = Something::new(&String::from("test"), None, &trivial, None);
+  something_else.link_three.insert(&something);
 
   let something_id = something.id();
   let something_else_id = something_else.id();
@@ -38,13 +38,14 @@ fn atom_link_simple() {
   assert_eq!(something_copy.atom_two.get().unwrap(), "2333");
   assert_eq!(something_copy.link_one.get().id(), trivial.id());
   assert_eq!(something_copy.link_two.get().unwrap().id(), trivial.id());
-  assert!(something_copy.link_three.get().is_none());
+  assert_eq!(something_copy.link_three.get().len(), 0);
 
   assert_eq!(something_else_copy.atom_one.get(), "test");
   assert!(something_else_copy.atom_two.get().is_none());
   assert_eq!(something_else_copy.link_one.get().id(), trivial.id());
   assert!(something_else_copy.link_two.get().is_none());
-  assert_eq!(something_else_copy.link_three.get().unwrap().id(), something.id());
+  assert_eq!(something_else_copy.link_three.get().len(), 1);
+  assert_eq!(something_else_copy.link_three.get()[0].id(), something.id());
 
   something_copy.atom_two.set(None);
   assert!(something_copy.atom_two.get().is_none());
@@ -56,10 +57,14 @@ fn atom_link_simple() {
   assert_eq!(something_copy.link_two.get().unwrap().id(), trivial_again.id());
 
   assert_eq!(something.backlink.get().len(), 1);
-  assert_eq!(something_else.backlink.get().len(), 0);
-  something.link_three.set(Some(&something));
+  something.link_three.insert(&something);
   assert_eq!(something.backlink.get().len(), 2);
-  assert_eq!(something_else.backlink.get().len(), 0);
+  something.link_three.insert(&something);
+  assert_eq!(something.backlink.get().len(), 3);
+  something.link_three.remove(&something);
+  assert_eq!(something.backlink.get().len(), 2);
+  something_else.link_three.remove(&something);
+  assert_eq!(something.backlink.get().len(), 1);
 
   trivial.delete();
   trivial_again.delete();
@@ -70,4 +75,3 @@ fn atom_link_simple() {
   something.delete();
   something_else.delete();
 }
-*/
