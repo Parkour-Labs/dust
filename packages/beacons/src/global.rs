@@ -22,13 +22,13 @@ thread_local! {
 pub fn init(path: &str) {
   let conn = Connection::open(path).unwrap();
   conn.execute_batch(INITIAL_COMMANDS).unwrap();
-  OBJECT_STORE.with(|cell| cell.set(Some(Store::new(conn, ""))));
+  OBJECT_STORE.with(|cell| cell.set(Some(Store::new(conn))));
 }
 
 pub fn init_in_memory() {
   let conn = Connection::open_in_memory().unwrap();
   conn.execute_batch(INITIAL_COMMANDS).unwrap();
-  OBJECT_STORE.with(|cell| cell.set(Some(Store::new(conn, ""))));
+  OBJECT_STORE.with(|cell| cell.set(Some(Store::new(conn))));
 }
 
 pub fn access_store_with<R>(f: impl FnOnce(&mut Store) -> R) -> R {
@@ -40,16 +40,16 @@ pub fn access_store_with<R>(f: impl FnOnce(&mut Store) -> R) -> R {
   })
 }
 
-pub fn sync_serial() -> Vec<u8> {
-  access_store_with(|store| store.sync_serial())
+pub fn sync_version() -> Vec<u8> {
+  access_store_with(|store| store.sync_version())
 }
 
 pub fn sync_actions(clocks: &[u8]) -> Vec<u8> {
   access_store_with(|store| store.sync_actions(clocks))
 }
 
-pub fn sync_apply(actions: &[u8]) {
-  access_store_with(|store| store.sync_apply(actions))
+pub fn sync_join(actions: &[u8]) {
+  access_store_with(|store| store.sync_join(actions))
 }
 
 pub trait Model: std::marker::Sized {
@@ -141,29 +141,24 @@ impl<T: Model> Multilinks<T> {
     Self { src, label, _t: Default::default() }
   }
   pub fn get(&self) -> Vec<T> {
-    access_store_with(|store| {
-      let mut res = store.query_edge_src_label(self.src, self.label);
-      for id in res.as_mut_slice() {
-        *id = store.edge(*id).unwrap().0;
+    let mut res = Vec::new();
+    for (_, dst) in access_store_with(|store| store.id_dst_by_src_label(self.src, self.label)) {
+      if let Some(inner) = T::get(dst) {
+        res.push(inner);
       }
-      res
-    })
-    .into_iter()
-    .filter_map(T::get)
-    .collect()
+    }
+    res
   }
-  pub fn insert(&self, dst: &T) {
-    access_store_with(|store| store.set_edge(rand::thread_rng().gen(), Some((self.src, self.label, dst.id()))));
+  pub fn insert(&self, object: &T) {
+    access_store_with(|store| store.set_edge(rand::thread_rng().gen(), Some((self.src, self.label, object.id()))));
   }
-  pub fn remove(&self, dst: &T) {
-    access_store_with(|store| {
-      for id in store.query_edge_src_label(self.src, self.label) {
-        if store.edge(id).unwrap().2 == dst.id() {
-          store.set_edge(id, None);
-          break;
-        }
+  pub fn remove(&self, object: &T) {
+    for (id, dst) in access_store_with(|store| store.id_dst_by_src_label(self.src, self.label)) {
+      if dst == object.id() {
+        access_store_with(|store| store.set_edge(id, None));
+        break;
       }
-    });
+    }
   }
 }
 
@@ -179,15 +174,12 @@ impl<T: Model> Backlinks<T> {
     Self { dst, label, _t: Default::default() }
   }
   pub fn get(&self) -> Vec<T> {
-    access_store_with(|store| {
-      let mut res = store.query_edge_dst_label(self.dst, self.label);
-      for id in res.as_mut_slice() {
-        *id = store.edge(*id).unwrap().0;
+    let mut res = Vec::new();
+    for (_, src) in access_store_with(|store| store.id_src_by_dst_label(self.dst, self.label)) {
+      if let Some(inner) = T::get(src) {
+        res.push(inner);
       }
-      res
-    })
-    .into_iter()
-    .filter_map(T::get)
-    .collect()
+    }
+    res
   }
 }

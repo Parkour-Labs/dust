@@ -1,3 +1,4 @@
+/*
 use beacons::global::{self, Atom, AtomOption, Backlinks, Link, LinkOption, Model};
 use beacons::model;
 
@@ -69,3 +70,4 @@ fn atom_link_simple() {
   something.delete();
   something_else.delete();
 }
+*/

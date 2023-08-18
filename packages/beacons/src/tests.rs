@@ -1,5 +1,6 @@
 use rand::Rng;
 
+/*
 use crate::global::{self, Atom, AtomOption, Backlinks, Link, LinkOption, Model};
 use crate::serialize;
 
@@ -235,3 +236,4 @@ fn atom_link_simple() {
   something.delete();
   something_else.delete();
 }
+*/

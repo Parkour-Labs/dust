@@ -14,30 +14,6 @@
 //!    - On recv new knowledge from any peer: `Γ`-join, update `T`, if updated then broadcast (can omit the originator);
 //! Invariant: every known mod is sent to every peer, and mods for the same replica are sent in causal order.
 
-pub mod crdt;
-pub mod vector_history;
-
-#[cfg(test)]
-mod tests;
-
-pub trait PersistentState {
-  type State;
-  type Action;
-  type Transaction<'a>;
-
-  fn initial(txn: &mut Self::Transaction<'_>, collection: &'static str, name: &'static str) -> Self;
-  fn apply(&mut self, txn: &mut Self::Transaction<'_>, a: Self::Action);
-  fn id() -> Self::Action;
-  fn comp(a: Self::Action, b: Self::Action) -> Self::Action;
-}
-
-pub trait PersistentJoinable: PersistentState {
-  fn preq(&mut self, txn: &mut Self::Transaction<'_>, t: &Self::State) -> bool;
-  fn join(&mut self, txn: &mut Self::Transaction<'_>, t: Self::State);
-}
-
-pub trait PersistentGammaJoinable: PersistentJoinable {
-  fn gamma_join(&mut self, txn: &mut Self::Transaction<'_>, a: Self::Action) {
-    self.apply(txn, a);
-  }
-}
+pub mod metadata;
+pub mod sequences;
+pub mod sets;
