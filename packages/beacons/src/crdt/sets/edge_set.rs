@@ -79,14 +79,9 @@ impl EdgeSet {
     self.inner.unload(id)
   }
 
-  /// Obtains reference to element.
-  pub fn get(&mut self, store: &mut impl EdgeSetStore, id: u128) -> &Option<(Clock, u64, Option<Edge>)> {
-    self.inner.get(store, id)
-  }
-
-  /// Obtains reference to element value.
-  pub fn value(&mut self, store: &mut impl EdgeSetStore, id: u128) -> Option<&Edge> {
-    self.inner.value(store, id)
+  /// Obtains element value.
+  pub fn value(&mut self, store: &mut impl EdgeSetStore, id: u128) -> Option<Edge> {
+    self.inner.value(store, id).copied()
   }
 
   /// Adds observer.

@@ -9,20 +9,20 @@ use crate::{insert, remove};
 /// A last-writer-win element set for storing atomic data.
 #[derive(Debug, Clone)]
 pub struct AtomSet {
-  inner: Set<Vec<u8>>,
+  inner: Set<Box<[u8]>>,
   subscriptions: HashMap<u128, Vec<u64>>,
 }
 
 /// Database interface for [`AtomSet`].
-pub trait AtomSetStore: SetStore<Vec<u8>> {}
+pub trait AtomSetStore: SetStore<Box<[u8]>> {}
 
 /// Event bus interface for [`AtomSet`].
 pub trait AtomSetEvents {
-  fn push(&mut self, port: u64, value: Option<Vec<u8>>);
+  fn push(&mut self, port: u64, value: Option<Box<[u8]>>);
 }
 
 /// Type alias for item: `(clock, bucket, value)`.
-type Item = (Clock, u64, Option<Vec<u8>>);
+type Item = (Clock, u64, Option<Box<[u8]>>);
 
 impl AtomSet {
   /// Creates or loads data.
@@ -60,20 +60,15 @@ impl AtomSet {
     self.inner.unload(id)
   }
 
-  /// Obtains reference to element.
-  pub fn get(&mut self, store: &mut impl AtomSetStore, id: u128) -> &Option<(Clock, u64, Option<Vec<u8>>)> {
-    self.inner.get(store, id)
-  }
-
   /// Obtains reference to element value.
-  pub fn value(&mut self, store: &mut impl AtomSetStore, id: u128) -> Option<&Vec<u8>> {
-    self.inner.value(store, id)
+  pub fn value(&mut self, store: &mut impl AtomSetStore, id: u128) -> Option<&[u8]> {
+    self.inner.value(store, id).map(|inner| inner.as_ref())
   }
 
   /// Adds observer.
   pub fn subscribe(&mut self, store: &mut impl AtomSetStore, ctx: &mut impl AtomSetEvents, id: u128, port: u64) {
     insert(&mut self.subscriptions, id, port);
-    ctx.push(port, self.inner.value(store, id).map(Vec::clone));
+    ctx.push(port, self.inner.value(store, id).map(Box::clone));
   }
 
   /// Removes observer.
@@ -84,7 +79,7 @@ impl AtomSet {
   fn notify(&mut self, store: &mut impl AtomSetStore, ctx: &mut impl AtomSetEvents, id: u128) {
     if let Some(ports) = self.subscriptions.get(&id) {
       for &port in ports {
-        ctx.push(port, self.inner.value(store, id).map(Vec::clone));
+        ctx.push(port, self.inner.value(store, id).map(Box::clone));
       }
     }
   }
@@ -119,8 +114,8 @@ fn read_row(row: &Row<'_>) -> (u128, Item) {
   let id = row.get(0).unwrap();
   let clock = row.get(1).unwrap();
   let bucket = row.get(2).unwrap();
-  let value = row.get(3).unwrap();
-  (u128::from_be_bytes(id), (Clock::from_be_bytes(clock), u64::from_be_bytes(bucket), value))
+  let value: Option<Vec<u8>> = row.get(3).unwrap();
+  (u128::from_be_bytes(id), (Clock::from_be_bytes(clock), u64::from_be_bytes(bucket), value.map(|vec| vec.into())))
 }
 
 /// A helper function.
@@ -129,12 +124,12 @@ fn make_row(
   id: u128,
   clock: Clock,
   bucket: u64,
-  value: &Option<Vec<u8>>,
-) -> ([u8; 16], [u8; 16], [u8; 8], &Option<Vec<u8>>) {
+  value: &Option<Box<[u8]>>,
+) -> ([u8; 16], [u8; 16], [u8; 8], &Option<Box<[u8]>>) {
   (id.to_be_bytes(), clock.to_be_bytes(), bucket.to_be_bytes(), value)
 }
 
-impl<'a> SetStore<Vec<u8>> for Transaction<'a> {
+impl<'a> SetStore<Box<[u8]>> for Transaction<'a> {
   fn init_data(&mut self, name: &str) {
     self
       .execute_batch(&format!(
@@ -162,7 +157,7 @@ impl<'a> SetStore<Vec<u8>> for Transaction<'a> {
       .unwrap()
   }
 
-  fn set_data(&mut self, name: &str, id: u128, bucket: u64, clock: Clock, value: &Option<Vec<u8>>) {
+  fn set_data(&mut self, name: &str, id: u128, bucket: u64, clock: Clock, value: &Option<Box<[u8]>>) {
     self
       .prepare_cached(&format!("REPLACE INTO \"{name}.data\" VALUES (?, ?, ?, ?)"))
       .unwrap()

@@ -51,7 +51,7 @@ struct Enum<'a> {
   variants: Vec<(String, Vec<Field<'a>>)>, // Vec<(name, fields)>
 }
 
-/// Hashes the string [s] to a value of desired.
+/// Hashes the string `s` to a value of desired.
 fn fnv64_hash(s: impl AsRef<str>) -> u64 {
   const PRIME: Wrapping<u64> = Wrapping(1099511628211);
   const BASIS: Wrapping<u64> = Wrapping(14695981039346656037);
@@ -248,7 +248,7 @@ fn create_new_fn_body(field: &Field) -> TokenStream {
     FieldType::Atom(_) => quote! {
       let dst = rng.gen();
       store.set_edge(rng.gen(), Some((id, Self::#label, dst)));
-      store.set_atom(dst, Some(serialize(#name).unwrap()));
+      store.set_atom(dst, Some(serialize(#name).unwrap().into()));
     },
     FieldType::Link(_) => quote! {
       store.set_edge(rng.gen(), Some((id, Self::#label, #name.id())));
@@ -257,7 +257,7 @@ fn create_new_fn_body(field: &Field) -> TokenStream {
       if let Some(#name) = #name {
         let dst = rng.gen();
         store.set_edge(rng.gen(), Some((id, Self::#label, dst)));
-        store.set_atom(dst, Some(serialize(#name).unwrap()));
+        store.set_atom(dst, Some(serialize(#name).unwrap().into()));
       } else {
         store.set_edge(rng.gen(), Some((id, Self::#label, rng.gen())));
       }

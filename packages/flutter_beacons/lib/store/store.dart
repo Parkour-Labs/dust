@@ -4,129 +4,131 @@ import '../reactive/reactive.dart';
 import '../ffi/ffi_adaptor.dart';
 import '../serializer/serializer.dart';
 
+part 'repository.dart';
+part 'atom.dart';
+part 'link.dart';
+
+T _deserialize<T extends Object>(Serializer<T> serializer, ByteData data) {
+  return serializer.deserialize(BytesReader(data));
+}
+
+Uint8List _serialize<T extends Object>(Serializer<T> serializer, T value) {
+  final bytes = BytesBuilder();
+  serializer.serialize(value, bytes);
+  return bytes.takeBytes();
+}
+
 final ffi = FfiAdaptor.instance();
 
 class Store {
-  int ports = 0;
-  int newPort() => ports++;
+  int _ports = 0;
+  int newPort() => _ports++;
 
-  final Map<int, (Id, Function(ByteData))> atomSubscriptions = {};
-  final Map<int, (Id, Function(int))> nodeSubscriptions = {};
-  final Map<int, (Id, Function(Id, int, Id))> edgeSubscriptions = {};
-  final Map<int, (Id, int, Function(Id), Function(Id))> idSetSubscriptions = {};
+  final Map<int, (Id, Function(ByteData?))> _atomSubscriptions = {};
+  final Map<int, (Id, Function(int?))> _nodeSubscriptions = {};
+  final Map<int, (Id, Function((Id, int, Id)?))> _edgeSubscriptions = {};
+  final Map<int, (Id, int, Function(Id), Function(Id))> _multiedgeSubscriptions = {};
+  final Map<int, (Id, int, Function(Id), Function(Id))> _backedgeSubscriptions = {};
 
   /// These will not get dropped since [Store] is a global singleton.
-  late final Finalizer nodeSubscriptionFinalizer = Finalizer<int>(unsubscribeNode);
-  late final Finalizer atomSubscriptionFinalizer = Finalizer<int>(unsubscribeAtom);
-  late final Finalizer edgeSubscriptionFinalizer = Finalizer<int>(unsubscribeEdge);
-  late final Finalizer multiEdgeSubscriptionFinalizer = Finalizer<int>(unsubscribeMultiEdge);
-  late final Finalizer backEdgeSubscriptionFinalizer = Finalizer<int>(unsubscribeBackEdge);
+  late final Finalizer _nodeSubscriptionFinalizer = Finalizer<int>(_unsubscribeNode);
+  late final Finalizer _atomSubscriptionFinalizer = Finalizer<int>(_unsubscribeAtom);
+  late final Finalizer _edgeSubscriptionFinalizer = Finalizer<int>(_unsubscribeEdge);
+  late final Finalizer _multiedgeSubscriptionFinalizer = Finalizer<int>(_unsubscribeMultiedge);
+  late final Finalizer _backedgeSubscriptionFinalizer = Finalizer<int>(_unsubscribeBackedge);
 
-  void subscribeNode(Id id, int port, Function(int label) change, Object owner) {
-    assert(!nodeSubscriptions.containsKey(port));
-    nodeSubscriptions[port] = (id, change);
+  void _subscribeNode(Id id, int port, Function(int? label) change, Object owner) {
+    assert(!_nodeSubscriptions.containsKey(port));
+    _nodeSubscriptions[port] = (id, change);
     ffi.subscribeNode(id, port);
-    nodeSubscriptionFinalizer.attach(owner, port);
+    _nodeSubscriptionFinalizer.attach(owner, port);
+    // TODO: take events
   }
 
-  void unsubscribeNode(int port) {
-    final subscription = nodeSubscriptions.remove(port);
+  void _unsubscribeNode(int port) {
+    final subscription = _nodeSubscriptions.remove(port);
     if (subscription != null) ffi.unsubscribeNode(subscription.$1, port);
   }
 
-  void subscribeAtom(Id id, int port, Function(ByteData data) change, Object owner) {
-    assert(!atomSubscriptions.containsKey(port));
-    atomSubscriptions[port] = (id, change);
+  void _subscribeAtom(Id id, int port, Function(ByteData? data) change, Object owner) {
+    assert(!_atomSubscriptions.containsKey(port));
+    _atomSubscriptions[port] = (id, change);
     ffi.subscribeAtom(id, port);
-    atomSubscriptionFinalizer.attach(owner, port);
+    _atomSubscriptionFinalizer.attach(owner, port);
+    // TODO: take events
   }
 
-  void unsubscribeAtom(int port) {
-    final subscription = atomSubscriptions.remove(port);
+  void _unsubscribeAtom(int port) {
+    final subscription = _atomSubscriptions.remove(port);
     if (subscription != null) ffi.unsubscribeAtom(subscription.$1, port);
   }
 
-  void subscribeEdge(Id id, int port, Function(Id src, int label, Id dst) change, Object owner) {
-    assert(!edgeSubscriptions.containsKey(port));
-    edgeSubscriptions[port] = (id, change);
+  void _subscribeEdge(Id id, int port, Function((Id, int, Id)? value) change, Object owner) {
+    assert(!_edgeSubscriptions.containsKey(port));
+    _edgeSubscriptions[port] = (id, change);
     ffi.subscribeEdge(id, port);
-    edgeSubscriptionFinalizer.attach(owner, port);
+    _edgeSubscriptionFinalizer.attach(owner, port);
+    // TODO: take events
   }
 
-  void unsubscribeEdge(int port) {
-    final subscription = edgeSubscriptions.remove(port);
+  void _unsubscribeEdge(int port) {
+    final subscription = _edgeSubscriptions.remove(port);
     if (subscription != null) ffi.unsubscribeEdge(subscription.$1, port);
   }
 
-  void subscribeMultiEdge(
+  void _subscribeMultiedge(
       Id src, int label, int port, Function(Id element) insert, Function(Id element) remove, Object owner) {
-    assert(!idSetSubscriptions.containsKey(port));
-    idSetSubscriptions[port] = (src, label, insert, remove);
-    ffi.subscribeMultiEdge(src, label, port);
-    multiEdgeSubscriptionFinalizer.attach(owner, port);
+    assert(!_multiedgeSubscriptions.containsKey(port));
+    _multiedgeSubscriptions[port] = (src, label, insert, remove);
+    ffi.subscribeMultiedge(src, label, port);
+    _multiedgeSubscriptionFinalizer.attach(owner, port);
+    // TODO: take events
   }
 
-  void unsubscribeMultiEdge(int port) {
-    final subscription = idSetSubscriptions.remove(port);
-    if (subscription != null) ffi.unsubscribeMultiEdge(subscription.$1, subscription.$2, port);
+  void _unsubscribeMultiedge(int port) {
+    final subscription = _multiedgeSubscriptions.remove(port);
+    if (subscription != null) ffi.unsubscribeMultiedge(subscription.$1, subscription.$2, port);
   }
 
-  void subscribeBackEdge(
+  void _subscribeBackedge(
       Id src, int label, int port, Function(Id element) insert, Function(Id element) remove, Object owner) {
-    assert(!idSetSubscriptions.containsKey(port));
-    idSetSubscriptions[port] = (src, label, insert, remove);
-    ffi.subscribeBackEdge(src, label, port);
-    backEdgeSubscriptionFinalizer.attach(owner, port);
+    assert(!_backedgeSubscriptions.containsKey(port));
+    _backedgeSubscriptions[port] = (src, label, insert, remove);
+    ffi.subscribeBackedge(src, label, port);
+    _backedgeSubscriptionFinalizer.attach(owner, port);
+    // TODO: take events
   }
 
-  void unsubscribeBackEdge(int port) {
-    final subscription = idSetSubscriptions.remove(port);
-    if (subscription != null) ffi.unsubscribeBackEdge(subscription.$1, subscription.$2, port);
+  void _unsubscribeBackedge(int port) {
+    final subscription = _backedgeSubscriptions.remove(port);
+    if (subscription != null) ffi.unsubscribeBackedge(subscription.$1, subscription.$2, port);
   }
 
-  Atom<T> atom<T>(Id id, Serializer<T> serializer) {
-    final res = Atom<T>(serializer);
+  Atom<T> getAtom<T extends Object>(Serializer<T> serializer, Id id) {
+    final res = Atom<T>.fromRaw(serializer, id);
     final weak = WeakReference(res);
-    subscribeAtom(id, newPort(), (data) => weak.target?._set(data), res);
+    _subscribeAtom(id, newPort(), (data) => weak.target?._update(data), res);
+    return res;
+  }
+
+  AtomOption<T> getAtomOption<T extends Object>(Serializer<T> serializer, Id id) {
+    final res = AtomOption<T>.fromRaw(serializer, id);
+    final weak = WeakReference(res);
+    _subscribeAtom(id, newPort(), (data) => weak.target?._update(data), res);
+    return res;
+  }
+
+  Link<T> getLink<T extends Model>(Repository<T> repository, Id id) {
+    final res = Link<T>.fromRaw(repository, id);
+    final weak = WeakReference(res);
+    _subscribeEdge(id, newPort(), (data) => weak.target?._update(data), res);
+    return res;
+  }
+
+  LinkOption<T> getLinkOption<T extends Model>(Repository<T> repository, Id id) {
+    final res = LinkOption<T>.fromRaw(repository, id);
+    final weak = WeakReference(res);
+    _subscribeEdge(id, newPort(), (data) => weak.target?._update(data), res);
     return res;
   }
 }
-
-class Atom<T> extends Node implements Observable<T> {
-  late T value;
-  final Serializer<T> serializer;
-
-  Atom(this.serializer);
-
-  @override
-  T get(WeakReference<Node> ref) {
-    register(ref);
-    return peek();
-  }
-
-  @override
-  T peek() {
-    return value;
-  }
-
-  void _set(ByteData data) {
-    value = serializer.deserialize(BytesReader(data));
-    notify();
-  }
-}
-
-/*
-class Edge<T extends Object> extends Node implements Observable<T> {
-  WeakReference<T>? target;
-
-  Edge() {}
-
-  @override
-  T get(WeakReference<Node> ref) {}
-
-  @override
-  T peek() {}
-
-  void _set(ByteData data) {}
-}
-*/

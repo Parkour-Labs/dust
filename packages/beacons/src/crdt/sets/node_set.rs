@@ -62,14 +62,9 @@ impl NodeSet {
     self.inner.unload(id)
   }
 
-  /// Obtains reference to element.
-  pub fn get(&mut self, store: &mut impl NodeSetStore, id: u128) -> &Option<(Clock, u64, Option<u64>)> {
-    self.inner.get(store, id)
-  }
-
-  /// Obtains reference to element value.
-  pub fn value(&mut self, store: &mut impl NodeSetStore, id: u128) -> Option<&u64> {
-    self.inner.value(store, id)
+  /// Obtains element value.
+  pub fn value(&mut self, store: &mut impl NodeSetStore, id: u128) -> Option<u64> {
+    self.inner.value(store, id).copied()
   }
 
   /// Adds observer.

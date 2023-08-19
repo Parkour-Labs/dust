@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-class Serializer<T> {
+class Serializer<T extends Object> {
   final void Function(T object, BytesBuilder builder) serialize;
   final T Function(BytesReader reader) deserialize;
 
@@ -65,5 +65,4 @@ int _int64Deserialize(BytesReader reader) {
 const Serializer<int> kInt8Serializer = Serializer(_int8Serialize, _int8Deserialize);
 const Serializer<int> kInt16Serializer = Serializer(_int16Serialize, _int16Deserialize);
 const Serializer<int> kInt32Serializer = Serializer(_int32Serialize, _int32Deserialize);
-// TODO
-const Serializer<int> kInt64Serializer = Serializer(_int64Serialize, _int64Deserialize);
+const Serializer<int> kInt64Serializer = Serializer(_int64Serialize, _int64Deserialize); // TODO

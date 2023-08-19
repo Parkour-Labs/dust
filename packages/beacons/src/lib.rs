@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::{
   collections::{hash_map::Entry, HashMap},
   hash::Hash,
+  num::Wrapping,
 };
 
 /// A wrapper around `bincode`.
@@ -36,6 +37,17 @@ fn remove<K: Eq + Hash, V: Eq>(map: &mut HashMap<K, Vec<V>>, key: K, value: &V) 
       }
     }
   }
+}
+
+/// Hashes the string `s` to a value of desired.
+fn fnv64_hash(s: impl AsRef<str>) -> u64 {
+  const PRIME: Wrapping<u64> = Wrapping(1099511628211);
+  const BASIS: Wrapping<u64> = Wrapping(14695981039346656037);
+  let mut res = BASIS;
+  for c in s.as_ref().as_bytes() {
+    res = (res * PRIME) ^ Wrapping(*c as u64);
+  }
+  res.0
 }
 
 #[cfg(test)]
