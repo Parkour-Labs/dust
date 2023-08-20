@@ -2,8 +2,8 @@ part of 'store.dart';
 
 class LinkOption<T extends Model> extends Node implements Observable<T?> {
   final Repository<T> repository;
-  final Id id;
-  Id? dst;
+  final CId id;
+  CId? dst;
 
   LinkOption.fromRaw(this.repository, this.id);
 
@@ -18,7 +18,7 @@ class LinkOption<T extends Model> extends Node implements Observable<T?> {
     return repository.get(dst);
   }
 
-  void _update((Id, int, Id)? data) {
+  void _update((CId, int, CId)? data) {
     dst = data?.$3;
     notify();
   }
@@ -31,8 +31,8 @@ class LinkOption<T extends Model> extends Node implements Observable<T?> {
 
 class Link<T extends Model> extends Node implements Observable<T> {
   final Repository<T> repository;
-  final Id id;
-  late Id dst;
+  final CId id;
+  late CId dst;
 
   Link.fromRaw(this.repository, this.id);
 
@@ -47,7 +47,7 @@ class Link<T extends Model> extends Node implements Observable<T> {
     return repository.get(dst)!;
   }
 
-  void _update((Id, int, Id)? data) {
+  void _update((CId, int, CId)? data) {
     dst = data!.$3;
     notify();
   }

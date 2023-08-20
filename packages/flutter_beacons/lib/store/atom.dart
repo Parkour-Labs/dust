@@ -2,7 +2,7 @@ part of 'store.dart';
 
 class AtomOption<T extends Object> extends Node implements Observable<T?> {
   final Serializer<T> serializer;
-  final Id id;
+  final CId id;
   T? value;
 
   AtomOption.fromRaw(this.serializer, this.id);
@@ -31,7 +31,7 @@ class AtomOption<T extends Object> extends Node implements Observable<T?> {
 
 class Atom<T extends Object> extends Node implements Observable<T> {
   final Serializer<T> serializer;
-  final Id id;
+  final CId id;
   late T value;
 
   Atom.fromRaw(this.serializer, this.id);

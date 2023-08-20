@@ -1,19 +1,19 @@
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub struct CId {
-  high: u64,
-  low: u64,
+  pub high: u64,
+  pub low: u64,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub struct CEdge {
-  src: CId,
-  label: u64,
-  dst: CId,
+  pub src: CId,
+  pub label: u64,
+  pub dst: CId,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub struct CPair<T, U> {
   pub first: T,
@@ -22,11 +22,12 @@ pub struct CPair<T, U> {
 
 #[repr(C)]
 pub struct CArray<T> {
-  len: u64,
-  ptr: *mut T,
+  pub len: u64,
+  pub ptr: *mut T,
 }
 
 /// See: https://github.com/rust-lang/rfcs/blob/master/text/2195-really-tagged-unions.md
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(C, u8)]
 pub enum COption<T> {
   None,
