@@ -10,7 +10,9 @@ pub use node_set::{NodeSet, NodeSetEvents, NodeSetStore};
 
 use serde::{Deserialize, Serialize};
 use std::{
+  borrow::Borrow,
   collections::HashMap,
+  marker::PhantomData,
   time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -74,32 +76,22 @@ impl VersionClock for Clock {
 }
 
 /// A base class for last-writer-win element sets.
-#[derive(Debug, Clone)]
-pub struct Set<T: Ord + Clone> {
+#[derive(Debug)]
+pub struct Set<T: Ord + Borrow<R>, R: Ord + ?Sized> {
   version: Version<Clock>,
-  inner: HashMap<u128, Option<Item<T>>>,
+  _t: PhantomData<T>,
+  _r: PhantomData<R>,
 }
 
-/// Type alias for item: `(clock, bucket, value)`.
-type Item<T> = (Clock, u64, Option<T>);
+/// Type alias for item: `(bucket, clock, value)`.
+type Item<T> = (u64, Clock, Option<T>);
 
-/// A helper function.
-#[allow(clippy::type_complexity)]
-fn load<'a, T>(
-  name: &'static str,
-  inner: &'a mut HashMap<u128, Option<Item<T>>>,
-  store: &mut impl SetStore<T>,
-  id: u128,
-) -> &'a mut Option<Item<T>> {
-  inner.entry(id).or_insert_with(|| store.get_data(name, id))
-}
-
-impl<T: Ord + Clone> Set<T> {
+impl<T: Ord + Borrow<R>, R: Ord + ?Sized> Set<T, R> {
   /// Creates or loads data.
-  pub fn new(name: &'static str, store: &mut impl SetStore<T>) -> Self {
+  pub fn new(name: &'static str, store: &mut impl SetStore<T, R>) -> Self {
     let version = Version::new(name, store);
     store.init_data(name);
-    Self { version, inner: HashMap::new() }
+    Self { version, _t: PhantomData, _r: PhantomData }
   }
 
   /// Returns the name of the structure.
@@ -122,50 +114,40 @@ impl<T: Ord + Clone> Set<T> {
     Clock::new(self.version.buckets().values().fold(None, |acc, &clock| acc.max(Some(clock))))
   }
 
-  /// Loads element.
-  pub fn load(&mut self, store: &mut impl SetStore<T>, id: u128) {
-    load(self.name(), &mut self.inner, store, id);
+  /// Obtains element.
+  pub fn get(&mut self, store: &mut impl SetStore<T, R>, id: u128) -> Option<Item<T>> {
+    store.get_data(self.name(), id)
   }
 
-  /// Unloads element.
-  pub fn unload(&mut self, id: u128) {
-    self.inner.remove(&id);
-  }
-
-  /// Obtains reference to element.
-  pub fn get(&mut self, store: &mut impl SetStore<T>, id: u128) -> &Option<(Clock, u64, Option<T>)> {
-    load(self.name(), &mut self.inner, store, id)
-  }
-
-  /// Obtains reference to element value.
-  pub fn value(&mut self, store: &mut impl SetStore<T>, id: u128) -> Option<&T> {
-    match self.get(store, id) {
-      Some((_, _, value)) => value.as_ref(),
-      None => None,
-    }
+  /// Obtains element value.
+  pub fn value(&mut self, store: &mut impl SetStore<T, R>, id: u128) -> Option<T> {
+    self.get(store, id).and_then(|(_, _, value)| value)
   }
 
   /// Modifies element.
-  pub fn set(&mut self, store: &mut impl SetStore<T>, id: u128, mut item: Item<T>) -> bool {
+  pub fn set(
+    &mut self,
+    store: &mut impl SetStore<T, R>,
+    id: u128,
+    bucket: u64,
+    clock: Clock,
+    value: Option<&R>,
+  ) -> bool {
     let name = self.name();
-    let entry = load(name, &mut self.inner, store, id);
-    let less = match entry {
-      Some(inner) => inner < &mut item,
-      None => true,
-    };
-    if less {
-      let clock = item.0;
-      let bucket = item.1;
+    let item = self.get(store, id);
+    let item = item.as_ref().map(|(bucket, clock, value)| (*clock, *bucket, value.as_ref().map(Borrow::borrow)));
+    if item < Some((clock, bucket, value)) {
       self.version.update(store, bucket, clock);
-      store.set_data(name, id, bucket, clock, &item.2);
-      *entry = Some(item);
+      store.set_data(name, id, bucket, clock, value);
+      true
+    } else {
+      false
     }
-    less
   }
 
   /// Returns all actions strictly later than given clock values.
   /// Absent entries are assumed to be `None`.
-  pub fn actions(&mut self, store: &mut impl SetStore<T>, version: HashMap<u64, Clock>) -> Vec<(u128, Item<T>)> {
+  pub fn actions(&mut self, store: &mut impl SetStore<T, R>, version: HashMap<u64, Clock>) -> Vec<(u128, Item<T>)> {
     let mut res = Vec::new();
     for &bucket in self.buckets().keys() {
       let lower = version.get(&bucket).copied();
@@ -178,9 +160,9 @@ impl<T: Ord + Clone> Set<T> {
 }
 
 /// Database interface for [`Set`].
-pub trait SetStore<T>: VersionStore<Clock> {
+pub trait SetStore<T: Ord + Borrow<R>, R: Ord + ?Sized>: VersionStore<Clock> {
   fn init_data(&mut self, name: &str);
   fn get_data(&mut self, name: &str, id: u128) -> Option<Item<T>>;
-  fn set_data(&mut self, name: &str, id: u128, bucket: u64, clock: Clock, value: &Option<T>);
+  fn set_data(&mut self, name: &str, id: u128, bucket: u64, clock: Clock, value: Option<&R>);
   fn query_data(&mut self, name: &str, bucket: u64, lower: Option<Clock>) -> Vec<(u128, Item<T>)>; // Exclusive.
 }

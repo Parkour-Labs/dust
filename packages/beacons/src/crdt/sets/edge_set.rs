@@ -7,16 +7,16 @@ use super::{Clock, Set, SetStore};
 use crate::{insert, remove};
 
 /// A last-writer-win element set for storing edges.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct EdgeSet {
-  inner: Set<Edge>,
+  inner: Set<Edge, Edge>,
   subscriptions: HashMap<u128, Vec<u64>>,
   multiedge_subscriptions: HashMap<(u128, u64), Vec<u64>>,
   backedge_subscriptions: HashMap<(u128, u64), Vec<u64>>,
 }
 
 /// Database interface for [`EdgeSet`].
-pub trait EdgeSetStore: SetStore<Edge> {
+pub trait EdgeSetStore: SetStore<Edge, Edge> {
   fn query_id_value_by_label(&mut self, name: &str, label: u64) -> Vec<(u128, Edge)>;
   fn query_id_value_by_src(&mut self, name: &str, src: u128) -> Vec<(u128, Edge)>;
   fn query_id_dst_by_src_label(&mut self, name: &str, src: u128, label: u64) -> Vec<(u128, u128)>;
@@ -35,8 +35,8 @@ pub trait EdgeSetEvents {
 /// Type alias for edges: `(src, label, dst)`.
 type Edge = (u128, u64, u128);
 
-/// Type alias for item: `(clock, bucket, value)`.
-type Item = (Clock, u64, Option<Edge>);
+/// Type alias for item: `(bucket, clock, value)`.
+type Item = (u64, Clock, Option<Edge>);
 
 impl EdgeSet {
   /// Creates or loads data.
@@ -69,25 +69,15 @@ impl EdgeSet {
     self.inner.next()
   }
 
-  /// Loads element.
-  pub fn load(&mut self, store: &mut impl EdgeSetStore, id: u128) {
-    self.inner.load(store, id)
-  }
-
-  /// Unloads element.
-  pub fn unload(&mut self, id: u128) {
-    self.inner.unload(id)
-  }
-
   /// Obtains element value.
   pub fn value(&mut self, store: &mut impl EdgeSetStore, id: u128) -> Option<Edge> {
-    self.inner.value(store, id).copied()
+    self.inner.value(store, id)
   }
 
   /// Adds observer.
   pub fn subscribe(&mut self, store: &mut impl EdgeSetStore, ctx: &mut impl EdgeSetEvents, id: u128, port: u64) {
     insert(&mut self.subscriptions, id, port);
-    ctx.push_edge(port, self.inner.value(store, id).copied());
+    ctx.push_edge(port, self.inner.value(store, id));
   }
 
   /// Adds observer.
@@ -135,8 +125,9 @@ impl EdgeSet {
     remove(&mut self.backedge_subscriptions, (dst, label), &port);
   }
 
+  // TODO: optimise
   fn notify_pre(&mut self, store: &mut impl EdgeSetStore, ctx: &mut impl EdgeSetEvents, id: u128) {
-    if let Some((src, label, dst)) = self.inner.value(store, id).copied() {
+    if let Some((src, label, dst)) = self.inner.value(store, id) {
       if let Some(ports) = self.multiedge_subscriptions.get(&(src, label)) {
         for &port in ports {
           ctx.push_multiedge_remove(port, id, dst);
@@ -150,13 +141,14 @@ impl EdgeSet {
     }
   }
 
+  // TODO: optimise
   fn notify_post(&mut self, store: &mut impl EdgeSetStore, ctx: &mut impl EdgeSetEvents, id: u128) {
     if let Some(ports) = self.subscriptions.get(&id) {
       for &port in ports {
-        ctx.push_edge(port, self.inner.value(store, id).copied());
+        ctx.push_edge(port, self.inner.value(store, id));
       }
     }
-    if let Some((src, label, dst)) = self.inner.value(store, id).copied() {
+    if let Some((src, label, dst)) = self.inner.value(store, id) {
       if let Some(ports) = self.multiedge_subscriptions.get(&(src, label)) {
         for &port in ports {
           ctx.push_multiedge_insert(port, id, dst);
@@ -171,9 +163,17 @@ impl EdgeSet {
   }
 
   /// Modifies element.
-  pub fn set(&mut self, store: &mut impl EdgeSetStore, ctx: &mut impl EdgeSetEvents, id: u128, item: Item) -> bool {
+  pub fn set(
+    &mut self,
+    store: &mut impl EdgeSetStore,
+    ctx: &mut impl EdgeSetEvents,
+    id: u128,
+    bucket: u64,
+    clock: Clock,
+    value: Option<Edge>,
+  ) -> bool {
     self.notify_pre(store, ctx, id);
-    let res = self.inner.set(store, id, item);
+    let res = self.inner.set(store, id, bucket, clock, value.as_ref());
     self.notify_post(store, ctx, id);
     res
   }
@@ -191,7 +191,7 @@ impl EdgeSet {
     ctx: &mut impl EdgeSetEvents,
     mut actions: Vec<(u128, Item)>,
   ) -> Vec<(u128, Item)> {
-    actions.retain(|(id, item)| self.set(store, ctx, *id, *item));
+    actions.retain(|(id, (bucket, clock, value))| self.set(store, ctx, *id, *bucket, *clock, *value));
     actions
   }
 
@@ -237,8 +237,8 @@ fn read_row(row: &Row<'_>) -> (u128, Item) {
   (
     u128::from_be_bytes(id),
     (
-      Clock::from_be_bytes(clock),
       u64::from_be_bytes(bucket),
+      Clock::from_be_bytes(clock),
       label
         .map(|label| (u128::from_be_bytes(src.unwrap()), u64::from_be_bytes(label), u128::from_be_bytes(dst.unwrap()))),
     ),
@@ -274,7 +274,7 @@ fn make_row(
   id: u128,
   clock: Clock,
   bucket: u64,
-  value: &Option<Edge>,
+  value: Option<&Edge>,
 ) -> ([u8; 16], [u8; 16], [u8; 8], Option<[u8; 16]>, Option<[u8; 8]>, Option<[u8; 16]>) {
   (
     id.to_be_bytes(),
@@ -286,7 +286,7 @@ fn make_row(
   )
 }
 
-impl<'a> SetStore<Edge> for Transaction<'a> {
+impl<'a> SetStore<Edge, Edge> for Transaction<'a> {
   fn init_data(&mut self, name: &str) {
     self
       .execute_batch(&format!(
@@ -318,7 +318,7 @@ impl<'a> SetStore<Edge> for Transaction<'a> {
       .unwrap()
   }
 
-  fn set_data(&mut self, name: &str, id: u128, bucket: u64, clock: Clock, value: &Option<Edge>) {
+  fn set_data(&mut self, name: &str, id: u128, bucket: u64, clock: Clock, value: Option<&Edge>) {
     self
       .prepare_cached(&format!("REPLACE INTO \"{name}.data\" VALUES (?, ?, ?, ?, ?, ?)"))
       .unwrap()

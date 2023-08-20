@@ -7,14 +7,14 @@ use super::{Clock, Set, SetStore};
 use crate::{insert, remove};
 
 /// A last-writer-win element set for storing nodes.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct NodeSet {
-  inner: Set<u64>,
+  inner: Set<u64, u64>,
   subscriptions: HashMap<u128, Vec<u64>>,
 }
 
 /// Database interface for [`NodeSet`].
-pub trait NodeSetStore: SetStore<u64> {
+pub trait NodeSetStore: SetStore<u64, u64> {
   fn query_id_by_label(&mut self, name: &str, label: u64) -> Vec<u128>;
 }
 
@@ -23,8 +23,8 @@ pub trait NodeSetEvents {
   fn push(&mut self, port: u64, value: Option<u64>);
 }
 
-/// Type alias for item: `(clock, bucket, value)`.
-type Item = (Clock, u64, Option<u64>);
+/// Type alias for item: `(bucket, clock, value)`.
+type Item = (u64, Clock, Option<u64>);
 
 impl NodeSet {
   /// Creates or loads data.
@@ -52,25 +52,15 @@ impl NodeSet {
     self.inner.next()
   }
 
-  /// Loads element.
-  pub fn load(&mut self, store: &mut impl NodeSetStore, id: u128) {
-    self.inner.load(store, id)
-  }
-
-  /// Unloads element.
-  pub fn unload(&mut self, id: u128) {
-    self.inner.unload(id)
-  }
-
   /// Obtains element value.
   pub fn value(&mut self, store: &mut impl NodeSetStore, id: u128) -> Option<u64> {
-    self.inner.value(store, id).copied()
+    self.inner.value(store, id)
   }
 
   /// Adds observer.
   pub fn subscribe(&mut self, store: &mut impl NodeSetStore, ctx: &mut impl NodeSetEvents, id: u128, port: u64) {
     insert(&mut self.subscriptions, id, port);
-    ctx.push(port, self.inner.value(store, id).copied());
+    ctx.push(port, self.inner.value(store, id));
   }
 
   /// Removes observer.
@@ -81,14 +71,22 @@ impl NodeSet {
   fn notify(&mut self, store: &mut impl NodeSetStore, ctx: &mut impl NodeSetEvents, id: u128) {
     if let Some(ports) = self.subscriptions.get(&id) {
       for &port in ports {
-        ctx.push(port, self.inner.value(store, id).copied());
+        ctx.push(port, self.inner.value(store, id));
       }
     }
   }
 
   /// Modifies element.
-  pub fn set(&mut self, store: &mut impl NodeSetStore, ctx: &mut impl NodeSetEvents, id: u128, item: Item) -> bool {
-    let res = self.inner.set(store, id, item);
+  pub fn set(
+    &mut self,
+    store: &mut impl NodeSetStore,
+    ctx: &mut impl NodeSetEvents,
+    id: u128,
+    bucket: u64,
+    clock: Clock,
+    value: Option<u64>,
+  ) -> bool {
+    let res = self.inner.set(store, id, bucket, clock, value.as_ref());
     self.notify(store, ctx, id);
     res
   }
@@ -106,7 +104,7 @@ impl NodeSet {
     ctx: &mut impl NodeSetEvents,
     mut actions: Vec<(u128, Item)>,
   ) -> Vec<(u128, Item)> {
-    actions.retain(|(id, item)| self.set(store, ctx, *id, *item));
+    actions.retain(|(id, (bucket, clock, value))| self.set(store, ctx, *id, *bucket, *clock, *value));
     actions
   }
 
@@ -122,7 +120,7 @@ fn read_row(row: &Row<'_>) -> (u128, Item) {
   let clock = row.get(1).unwrap();
   let bucket = row.get(2).unwrap();
   let value: Option<_> = row.get(3).unwrap();
-  (u128::from_be_bytes(id), (Clock::from_be_bytes(clock), u64::from_be_bytes(bucket), value.map(u64::from_be_bytes)))
+  (u128::from_be_bytes(id), (u64::from_be_bytes(bucket), Clock::from_be_bytes(clock), value.map(u64::from_be_bytes)))
 }
 
 /// A helper function.
@@ -136,12 +134,12 @@ fn make_row(
   id: u128,
   clock: Clock,
   bucket: u64,
-  value: &Option<u64>,
+  value: Option<&u64>,
 ) -> ([u8; 16], [u8; 16], [u8; 8], Option<[u8; 8]>) {
-  (id.to_be_bytes(), clock.to_be_bytes(), bucket.to_be_bytes(), value.map(u64::to_be_bytes))
+  (id.to_be_bytes(), clock.to_be_bytes(), bucket.to_be_bytes(), value.copied().map(u64::to_be_bytes))
 }
 
-impl<'a> SetStore<u64> for Transaction<'a> {
+impl<'a> SetStore<u64, u64> for Transaction<'a> {
   fn init_data(&mut self, name: &str) {
     self
       .execute_batch(&format!(
@@ -170,7 +168,7 @@ impl<'a> SetStore<u64> for Transaction<'a> {
       .unwrap()
   }
 
-  fn set_data(&mut self, name: &str, id: u128, bucket: u64, clock: Clock, value: &Option<u64>) {
+  fn set_data(&mut self, name: &str, id: u128, bucket: u64, clock: Clock, value: Option<&u64>) {
     self
       .prepare_cached(&format!("REPLACE INTO \"{name}.data\" VALUES (?, ?, ?, ?)"))
       .unwrap()

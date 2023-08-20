@@ -91,25 +91,12 @@ impl<T> CArray<T> {
     Self { len, ptr }
   }
 
-  pub fn as_ref_unchecked(&self) -> &[T] {
+  pub unsafe fn as_ref_unchecked(&self) -> &[T] {
     unsafe { std::slice::from_raw_parts(self.ptr, self.len as usize) }
   }
 
-  pub fn drop(self) {
-    let slice = unsafe { std::slice::from_raw_parts_mut(self.ptr, self.len as usize) };
-    let boxed = unsafe { Box::from_raw(slice) };
-    std::mem::drop(boxed);
-  }
-}
-
-impl<T: Clone> CArray<T> {
-  /// This will **copy** the content of the box to the `(length, pointer)` pair.
-  pub fn from_copy_leaked(value: &[T]) -> Self {
-    Self::from_leaked(Vec::from(value).into())
-  }
-  /// This will **copy** the content of the `(length, pointer)` pair to the box.
-  pub fn copy_unchecked(&self) -> Box<[T]> {
-    Vec::from(self.as_ref_unchecked()).into()
+  pub unsafe fn into_boxed_unchecked(self) -> Box<[T]> {
+    unsafe { Box::from_raw(std::slice::from_raw_parts_mut(self.ptr, self.len as usize)) }
   }
 }
 

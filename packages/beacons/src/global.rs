@@ -58,7 +58,7 @@ impl<T: Serialize + DeserializeOwned> AtomOption<T> {
     Self { id, _t: Default::default() }
   }
   pub fn get(&self) -> Option<T> {
-    access_store_with(|store| store.atom(self.id).map(|bytes| deserialize(bytes).unwrap()))
+    access_store_with(|store| store.atom(self.id).map(|bytes| deserialize(&bytes).unwrap()))
   }
   pub fn set(&self, value: Option<&T>) {
     access_store_with(|store| store.set_atom(self.id, value.map(|inner| serialize(inner).unwrap().into())));

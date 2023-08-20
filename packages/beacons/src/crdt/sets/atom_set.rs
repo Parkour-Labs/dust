@@ -1,28 +1,28 @@
 //! A last-writer-win element set for storing atomic data.
 
 use rusqlite::{OptionalExtension, Result, Row, Transaction};
-use std::collections::HashMap;
+use std::{borrow::Borrow, collections::HashMap};
 
 use super::{Clock, Set, SetStore};
 use crate::{insert, remove};
 
 /// A last-writer-win element set for storing atomic data.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct AtomSet {
-  inner: Set<Box<[u8]>>,
+  inner: Set<Box<[u8]>, [u8]>,
   subscriptions: HashMap<u128, Vec<u64>>,
 }
 
 /// Database interface for [`AtomSet`].
-pub trait AtomSetStore: SetStore<Box<[u8]>> {}
+pub trait AtomSetStore: SetStore<Box<[u8]>, [u8]> {}
 
 /// Event bus interface for [`AtomSet`].
 pub trait AtomSetEvents {
   fn push(&mut self, port: u64, value: Option<Box<[u8]>>);
 }
 
-/// Type alias for item: `(clock, bucket, value)`.
-type Item = (Clock, u64, Option<Box<[u8]>>);
+/// Type alias for item: `(bucket, clock, value)`.
+type Item = (u64, Clock, Option<Box<[u8]>>);
 
 impl AtomSet {
   /// Creates or loads data.
@@ -50,25 +50,15 @@ impl AtomSet {
     self.inner.next()
   }
 
-  /// Loads element.
-  pub fn load(&mut self, store: &mut impl AtomSetStore, id: u128) {
-    self.inner.load(store, id)
-  }
-
-  /// Unloads element.
-  pub fn unload(&mut self, id: u128) {
-    self.inner.unload(id)
-  }
-
-  /// Obtains reference to element value.
-  pub fn value(&mut self, store: &mut impl AtomSetStore, id: u128) -> Option<&[u8]> {
-    self.inner.value(store, id).map(|inner| inner.as_ref())
+  /// Obtains element value.
+  pub fn value(&mut self, store: &mut impl AtomSetStore, id: u128) -> Option<Box<[u8]>> {
+    self.inner.value(store, id)
   }
 
   /// Adds observer.
   pub fn subscribe(&mut self, store: &mut impl AtomSetStore, ctx: &mut impl AtomSetEvents, id: u128, port: u64) {
     insert(&mut self.subscriptions, id, port);
-    ctx.push(port, self.inner.value(store, id).map(Box::clone));
+    ctx.push(port, self.inner.value(store, id));
   }
 
   /// Removes observer.
@@ -79,14 +69,22 @@ impl AtomSet {
   fn notify(&mut self, store: &mut impl AtomSetStore, ctx: &mut impl AtomSetEvents, id: u128) {
     if let Some(ports) = self.subscriptions.get(&id) {
       for &port in ports {
-        ctx.push(port, self.inner.value(store, id).map(Box::clone));
+        ctx.push(port, self.inner.value(store, id));
       }
     }
   }
 
   /// Modifies element.
-  pub fn set(&mut self, store: &mut impl AtomSetStore, ctx: &mut impl AtomSetEvents, id: u128, item: Item) -> bool {
-    let res = self.inner.set(store, id, item);
+  pub fn set(
+    &mut self,
+    store: &mut impl AtomSetStore,
+    ctx: &mut impl AtomSetEvents,
+    id: u128,
+    bucket: u64,
+    clock: Clock,
+    value: Option<&[u8]>,
+  ) -> bool {
+    let res = self.inner.set(store, id, bucket, clock, value);
     self.notify(store, ctx, id);
     res
   }
@@ -104,7 +102,9 @@ impl AtomSet {
     ctx: &mut impl AtomSetEvents,
     mut actions: Vec<(u128, Item)>,
   ) -> Vec<(u128, Item)> {
-    actions.retain(|(id, item)| self.set(store, ctx, *id, item.clone()));
+    actions.retain(|(id, (bucket, clock, value))| {
+      self.set(store, ctx, *id, *bucket, *clock, value.as_ref().map(Borrow::borrow))
+    });
     actions
   }
 }
@@ -115,21 +115,16 @@ fn read_row(row: &Row<'_>) -> (u128, Item) {
   let clock = row.get(1).unwrap();
   let bucket = row.get(2).unwrap();
   let value: Option<Vec<u8>> = row.get(3).unwrap();
-  (u128::from_be_bytes(id), (Clock::from_be_bytes(clock), u64::from_be_bytes(bucket), value.map(|vec| vec.into())))
+  (u128::from_be_bytes(id), (u64::from_be_bytes(bucket), Clock::from_be_bytes(clock), value.map(|vec| vec.into())))
 }
 
 /// A helper function.
 #[allow(clippy::type_complexity)]
-fn make_row(
-  id: u128,
-  clock: Clock,
-  bucket: u64,
-  value: &Option<Box<[u8]>>,
-) -> ([u8; 16], [u8; 16], [u8; 8], &Option<Box<[u8]>>) {
+fn make_row(id: u128, clock: Clock, bucket: u64, value: Option<&[u8]>) -> ([u8; 16], [u8; 16], [u8; 8], Option<&[u8]>) {
   (id.to_be_bytes(), clock.to_be_bytes(), bucket.to_be_bytes(), value)
 }
 
-impl<'a> SetStore<Box<[u8]>> for Transaction<'a> {
+impl<'a> SetStore<Box<[u8]>, [u8]> for Transaction<'a> {
   fn init_data(&mut self, name: &str) {
     self
       .execute_batch(&format!(
@@ -157,7 +152,7 @@ impl<'a> SetStore<Box<[u8]>> for Transaction<'a> {
       .unwrap()
   }
 
-  fn set_data(&mut self, name: &str, id: u128, bucket: u64, clock: Clock, value: &Option<Box<[u8]>>) {
+  fn set_data(&mut self, name: &str, id: u128, bucket: u64, clock: Clock, value: Option<&[u8]>) {
     self
       .prepare_cached(&format!("REPLACE INTO \"{name}.data\" VALUES (?, ?, ?, ?)"))
       .unwrap()
