@@ -190,7 +190,7 @@ pub fn sync_actions(clocks: &[u8]) -> Box<[u8]> {
 }
 
 /// Synchronises all data (step 3).
-pub fn sync_join(actions: &[u8]) {
+pub fn sync_join(actions: &[u8]) -> Option<Box<[u8]>> {
   access_store_with(|store| store.sync_join(actions))
 }
 

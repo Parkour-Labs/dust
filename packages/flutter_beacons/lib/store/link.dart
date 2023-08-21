@@ -24,8 +24,7 @@ class LinkOption<T extends Model> extends Node implements Observable<T?> {
   }
 
   void set(T? value) {
-    ffi.setEdgeDst(id, value?.id());
-    // TODO: take events
+    Store.instance.setEdgeDst(id, value?.id());
   }
 }
 
@@ -53,7 +52,6 @@ class Link<T extends Model> extends Node implements Observable<T> {
   }
 
   void set(T value) {
-    ffi.setEdgeDst(id, value.id());
-    // TODO: take events
+    Store.instance.setEdgeDst(id, value.id());
   }
 }

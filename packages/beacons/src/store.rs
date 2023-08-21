@@ -170,11 +170,13 @@ impl Store {
     let nodes_version: HashMap<u64, Clock> = all.get(NODES_NAME).map_or(HashMap::new(), |m| deserialize(m).unwrap());
     let atoms_version: HashMap<u64, Clock> = all.get(ATOMS_NAME).map_or(HashMap::new(), |m| deserialize(m).unwrap());
     let edges_version: HashMap<u64, Clock> = all.get(EDGES_NAME).map_or(HashMap::new(), |m| deserialize(m).unwrap());
+
     let mut txn = txn(&mut self.conn);
     let nodes_actions: Vec<(u128, (u64, Clock, Option<u64>))> = self.nodes.actions(&mut txn, nodes_version);
     let atoms_actions: Vec<(u128, (u64, Clock, Option<Box<[u8]>>))> = self.atoms.actions(&mut txn, atoms_version);
     let edges_actions: Vec<(u128, (u64, Clock, Option<(u128, u64, u128)>))> =
       self.edges.actions(&mut txn, edges_version);
+
     let all: HashMap<&str, Vec<u8>> = HashMap::from([
       (NODES_NAME, serialize(&nodes_actions).unwrap()),
       (ATOMS_NAME, serialize(&atoms_actions).unwrap()),
@@ -186,7 +188,7 @@ impl Store {
   /// To keep backward compatibility, do not change existing strings and type annotations below.
   /// Additional entries may be added.
   #[allow(clippy::type_complexity)]
-  pub fn sync_join(&mut self, actions: &[u8]) {
+  pub fn sync_join(&mut self, actions: &[u8]) -> Option<Box<[u8]>> {
     let all: HashMap<String, &[u8]> = deserialize(actions).unwrap();
     let nodes_actions: Vec<(u128, (u64, Clock, Option<u64>))> =
       all.get(NODES_NAME).map_or(Vec::new(), |m| deserialize(m).unwrap());
@@ -194,10 +196,25 @@ impl Store {
       all.get(ATOMS_NAME).map_or(Vec::new(), |m| deserialize(m).unwrap());
     let edges_actions: Vec<(u128, (u64, Clock, Option<(u128, u64, u128)>))> =
       all.get(EDGES_NAME).map_or(Vec::new(), |m| deserialize(m).unwrap());
+
     let mut txn = txn(&mut self.conn);
-    self.nodes.gamma_join(&mut txn, &mut self.events, nodes_actions);
-    self.atoms.gamma_join(&mut txn, &mut self.events, atoms_actions);
-    self.edges.gamma_join(&mut txn, &mut self.events, edges_actions);
+    let nodes_actions: Vec<(u128, (u64, Clock, Option<u64>))> =
+      self.nodes.gamma_join(&mut txn, &mut self.events, nodes_actions);
+    let atoms_actions: Vec<(u128, (u64, Clock, Option<Box<[u8]>>))> =
+      self.atoms.gamma_join(&mut txn, &mut self.events, atoms_actions);
+    let edges_actions: Vec<(u128, (u64, Clock, Option<(u128, u64, u128)>))> =
+      self.edges.gamma_join(&mut txn, &mut self.events, edges_actions);
+
+    if nodes_actions.is_empty() && atoms_actions.is_empty() && edges_actions.is_empty() {
+      None
+    } else {
+      let all: HashMap<&str, Vec<u8>> = HashMap::from([
+        (NODES_NAME, serialize(&nodes_actions).unwrap()),
+        (ATOMS_NAME, serialize(&atoms_actions).unwrap()),
+        (EDGES_NAME, serialize(&edges_actions).unwrap()),
+      ]);
+      Some(serialize(&all).unwrap().into())
+    }
   }
 
   pub fn poll_events(&mut self) -> Vec<(u64, CEventData)> {

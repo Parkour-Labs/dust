@@ -8,9 +8,16 @@ use std::ffi::CStr;
 use self::structs::{CArray, CEdge, CEventData, CId, COption, CPair};
 use crate::{fnv64_hash, global::*};
 
-pub unsafe fn hash(name: *const std::ffi::c_char) -> u64 {
+pub unsafe fn make_label(name: *const std::ffi::c_char) -> u64 {
   fnv64_hash(CStr::from_ptr(name).to_str().unwrap())
 }
+pub unsafe fn make_id(name: *const std::ffi::c_char) -> CId {
+  CId { high: 0, low: fnv64_hash(CStr::from_ptr(name).to_str().unwrap()) }
+}
+pub unsafe fn random_id() -> CId {
+  rand::thread_rng().gen::<u128>().into()
+}
+
 pub fn get_node(id: CId) -> COption<u64> {
   access_store_with(|store| store.node(id.into())).into()
 }
@@ -42,21 +49,27 @@ pub fn get_id_src_by_dst_label(dst: CId, label: u64) -> CArray<CPair<CId, CId>> 
   CArray::from_leaked(boxed)
 }
 
-pub fn set_node(id: CId, some: bool, value: u64) {
-  let value = if some { Some(value) } else { None };
-  access_store_with(|store| store.set_node(id.into(), value));
+pub fn set_node_none(id: CId) {
+  access_store_with(|store| store.set_node(id.into(), None));
 }
-pub unsafe fn set_atom(id: CId, some: bool, value: CArray<u8>) {
-  let value = if some { Some(value.as_ref_unchecked()) } else { None };
-  access_store_with(|store| store.set_atom_ref(id.into(), value));
+pub fn set_node_some(id: CId, value: u64) {
+  access_store_with(|store| store.set_node(id.into(), Some(value)));
 }
-pub fn set_edge(id: CId, some: bool, value: CEdge) {
-  let value = if some { Some(value.into()) } else { None };
-  access_store_with(|store| store.set_edge(id.into(), value));
+pub fn set_atom_none(id: CId) {
+  access_store_with(|store| store.set_atom_ref(id.into(), None));
 }
-pub fn set_edge_dst(id: CId, some: bool, dst: CId) {
-  let dst = if some { Some(dst.into()) } else { None };
-  access_store_with(|store| store.set_edge_dst(id.into(), dst.unwrap_or_else(|| rand::thread_rng().gen())));
+pub unsafe fn set_atom_some(id: CId, len: u64, ptr: *mut u8) {
+  let value = CArray { len, ptr };
+  access_store_with(|store| store.set_atom_ref(id.into(), Some(value.as_ref_unchecked())));
+}
+pub fn set_edge_none(id: CId) {
+  access_store_with(|store| store.set_edge(id.into(), None));
+}
+pub fn set_edge_some(id: CId, src: CId, label: u64, dst: CId) {
+  access_store_with(|store| store.set_edge(id.into(), Some((src.into(), label, dst.into()))));
+}
+pub fn set_edge_dst(id: CId, dst: CId) {
+  access_store_with(|store| store.set_edge_dst(id.into(), dst.into()));
 }
 
 pub fn subscribe_node(id: CId, port: u64) {
@@ -93,11 +106,13 @@ pub fn unsubscribe_backedge(dst: CId, label: u64, port: u64) {
 pub fn sync_version() -> CArray<u8> {
   CArray::from_leaked(access_store_with(|store| store.sync_version()))
 }
-pub unsafe fn sync_actions(version: CArray<u8>) -> CArray<u8> {
+pub unsafe fn sync_actions(len: u64, ptr: *mut u8) -> CArray<u8> {
+  let version = CArray { len, ptr };
   CArray::from_leaked(access_store_with(|store| store.sync_actions(version.as_ref_unchecked())))
 }
-pub unsafe fn sync_join(actions: CArray<u8>) {
-  access_store_with(|store| store.sync_join(actions.as_ref_unchecked()))
+pub unsafe fn sync_join(len: u64, ptr: *mut u8) -> COption<CArray<u8>> {
+  let actions = CArray { len, ptr };
+  access_store_with(|store| store.sync_join(actions.as_ref_unchecked())).map(CArray::from_leaked).into()
 }
 
 pub fn poll_events() -> CArray<CPair<u64, CEventData>> {
@@ -108,7 +123,7 @@ pub fn poll_events() -> CArray<CPair<u64, CEventData>> {
   CArray::from_leaked(boxed)
 }
 
-/// Drops the return value of [`get_atom`].
+/// Drops the return value of [`get_atom`] and [`sync_join`].
 pub unsafe fn drop_option_array_u8(value: COption<CArray<u8>>) {
   if let COption::Some(inner) = value {
     inner.into_boxed_unchecked();
@@ -159,7 +174,10 @@ macro_rules! export_symbol {
 #[macro_export]
 macro_rules! export_symbols {
   () => {
-    export_symbol!(fn hash(name: *const std::ffi::c_char) -> u64);
+    export_symbol!(fn make_label(name: *const std::ffi::c_char) -> u64);
+    export_symbol!(fn make_id(name: *const std::ffi::c_char) -> CId);
+    export_symbol!(fn random_id() -> CId);
+
     export_symbol!(fn get_node(id: CId) -> COption<u64>);
     export_symbol!(fn get_atom(id: CId) -> COption<CArray<u8>>);
     export_symbol!(fn get_edge(id: CId) -> COption<CEdge>);
@@ -167,10 +185,13 @@ macro_rules! export_symbols {
     export_symbol!(fn get_id_dst_by_src_label(src: CId, label: u64) -> CArray<CPair<CId, CId>>);
     export_symbol!(fn get_id_src_by_dst_label(dst: CId, label: u64) -> CArray<CPair<CId, CId>>);
 
-    export_symbol!(fn set_node(id: CId, some: bool, value: u64));
-    export_symbol!(fn set_atom(id: CId, some: bool, value: CArray<u8>));
-    export_symbol!(fn set_edge(id: CId, some: bool, value: CEdge));
-    export_symbol!(fn set_edge_dst(id: CId, some: bool, dst: CId));
+    export_symbol!(fn set_node_none(id: CId));
+    export_symbol!(fn set_node_some(id: CId, value: u64));
+    export_symbol!(fn set_atom_none(id: CId));
+    export_symbol!(fn set_atom_some(id: CId, len: u64, ptr: *mut u8));
+    export_symbol!(fn set_edge_none(id: CId));
+    export_symbol!(fn set_edge_some(id: CId, src: CId, label: u64, dst: CId));
+    export_symbol!(fn set_edge_dst(id: CId, dst: CId));
 
     export_symbol!(fn subscribe_node(id: CId, port: u64));
     export_symbol!(fn unsubscribe_node(id: CId, port: u64));
@@ -184,8 +205,8 @@ macro_rules! export_symbols {
     export_symbol!(fn unsubscribe_backedge(dst: CId, label: u64, port: u64));
 
     export_symbol!(fn sync_version() -> CArray<u8>);
-    export_symbol!(fn sync_actions(version: CArray<u8>) -> CArray<u8>);
-    export_symbol!(fn sync_join(actions: CArray<u8>));
+    export_symbol!(fn sync_actions(len: u64, ptr: *mut u8) -> CArray<u8>);
+    export_symbol!(fn sync_join(len: u64, ptr: *mut u8) -> COption<CArray<u8>>);
     export_symbol!(fn poll_events() -> CArray<CPair<u64, CEventData>>);
 
     export_symbol!(fn drop_option_array_u8(value: COption<CArray<u8>>));

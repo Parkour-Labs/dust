@@ -18,14 +18,13 @@ class AtomOption<T extends Object> extends Node implements Observable<T?> {
     return value;
   }
 
-  void _update(ByteData? data) {
-    value = data == null ? null : _deserialize(serializer, data);
+  void _update(T? data) {
+    value = data;
     notify();
   }
 
   void set(T? value) {
-    ffi.setAtom(id, value == null ? null : _serialize(serializer, value));
-    // TODO: take events
+    Store.instance.setAtom<T>(serializer, id, value);
   }
 }
 
@@ -47,13 +46,12 @@ class Atom<T extends Object> extends Node implements Observable<T> {
     return value;
   }
 
-  void _update(ByteData? data) {
-    value = _deserialize(serializer, data!);
+  void _update(T? data) {
+    value = data!;
     notify();
   }
 
   void set(T value) {
-    ffi.setAtom(id, _serialize(serializer, value));
-    // TODO: take events
+    Store.instance.setAtom<T>(serializer, id, value);
   }
 }

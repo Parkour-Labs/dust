@@ -4,8 +4,11 @@ import 'package:flutter_beacons/ffi/ffi_bindings.dart';
 
 class Ffi {
   final FfiBindings beaconsBindings;
+  final FfiTestBindings beaconsTestBindings;
 
-  Ffi._(DynamicLibrary dylib) : beaconsBindings = FfiBindings(dylib);
+  Ffi._(DynamicLibrary library)
+      : beaconsBindings = FfiBindings(library),
+        beaconsTestBindings = FfiTestBindings(library);
 
   /// The global FFI bindings.
   static Ffi? _ffi;
