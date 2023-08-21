@@ -2,10 +2,10 @@ part of 'store.dart';
 
 class AtomOption<T extends Object> extends Node implements Observable<T?> {
   final Serializer<T> serializer;
-  final CId id;
+  final Id id;
   T? value;
 
-  AtomOption.fromRaw(this.serializer, this.id);
+  AtomOption._(this.serializer, this.id);
 
   @override
   T? get(WeakReference<Node> ref) {
@@ -30,10 +30,10 @@ class AtomOption<T extends Object> extends Node implements Observable<T?> {
 
 class Atom<T extends Object> extends Node implements Observable<T> {
   final Serializer<T> serializer;
-  final CId id;
-  late T value;
+  final Id id;
+  T? value;
 
-  Atom.fromRaw(this.serializer, this.id);
+  Atom._(this.serializer, this.id);
 
   @override
   T get(WeakReference<Node> ref) {
@@ -43,15 +43,15 @@ class Atom<T extends Object> extends Node implements Observable<T> {
 
   @override
   T peek() {
-    return value;
+    return value!;
   }
 
   void _update(T? data) {
-    value = data!;
+    value = data;
     notify();
   }
 
-  void set(T value) {
+  void set(T? value) {
     Store.instance.setAtom<T>(serializer, id, value);
   }
 }

@@ -6,7 +6,11 @@ use rand::Rng;
 use std::ffi::CStr;
 
 use self::structs::{CArray, CEdge, CEventData, CId, COption, CPair};
-use crate::{fnv64_hash, global::*};
+use crate::{fnv64_hash, global};
+
+pub unsafe fn init(path: *const std::ffi::c_char) {
+  global::init(CStr::from_ptr(path).to_str().unwrap());
+}
 
 pub unsafe fn make_label(name: *const std::ffi::c_char) -> u64 {
   fnv64_hash(CStr::from_ptr(name).to_str().unwrap())
@@ -18,105 +22,131 @@ pub unsafe fn random_id() -> CId {
   rand::thread_rng().gen::<u128>().into()
 }
 
-pub fn get_node(id: CId) -> COption<u64> {
-  access_store_with(|store| store.node(id.into())).into()
+pub fn get_node(idh: u64, idl: u64) -> COption<u64> {
+  let id = CId { high: idh, low: idl };
+  global::access_store_with(|store| store.node(id.into())).into()
 }
-pub fn get_atom(id: CId) -> COption<CArray<u8>> {
-  access_store_with(|store| store.atom(id.into()).map(CArray::from_leaked)).into()
+pub fn get_atom(idh: u64, idl: u64) -> COption<CArray<u8>> {
+  let id = CId { high: idh, low: idl };
+  global::access_store_with(|store| store.atom(id.into()).map(CArray::from_leaked)).into()
 }
-pub fn get_edge(id: CId) -> COption<CEdge> {
-  access_store_with(|store| store.edge(id.into())).map(Into::into).into()
+pub fn get_edge(idh: u64, idl: u64) -> COption<CEdge> {
+  let id = CId { high: idh, low: idl };
+  global::access_store_with(|store| store.edge(id.into())).map(Into::into).into()
 }
-pub fn get_edges_by_src(src: CId) -> CArray<CPair<CId, CEdge>> {
-  let boxed = access_store_with(|store| store.edges_by_src(src.into()))
+pub fn get_edges_by_src(sh: u64, sl: u64) -> CArray<CPair<CId, CEdge>> {
+  let src = CId { high: sh, low: sl };
+  let boxed = global::access_store_with(|store| store.edges_by_src(src.into()))
     .into_iter()
     .map(|(id, edge)| CPair { first: id.into(), second: edge.into() })
     .collect();
   CArray::from_leaked(boxed)
 }
-pub fn get_id_dst_by_src_label(src: CId, label: u64) -> CArray<CPair<CId, CId>> {
-  let boxed = access_store_with(|store| store.id_dst_by_src_label(src.into(), label))
+pub fn get_id_dst_by_src_label(sh: u64, sl: u64, label: u64) -> CArray<CPair<CId, CId>> {
+  let src = CId { high: sh, low: sl };
+  let boxed = global::access_store_with(|store| store.id_dst_by_src_label(src.into(), label))
     .into_iter()
     .map(|(id, dst)| CPair { first: id.into(), second: dst.into() })
     .collect();
   CArray::from_leaked(boxed)
 }
-pub fn get_id_src_by_dst_label(dst: CId, label: u64) -> CArray<CPair<CId, CId>> {
-  let boxed = access_store_with(|store| store.id_src_by_dst_label(dst.into(), label))
+pub fn get_id_src_by_dst_label(dh: u64, dl: u64, label: u64) -> CArray<CPair<CId, CId>> {
+  let dst = CId { high: dh, low: dl };
+  let boxed = global::access_store_with(|store| store.id_src_by_dst_label(dst.into(), label))
     .into_iter()
     .map(|(id, src)| CPair { first: id.into(), second: src.into() })
     .collect();
   CArray::from_leaked(boxed)
 }
 
-pub fn set_node_none(id: CId) {
-  access_store_with(|store| store.set_node(id.into(), None));
+pub fn set_node_none(idh: u64, idl: u64) {
+  let id = CId { high: idh, low: idl };
+  global::access_store_with(|store| store.set_node(id.into(), None));
 }
-pub fn set_node_some(id: CId, value: u64) {
-  access_store_with(|store| store.set_node(id.into(), Some(value)));
+pub fn set_node_some(idh: u64, idl: u64, value: u64) {
+  let id = CId { high: idh, low: idl };
+  global::access_store_with(|store| store.set_node(id.into(), Some(value)));
 }
-pub fn set_atom_none(id: CId) {
-  access_store_with(|store| store.set_atom_ref(id.into(), None));
+pub fn set_atom_none(idh: u64, idl: u64) {
+  let id = CId { high: idh, low: idl };
+  global::access_store_with(|store| store.set_atom_ref(id.into(), None));
 }
-pub unsafe fn set_atom_some(id: CId, len: u64, ptr: *mut u8) {
+pub unsafe fn set_atom_some(idh: u64, idl: u64, len: u64, ptr: *mut u8) {
+  let id = CId { high: idh, low: idl };
   let value = CArray { len, ptr };
-  access_store_with(|store| store.set_atom_ref(id.into(), Some(value.as_ref_unchecked())));
+  global::access_store_with(|store| store.set_atom_ref(id.into(), Some(value.as_ref_unchecked())));
 }
-pub fn set_edge_none(id: CId) {
-  access_store_with(|store| store.set_edge(id.into(), None));
+pub fn set_edge_none(idh: u64, idl: u64) {
+  let id = CId { high: idh, low: idl };
+  global::access_store_with(|store| store.set_edge(id.into(), None));
 }
-pub fn set_edge_some(id: CId, src: CId, label: u64, dst: CId) {
-  access_store_with(|store| store.set_edge(id.into(), Some((src.into(), label, dst.into()))));
+pub fn set_edge_some(idh: u64, idl: u64, sh: u64, sl: u64, label: u64, dh: u64, dl: u64) {
+  let src = CId { high: sh, low: sl };
+  let id = CId { high: idh, low: idl };
+  let dst = CId { high: dh, low: dl };
+  global::access_store_with(|store| store.set_edge(id.into(), Some((src.into(), label, dst.into()))));
 }
-pub fn set_edge_dst(id: CId, dst: CId) {
-  access_store_with(|store| store.set_edge_dst(id.into(), dst.into()));
+pub fn set_edge_dst(idh: u64, idl: u64, dh: u64, dl: u64) {
+  let id = CId { high: idh, low: idl };
+  let dst = CId { high: dh, low: dl };
+  global::access_store_with(|store| store.set_edge_dst(id.into(), dst.into()));
 }
 
-pub fn subscribe_node(id: CId, port: u64) {
-  access_store_with(|store| store.subscribe_node(id.into(), port));
+pub fn subscribe_node(idh: u64, idl: u64, port: u64) {
+  let id = CId { high: idh, low: idl };
+  global::access_store_with(|store| store.subscribe_node(id.into(), port));
 }
-pub fn unsubscribe_node(id: CId, port: u64) {
-  access_store_with(|store| store.unsubscribe_node(id.into(), port));
+pub fn unsubscribe_node(idh: u64, idl: u64, port: u64) {
+  let id = CId { high: idh, low: idl };
+  global::access_store_with(|store| store.unsubscribe_node(id.into(), port));
 }
-pub fn subscribe_atom(id: CId, port: u64) {
-  access_store_with(|store| store.subscribe_atom(id.into(), port));
+pub fn subscribe_atom(idh: u64, idl: u64, port: u64) {
+  let id = CId { high: idh, low: idl };
+  global::access_store_with(|store| store.subscribe_atom(id.into(), port));
 }
-pub fn unsubscribe_atom(id: CId, port: u64) {
-  access_store_with(|store| store.unsubscribe_atom(id.into(), port));
+pub fn unsubscribe_atom(idh: u64, idl: u64, port: u64) {
+  let id = CId { high: idh, low: idl };
+  global::access_store_with(|store| store.unsubscribe_atom(id.into(), port));
 }
-pub fn subscribe_edge(id: CId, port: u64) {
-  access_store_with(|store| store.subscribe_edge(id.into(), port));
+pub fn subscribe_edge(idh: u64, idl: u64, port: u64) {
+  let id = CId { high: idh, low: idl };
+  global::access_store_with(|store| store.subscribe_edge(id.into(), port));
 }
-pub fn unsubscribe_edge(id: CId, port: u64) {
-  access_store_with(|store| store.unsubscribe_edge(id.into(), port));
+pub fn unsubscribe_edge(idh: u64, idl: u64, port: u64) {
+  let id = CId { high: idh, low: idl };
+  global::access_store_with(|store| store.unsubscribe_edge(id.into(), port));
 }
-pub fn subscribe_multiedge(src: CId, label: u64, port: u64) {
-  access_store_with(|store| store.subscribe_multiedge(src.into(), label, port));
+pub fn subscribe_multiedge(sh: u64, sl: u64, label: u64, port: u64) {
+  let src = CId { high: sh, low: sl };
+  global::access_store_with(|store| store.subscribe_multiedge(src.into(), label, port));
 }
-pub fn unsubscribe_multiedge(src: CId, label: u64, port: u64) {
-  access_store_with(|store| store.unsubscribe_multiedge(src.into(), label, port));
+pub fn unsubscribe_multiedge(sh: u64, sl: u64, label: u64, port: u64) {
+  let src = CId { high: sh, low: sl };
+  global::access_store_with(|store| store.unsubscribe_multiedge(src.into(), label, port));
 }
-pub fn subscribe_backedge(dst: CId, label: u64, port: u64) {
-  access_store_with(|store| store.subscribe_backedge(dst.into(), label, port));
+pub fn subscribe_backedge(dh: u64, dl: u64, label: u64, port: u64) {
+  let dst = CId { high: dh, low: dl };
+  global::access_store_with(|store| store.subscribe_backedge(dst.into(), label, port));
 }
-pub fn unsubscribe_backedge(dst: CId, label: u64, port: u64) {
-  access_store_with(|store| store.unsubscribe_backedge(dst.into(), label, port));
+pub fn unsubscribe_backedge(dh: u64, dl: u64, label: u64, port: u64) {
+  let dst = CId { high: dh, low: dl };
+  global::access_store_with(|store| store.unsubscribe_backedge(dst.into(), label, port));
 }
 
 pub fn sync_version() -> CArray<u8> {
-  CArray::from_leaked(access_store_with(|store| store.sync_version()))
+  CArray::from_leaked(global::access_store_with(|store| store.sync_version()))
 }
 pub unsafe fn sync_actions(len: u64, ptr: *mut u8) -> CArray<u8> {
   let version = CArray { len, ptr };
-  CArray::from_leaked(access_store_with(|store| store.sync_actions(version.as_ref_unchecked())))
+  CArray::from_leaked(global::access_store_with(|store| store.sync_actions(version.as_ref_unchecked())))
 }
 pub unsafe fn sync_join(len: u64, ptr: *mut u8) -> COption<CArray<u8>> {
   let actions = CArray { len, ptr };
-  access_store_with(|store| store.sync_join(actions.as_ref_unchecked())).map(CArray::from_leaked).into()
+  global::access_store_with(|store| store.sync_join(actions.as_ref_unchecked())).map(CArray::from_leaked).into()
 }
 
 pub fn poll_events() -> CArray<CPair<u64, CEventData>> {
-  let boxed = access_store_with(|store| store.poll_events())
+  let boxed = global::access_store_with(|store| store.poll_events())
     .into_iter()
     .map(|(port, data)| CPair { first: port, second: data })
     .collect();
@@ -174,35 +204,36 @@ macro_rules! export_symbol {
 #[macro_export]
 macro_rules! export_symbols {
   () => {
+    export_symbol!(fn init(path: *const std::ffi::c_char));
     export_symbol!(fn make_label(name: *const std::ffi::c_char) -> u64);
     export_symbol!(fn make_id(name: *const std::ffi::c_char) -> CId);
     export_symbol!(fn random_id() -> CId);
 
-    export_symbol!(fn get_node(id: CId) -> COption<u64>);
-    export_symbol!(fn get_atom(id: CId) -> COption<CArray<u8>>);
-    export_symbol!(fn get_edge(id: CId) -> COption<CEdge>);
-    export_symbol!(fn get_edges_by_src(src: CId) -> CArray<CPair<CId, CEdge>>);
-    export_symbol!(fn get_id_dst_by_src_label(src: CId, label: u64) -> CArray<CPair<CId, CId>>);
-    export_symbol!(fn get_id_src_by_dst_label(dst: CId, label: u64) -> CArray<CPair<CId, CId>>);
+    export_symbol!(fn get_node(idh: u64, idl: u64) -> COption<u64>);
+    export_symbol!(fn get_atom(idh: u64, idl: u64) -> COption<CArray<u8>>);
+    export_symbol!(fn get_edge(idh: u64, idl: u64) -> COption<CEdge>);
+    export_symbol!(fn get_edges_by_src(sh: u64, sl: u64) -> CArray<CPair<CId, CEdge>>);
+    export_symbol!(fn get_id_dst_by_src_label(sh: u64, sl: u64, label: u64) -> CArray<CPair<CId, CId>>);
+    export_symbol!(fn get_id_src_by_dst_label(dh: u64, dl: u64, label: u64) -> CArray<CPair<CId, CId>>);
 
-    export_symbol!(fn set_node_none(id: CId));
-    export_symbol!(fn set_node_some(id: CId, value: u64));
-    export_symbol!(fn set_atom_none(id: CId));
-    export_symbol!(fn set_atom_some(id: CId, len: u64, ptr: *mut u8));
-    export_symbol!(fn set_edge_none(id: CId));
-    export_symbol!(fn set_edge_some(id: CId, src: CId, label: u64, dst: CId));
-    export_symbol!(fn set_edge_dst(id: CId, dst: CId));
+    export_symbol!(fn set_node_none(idh: u64, idl: u64));
+    export_symbol!(fn set_node_some(idh: u64, idl: u64, value: u64));
+    export_symbol!(fn set_atom_none(idh: u64, idl: u64));
+    export_symbol!(fn set_atom_some(idh: u64, idl: u64, len: u64, ptr: *mut u8));
+    export_symbol!(fn set_edge_none(idh: u64, idl: u64));
+    export_symbol!(fn set_edge_some(idh: u64, idl: u64, sh: u64, sl: u64, label: u64, dh: u64, dl: u64));
+    export_symbol!(fn set_edge_dst(idh: u64, idl: u64, dh: u64, dl: u64));
 
-    export_symbol!(fn subscribe_node(id: CId, port: u64));
-    export_symbol!(fn unsubscribe_node(id: CId, port: u64));
-    export_symbol!(fn subscribe_atom(id: CId, port: u64));
-    export_symbol!(fn unsubscribe_atom(id: CId, port: u64));
-    export_symbol!(fn subscribe_edge(id: CId, port: u64));
-    export_symbol!(fn unsubscribe_edge(id: CId, port: u64));
-    export_symbol!(fn subscribe_multiedge(src: CId, label: u64, port: u64));
-    export_symbol!(fn unsubscribe_multiedge(src: CId, label: u64, port: u64));
-    export_symbol!(fn subscribe_backedge(dst: CId, label: u64, port: u64));
-    export_symbol!(fn unsubscribe_backedge(dst: CId, label: u64, port: u64));
+    export_symbol!(fn subscribe_node(idh: u64, idl: u64, port: u64));
+    export_symbol!(fn unsubscribe_node(idh: u64, idl: u64, port: u64));
+    export_symbol!(fn subscribe_atom(idh: u64, idl: u64, port: u64));
+    export_symbol!(fn unsubscribe_atom(idh: u64, idl: u64, port: u64));
+    export_symbol!(fn subscribe_edge(idh: u64, idl: u64, port: u64));
+    export_symbol!(fn unsubscribe_edge(idh: u64, idl: u64, port: u64));
+    export_symbol!(fn subscribe_multiedge(sh: u64, sl: u64, label: u64, port: u64));
+    export_symbol!(fn unsubscribe_multiedge(sh: u64, sl: u64, label: u64, port: u64));
+    export_symbol!(fn subscribe_backedge(dh: u64, dl: u64, label: u64, port: u64));
+    export_symbol!(fn unsubscribe_backedge(dh: u64, dl: u64, label: u64, port: u64));
 
     export_symbol!(fn sync_version() -> CArray<u8>);
     export_symbol!(fn sync_actions(len: u64, ptr: *mut u8) -> CArray<u8>);
@@ -223,17 +254,8 @@ pub fn test_id() -> CId {
 pub fn test_id_unsigned() -> CId {
   CId { high: (1 << 63) + 233, low: (1 << 63) + 666 }
 }
-pub fn test_id_input(id: CId) -> bool {
-  id == test_id()
-}
-pub fn test_id_input_unsigned(id: CId) -> bool {
-  id == test_id_unsigned()
-}
 pub fn test_edge() -> CEdge {
   CEdge { src: test_id(), label: (1 << 63) + 1, dst: test_id_unsigned() }
-}
-pub fn test_edge_input(edge: CEdge) -> bool {
-  edge == test_edge()
 }
 
 pub fn test_array_u8() -> CArray<u8> {
@@ -307,10 +329,7 @@ macro_rules! export_test_symbols {
   () => {
     export_symbol!(fn test_id() -> CId);
     export_symbol!(fn test_id_unsigned() -> CId);
-    export_symbol!(fn test_id_input(id: CId) -> bool);
-    export_symbol!(fn test_id_input_unsigned(id: CId) -> bool);
     export_symbol!(fn test_edge() -> CEdge);
-    export_symbol!(fn test_edge_input(edge: CEdge) -> bool);
     export_symbol!(fn test_array_u8() -> CArray<u8>);
     export_symbol!(fn test_array_pair_id_id() -> CArray<CPair<CId, CId>>);
     export_symbol!(fn test_array_pair_id_edge() -> CArray<CPair<CId, CEdge>>);

@@ -1,41 +1,41 @@
 part of 'store.dart';
 
-class Multilinks<T extends Model> extends Node implements Observable<Set<T>> {
+class Multilinks<T extends Model> extends Node implements Observable<List<T>> {
   final Repository<T> repository;
-  final CId src;
+  final Id src;
   final int label;
-  final Set<(CId, CId)> edges = {};
+  final Set<(Id, Id)> edges = {};
 
-  Multilinks.fromRaw(this.repository, this.src, this.label);
+  Multilinks._(this.repository, this.src, this.label);
 
   @override
-  Set<T> get(WeakReference<Node> ref) {
+  List<T> get(WeakReference<Node> ref) {
     register(ref);
     return peek();
   }
 
   @override
-  Set<T> peek() {
-    return edges.map<T>((elem) => repository.get(elem.$2)!).toSet();
+  List<T> peek() {
+    return edges.map<T>((elem) => repository.get(elem.$2)!).toList();
   }
 
-  void _insert(CId id, CId dst) {
+  void _insert(Id id, Id dst) {
     edges.add((id, dst));
     notify();
   }
 
-  void _remove(CId id, CId dst) {
+  void _remove(Id id, Id dst) {
     edges.remove((id, dst));
     notify();
   }
 
   void insert(T value) {
-    Store.instance.setEdge(Store.instance.bindings.random_id(), (src, label, value.id()));
+    Store.instance.setEdge(Store.instance.randomId(), (src, label, value.id));
   }
 
   void remove(T value) {
     for (final (id, dst) in edges) {
-      if (dst == value.id()) {
+      if (dst == value.id) {
         Store.instance.setEdge(id, null);
         break;
       }

@@ -5,14 +5,6 @@ final class CId extends Struct {
   external int high;
   @Uint64()
   external int low;
-
-  /// [CId]s can be tested for equality.
-  @override
-  bool operator ==(Object other) => other is CId && other.high == high && other.low == low;
-
-  /// [CId]s can be tested for equality.
-  @override
-  int get hashCode => high ^ low;
 }
 
 final class CEdge extends Struct {

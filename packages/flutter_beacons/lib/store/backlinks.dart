@@ -1,31 +1,31 @@
 part of 'store.dart';
 
-class Backlinks<T extends Model> extends Node implements Observable<Set<T>> {
+class Backlinks<T extends Model> extends Node implements Observable<List<T>> {
   final Repository<T> repository;
-  final CId dst;
+  final Id dst;
   final int label;
-  final Set<CId> edges = {};
+  final Set<(Id, Id)> edges = {};
 
-  Backlinks.fromRaw(this.repository, this.dst, this.label);
+  Backlinks._(this.repository, this.dst, this.label);
 
   @override
-  Set<T> get(WeakReference<Node> ref) {
+  List<T> get(WeakReference<Node> ref) {
     register(ref);
     return peek();
   }
 
   @override
-  Set<T> peek() {
-    return edges.map<T>((elem) => repository.get(elem)!).toSet();
+  List<T> peek() {
+    return edges.map<T>((elem) => repository.get(elem.$2)!).toList();
   }
 
-  void _insert(CId id, CId src) {
-    edges.add(src);
+  void _insert(Id id, Id src) {
+    edges.add((id, src));
     notify();
   }
 
-  void _remove(CId id, CId src) {
-    edges.remove(src);
+  void _remove(Id id, Id src) {
+    edges.remove((id, src));
     notify();
   }
 }

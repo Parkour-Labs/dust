@@ -10,63 +10,70 @@ class FfiBindings {
 
   FfiBindings(DynamicLibrary library) : _lookup = library.lookup;
 
+  late final init = _lookup<NativeFunction<Void Function(Pointer<Utf8>)>>('init')
+      .asFunction<void Function(Pointer<Utf8> name)>(isLeaf: true);
   late final make_label = _lookup<NativeFunction<Uint64 Function(Pointer<Utf8>)>>('make_label')
       .asFunction<int Function(Pointer<Utf8> name)>(isLeaf: true);
   late final make_id = _lookup<NativeFunction<CId Function(Pointer<Utf8>)>>('make_id')
       .asFunction<CId Function(Pointer<Utf8> name)>(isLeaf: true);
   late final random_id = _lookup<NativeFunction<CId Function()>>('random_id').asFunction<CId Function()>(isLeaf: true);
 
-  late final get_node = _lookup<NativeFunction<COptionUint64 Function(CId)>>('get_node')
-      .asFunction<COptionUint64 Function(CId id)>(isLeaf: true);
-  late final get_atom = _lookup<NativeFunction<COptionArrayUint8 Function(CId)>>('get_atom')
-      .asFunction<COptionArrayUint8 Function(CId id)>(isLeaf: true);
-  late final get_edge = _lookup<NativeFunction<COptionEdge Function(CId)>>('get_edge')
-      .asFunction<COptionEdge Function(CId id)>(isLeaf: true);
-  late final get_edges_by_src = _lookup<NativeFunction<CArrayPairIdEdge Function(CId)>>('get_edges_by_src')
-      .asFunction<CArrayPairIdEdge Function(CId src)>(isLeaf: true);
+  late final get_node = _lookup<NativeFunction<COptionUint64 Function(Uint64, Uint64)>>('get_node')
+      .asFunction<COptionUint64 Function(int idh, int idl)>(isLeaf: true);
+  late final get_atom = _lookup<NativeFunction<COptionArrayUint8 Function(Uint64, Uint64)>>('get_atom')
+      .asFunction<COptionArrayUint8 Function(int idh, int idl)>(isLeaf: true);
+  late final get_edge = _lookup<NativeFunction<COptionEdge Function(Uint64, Uint64)>>('get_edge')
+      .asFunction<COptionEdge Function(int idh, int idl)>(isLeaf: true);
+  late final get_edges_by_src = _lookup<NativeFunction<CArrayPairIdEdge Function(Uint64, Uint64)>>('get_edges_by_src')
+      .asFunction<CArrayPairIdEdge Function(int sh, int sl)>(isLeaf: true);
   late final get_id_dst_by_src_label =
-      _lookup<NativeFunction<CArrayPairIdId Function(CId, Uint64)>>('get_id_dst_by_src_label')
-          .asFunction<CArrayPairIdId Function(CId src, int label)>(isLeaf: true);
+      _lookup<NativeFunction<CArrayPairIdId Function(Uint64, Uint64, Uint64)>>('get_id_dst_by_src_label')
+          .asFunction<CArrayPairIdId Function(int sh, int sl, int label)>(isLeaf: true);
   late final get_id_src_by_dst_label =
-      _lookup<NativeFunction<CArrayPairIdId Function(CId, Uint64)>>('get_id_src_by_dst_label')
-          .asFunction<CArrayPairIdId Function(CId dst, int label)>(isLeaf: true);
+      _lookup<NativeFunction<CArrayPairIdId Function(Uint64, Uint64, Uint64)>>('get_id_src_by_dst_label')
+          .asFunction<CArrayPairIdId Function(int dh, int dl, int label)>(isLeaf: true);
 
-  late final set_node_none =
-      _lookup<NativeFunction<Void Function(CId)>>('set_node_none').asFunction<void Function(CId id)>(isLeaf: true);
-  late final set_node_some = _lookup<NativeFunction<Void Function(CId, Uint64)>>('set_node_some')
-      .asFunction<void Function(CId id, int value)>(isLeaf: true);
-  late final set_atom_none =
-      _lookup<NativeFunction<Void Function(CId)>>('set_atom_none').asFunction<void Function(CId id)>(isLeaf: true);
-  late final set_atom_some = _lookup<NativeFunction<Void Function(CId, Uint64, Pointer<Uint8>)>>('set_atom_some')
-      .asFunction<void Function(CId id, int len, Pointer<Uint8> ptr)>(isLeaf: true);
-  late final set_edge_none =
-      _lookup<NativeFunction<Void Function(CId)>>('set_edge_none').asFunction<void Function(CId id)>(isLeaf: true);
-  late final set_edge_some = _lookup<NativeFunction<Void Function(CId, CId, Uint64, CId)>>('set_edge_some')
-      .asFunction<void Function(CId id, CId src, int label, CId dst)>(isLeaf: true);
-  late final set_edge_dst = _lookup<NativeFunction<Void Function(CId, CId)>>('set_edge_dst')
-      .asFunction<void Function(CId id, CId dst)>(isLeaf: true);
+  late final set_node_none = _lookup<NativeFunction<Void Function(Uint64, Uint64)>>('set_node_none')
+      .asFunction<void Function(int idh, int idl)>(isLeaf: true);
+  late final set_node_some = _lookup<NativeFunction<Void Function(Uint64, Uint64, Uint64)>>('set_node_some')
+      .asFunction<void Function(int idh, int idl, int value)>(isLeaf: true);
+  late final set_atom_none = _lookup<NativeFunction<Void Function(Uint64, Uint64)>>('set_atom_none')
+      .asFunction<void Function(int idh, int idl)>(isLeaf: true);
+  late final set_atom_some =
+      _lookup<NativeFunction<Void Function(Uint64, Uint64, Uint64, Pointer<Uint8>)>>('set_atom_some')
+          .asFunction<void Function(int idh, int idl, int len, Pointer<Uint8> ptr)>(isLeaf: true);
+  late final set_edge_none = _lookup<NativeFunction<Void Function(Uint64, Uint64)>>('set_edge_none')
+      .asFunction<void Function(int idh, int idl)>(isLeaf: true);
+  late final set_edge_some =
+      _lookup<NativeFunction<Void Function(Uint64, Uint64, Uint64, Uint64, Uint64, Uint64, Uint64)>>('set_edge_some')
+          .asFunction<void Function(int idh, int idl, int sh, int sl, int label, int dh, int dl)>(isLeaf: true);
+  late final set_edge_dst = _lookup<NativeFunction<Void Function(Uint64, Uint64, Uint64, Uint64)>>('set_edge_dst')
+      .asFunction<void Function(int idh, int idl, int dh, int dl)>(isLeaf: true);
 
-  late final subscribe_node = _lookup<NativeFunction<Void Function(CId, Uint64)>>('subscribe_node')
-      .asFunction<void Function(CId id, int port)>(isLeaf: true);
-  late final unsubscribe_node = _lookup<NativeFunction<Void Function(CId, Uint64)>>('unsubscribe_node')
-      .asFunction<void Function(CId id, int port)>(isLeaf: true);
-  late final subscribe_atom = _lookup<NativeFunction<Void Function(CId, Uint64)>>('subscribe_atom')
-      .asFunction<void Function(CId id, int port)>(isLeaf: true);
-  late final unsubscribe_atom = _lookup<NativeFunction<Void Function(CId, Uint64)>>('unsubscribe_atom')
-      .asFunction<void Function(CId id, int port)>(isLeaf: true);
-  late final subscribe_edge = _lookup<NativeFunction<Void Function(CId, Uint64)>>('subscribe_edge')
-      .asFunction<void Function(CId id, int port)>(isLeaf: true);
-  late final unsubscribe_edge = _lookup<NativeFunction<Void Function(CId, Uint64)>>('unsubscribe_edge')
-      .asFunction<void Function(CId id, int port)>(isLeaf: true);
-  late final subscribe_multiedge = _lookup<NativeFunction<Void Function(CId, Uint64, Uint64)>>('subscribe_multiedge')
-      .asFunction<void Function(CId src, int label, int port)>(isLeaf: true);
+  late final subscribe_node = _lookup<NativeFunction<Void Function(Uint64, Uint64, Uint64)>>('subscribe_node')
+      .asFunction<void Function(int idh, int idl, int port)>(isLeaf: true);
+  late final unsubscribe_node = _lookup<NativeFunction<Void Function(Uint64, Uint64, Uint64)>>('unsubscribe_node')
+      .asFunction<void Function(int idh, int idl, int port)>(isLeaf: true);
+  late final subscribe_atom = _lookup<NativeFunction<Void Function(Uint64, Uint64, Uint64)>>('subscribe_atom')
+      .asFunction<void Function(int idh, int idl, int port)>(isLeaf: true);
+  late final unsubscribe_atom = _lookup<NativeFunction<Void Function(Uint64, Uint64, Uint64)>>('unsubscribe_atom')
+      .asFunction<void Function(int idh, int idl, int port)>(isLeaf: true);
+  late final subscribe_edge = _lookup<NativeFunction<Void Function(Uint64, Uint64, Uint64)>>('subscribe_edge')
+      .asFunction<void Function(int idh, int idl, int port)>(isLeaf: true);
+  late final unsubscribe_edge = _lookup<NativeFunction<Void Function(Uint64, Uint64, Uint64)>>('unsubscribe_edge')
+      .asFunction<void Function(int idh, int idl, int port)>(isLeaf: true);
+  late final subscribe_multiedge =
+      _lookup<NativeFunction<Void Function(Uint64, Uint64, Uint64, Uint64)>>('subscribe_multiedge')
+          .asFunction<void Function(int sh, int sl, int label, int port)>(isLeaf: true);
   late final unsubscribe_multiedge =
-      _lookup<NativeFunction<Void Function(CId, Uint64, Uint64)>>('unsubscribe_multiedge')
-          .asFunction<void Function(CId src, int label, int port)>(isLeaf: true);
-  late final subscribe_backedge = _lookup<NativeFunction<Void Function(CId, Uint64, Uint64)>>('subscribe_backedge')
-      .asFunction<void Function(CId dst, int label, int port)>(isLeaf: true);
-  late final unsubscribe_backedge = _lookup<NativeFunction<Void Function(CId, Uint64, Uint64)>>('unsubscribe_backedge')
-      .asFunction<void Function(CId dst, int label, int port)>(isLeaf: true);
+      _lookup<NativeFunction<Void Function(Uint64, Uint64, Uint64, Uint64)>>('unsubscribe_multiedge')
+          .asFunction<void Function(int sh, int sl, int label, int port)>(isLeaf: true);
+  late final subscribe_backedge =
+      _lookup<NativeFunction<Void Function(Uint64, Uint64, Uint64, Uint64)>>('subscribe_backedge')
+          .asFunction<void Function(int dh, int dl, int label, int port)>(isLeaf: true);
+  late final unsubscribe_backedge =
+      _lookup<NativeFunction<Void Function(Uint64, Uint64, Uint64, Uint64)>>('unsubscribe_backedge')
+          .asFunction<void Function(int dh, int dl, int label, int port)>(isLeaf: true);
 
   late final sync_version =
       _lookup<NativeFunction<CArrayUint8 Function()>>('sync_version').asFunction<CArrayUint8 Function()>(isLeaf: true);
@@ -98,14 +105,8 @@ class FfiTestBindings {
   late final test_id = _lookup<NativeFunction<CId Function()>>('test_id').asFunction<CId Function()>(isLeaf: true);
   late final test_id_unsigned =
       _lookup<NativeFunction<CId Function()>>('test_id_unsigned').asFunction<CId Function()>(isLeaf: true);
-  late final test_id_input =
-      _lookup<NativeFunction<Bool Function(CId)>>('test_id_input').asFunction<bool Function(CId)>(isLeaf: true);
-  late final test_id_input_unsigned = _lookup<NativeFunction<Bool Function(CId)>>('test_id_input_unsigned')
-      .asFunction<bool Function(CId)>(isLeaf: true);
   late final test_edge =
       _lookup<NativeFunction<CEdge Function()>>('test_edge').asFunction<CEdge Function()>(isLeaf: true);
-  late final test_edge_input =
-      _lookup<NativeFunction<Bool Function(CEdge)>>('test_edge_input').asFunction<bool Function(CEdge)>(isLeaf: true);
 
   late final test_array_u8 =
       _lookup<NativeFunction<CArrayUint8 Function()>>('test_array_u8').asFunction<CArrayUint8 Function()>(isLeaf: true);

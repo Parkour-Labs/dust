@@ -2,10 +2,10 @@ part of 'store.dart';
 
 class LinkOption<T extends Model> extends Node implements Observable<T?> {
   final Repository<T> repository;
-  final CId id;
-  CId? dst;
+  final Id id;
+  Id? dst;
 
-  LinkOption.fromRaw(this.repository, this.id);
+  LinkOption._(this.repository, this.id);
 
   @override
   T? get(WeakReference<Node> ref) {
@@ -18,22 +18,22 @@ class LinkOption<T extends Model> extends Node implements Observable<T?> {
     return repository.get(dst);
   }
 
-  void _update((CId, int, CId)? data) {
+  void _update((Id, int, Id)? data) {
     dst = data?.$3;
     notify();
   }
 
   void set(T? value) {
-    Store.instance.setEdgeDst(id, value?.id());
+    Store.instance.setEdgeDst(id, value?.id);
   }
 }
 
 class Link<T extends Model> extends Node implements Observable<T> {
   final Repository<T> repository;
-  final CId id;
-  late CId dst;
+  final Id id;
+  Id? dst;
 
-  Link.fromRaw(this.repository, this.id);
+  Link._(this.repository, this.id);
 
   @override
   T get(WeakReference<Node> ref) {
@@ -46,12 +46,12 @@ class Link<T extends Model> extends Node implements Observable<T> {
     return repository.get(dst)!;
   }
 
-  void _update((CId, int, CId)? data) {
-    dst = data!.$3;
+  void _update((Id, int, Id)? data) {
+    dst = data?.$3;
     notify();
   }
 
-  void set(T value) {
-    Store.instance.setEdgeDst(id, value.id());
+  void set(T? value) {
+    Store.instance.setEdgeDst(id, value?.id);
   }
 }
