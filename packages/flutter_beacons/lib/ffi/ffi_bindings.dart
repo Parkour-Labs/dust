@@ -1,6 +1,7 @@
 // ignore_for_file: non_constant_identifier_names
 
 import 'dart:ffi';
+import 'package:ffi/ffi.dart';
 
 import 'structs.dart';
 
@@ -12,7 +13,7 @@ class FfiBindings {
   FfiBindings(DynamicLibrary library) : _lookup = library.lookup;
 
   late final hash =
-      _lookup<NativeFunction<Uint64 Function(Pointer<Int8>)>>('hash').asFunction<int Function(Pointer<Int8> name)>();
+      _lookup<NativeFunction<Uint64 Function(Pointer<Utf8>)>>('hash').asFunction<int Function(Pointer<Utf8> name)>();
   late final get_node =
       _lookup<NativeFunction<COptionUint64 Function(CId)>>('get_node').asFunction<COptionUint64 Function(CId id)>();
   late final get_atom = _lookup<NativeFunction<COptionArrayUint8 Function(CId)>>('get_atom')
@@ -80,12 +81,41 @@ class FfiBindings {
       _lookup<NativeFunction<Void Function(CArrayPairUint64EventData)>>('drop_array_u64_event_data')
           .asFunction<void Function(CArrayPairUint64EventData value)>();
 
-  /// The global FFI bindings.
-  // static late final FfiBindings _bindings;
+  late final test_id = _lookup<NativeFunction<CId Function()>>('test_id').asFunction<CId Function()>();
+  late final test_id_unsigned =
+      _lookup<NativeFunction<CId Function()>>('test_id_unsigned').asFunction<CId Function()>();
+  late final test_id_input =
+      _lookup<NativeFunction<Bool Function(CId)>>('test_id_input').asFunction<bool Function(CId)>();
+  late final test_id_input_unsigned =
+      _lookup<NativeFunction<Bool Function(CId)>>('test_id_input_unsigned').asFunction<bool Function(CId)>();
+  late final test_edge = _lookup<NativeFunction<CEdge Function()>>('test_edge').asFunction<CEdge Function()>();
+  late final test_edge_input =
+      _lookup<NativeFunction<Bool Function(CEdge)>>('test_edge_input').asFunction<bool Function(CEdge)>();
 
-  /// Initialises the global FFI bindings.
-  // static void initialize(DynamicLibrary library) => _bindings = FfiBindings._(library);
+  late final test_array_u8 =
+      _lookup<NativeFunction<CArrayUint8 Function()>>('test_array_u8').asFunction<CArrayUint8 Function()>();
+  late final test_array_pair_id_id = _lookup<NativeFunction<CArrayPairIdId Function()>>('test_array_pair_id_id')
+      .asFunction<CArrayPairIdId Function()>();
+  late final test_array_pair_id_edge = _lookup<NativeFunction<CArrayPairIdEdge Function()>>('test_array_pair_id_edge')
+      .asFunction<CArrayPairIdEdge Function()>();
 
-  /// Obtains the global FFI bindings. Must be called after [FfiBindings.initialize].
-  // static FfiBindings instance() => _bindings;
+  late final test_option_u64_none =
+      _lookup<NativeFunction<COptionUint64 Function()>>('test_option_u64_none').asFunction<COptionUint64 Function()>();
+  late final test_option_u64_some =
+      _lookup<NativeFunction<COptionUint64 Function()>>('test_option_u64_some').asFunction<COptionUint64 Function()>();
+  late final test_option_array_u8_some =
+      _lookup<NativeFunction<COptionArrayUint8 Function()>>('test_option_array_u8_some')
+          .asFunction<COptionArrayUint8 Function()>();
+  late final test_option_edge_some =
+      _lookup<NativeFunction<COptionEdge Function()>>('test_option_edge_some').asFunction<COptionEdge Function()>();
+
+  late final test_array_pair_u64_event_data =
+      _lookup<NativeFunction<CArrayPairUint64EventData Function()>>('test_array_pair_u64_event_data')
+          .asFunction<CArrayPairUint64EventData Function()>();
+
+  late final test_array_u8_big = _lookup<NativeFunction<CArrayUint8 Function(Uint64)>>('test_array_u8_big')
+      .asFunction<CArrayUint8 Function(int size)>();
+  late final test_array_pair_u64_event_data_big =
+      _lookup<NativeFunction<CArrayPairUint64EventData Function(Uint64, Uint64)>>('test_array_pair_u64_event_data_big')
+          .asFunction<CArrayPairUint64EventData Function(int entries, int size)>();
 }

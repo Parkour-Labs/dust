@@ -1,9 +1,6 @@
 //! YATA sequence sets.
 
-use std::collections::{HashMap, HashSet};
-
-use super::metadata::VersionStore;
-use crate::crdt::metadata::{Version, VersionClock};
+use crate::crdt::metadata::VersionClock;
 
 impl VersionClock for u64 {
   type SqlType = [u8; 8];
@@ -17,6 +14,7 @@ impl VersionClock for u64 {
   }
 }
 
+/*
 /// A base class for YATA sequence sets.
 #[derive(Debug, Clone)]
 pub struct ListSet<T: Ord + Clone> {
@@ -40,3 +38,4 @@ pub trait ListSetStore<T: Ord + Clone>: VersionStore<u64> {
   fn set_data(&mut self, name: &str, bucket: u64, serial: u64, value: &Item<T>);
   fn query_data(&mut self, name: &str, bucket: u64, lower: u64) -> Vec<((u64, u64), Item<T>)>; // Inclusive.
 }
+*/

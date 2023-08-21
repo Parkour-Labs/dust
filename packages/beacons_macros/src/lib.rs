@@ -16,9 +16,9 @@ const EXTRA_ID_FIELD_MSG: &str =
 const UNSUPPORTED_FIELD_TYPE_MSG: &str = "Field type must be wrapped inside either one of: `Atom`, `AtomOption`, `Link`, `LinkOption`, `Multilinks` or `Backlinks`.";
 const BACKLINK_ANNOT_NOT_FOUND_MSG: &str = "Backlinks must be annotated with `#[backlink(field_name)]`.";
 const UNSUPPORTED_TUPLE_STRUCTS: &str = "Tuple structs cannot be used.";
-const UNSUPPORTED_TUPLE_VARIANTS: &str = "Tuple variants cannot be used.";
+// const UNSUPPORTED_TUPLE_VARIANTS: &str = "Tuple variants cannot be used.";
 const UNSUPPORTED_GENERIC_STRUCTS: &str = "Generic structs are not supported.";
-const UNSUPPORTED_GENERIC_ENUMS: &str = "Generic enums are not supported.";
+// const UNSUPPORTED_GENERIC_ENUMS: &str = "Generic enums are not supported.";
 
 /// All supported field types.
 enum FieldType<'a> {
@@ -44,12 +44,14 @@ struct Struct<'a> {
   fields: Vec<Field<'a>>,
 }
 
+/*
 /// An enum to be mapped.
 struct Enum<'a> {
   name: &'a syn::Ident,
   vis: &'a syn::Visibility,
   variants: Vec<(String, Vec<Field<'a>>)>, // Vec<(name, fields)>
 }
+*/
 
 /// Hashes the string `s` to a value of desired.
 fn fnv64_hash(s: impl AsRef<str>) -> u64 {
@@ -156,6 +158,7 @@ fn convert_struct(item_struct: &syn::ItemStruct) -> Struct<'_> {
   Struct { name, vis, fields }
 }
 
+/*
 /// Converts [`syn::ItemEnum`] to [`Enum`].
 fn convert_enum(item_enum: &syn::ItemEnum) -> Enum<'_> {
   let name = &item_enum.ident;
@@ -177,6 +180,7 @@ fn convert_enum(item_enum: &syn::ItemEnum) -> Enum<'_> {
   }
   Enum { name, vis, variants: variants.collect() }
 }
+*/
 
 /// Rewrites a struct with an added `id` field.
 fn create_struct_def(s: &Struct) -> TokenStream {
