@@ -5,9 +5,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_beacons/serializer/serializer.dart';
 import 'package:flutter_beacons/store/store.dart';
+import 'package:flutter_beacons_generator/annotations.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'ffi.dart';
+
+part 'main.g.dart';
 
 const int kIntMin = -9223372036854775808;
 
@@ -138,8 +141,8 @@ void testObjectStore() async {
   assert(edges.single.$2 == (id0, 23333, id1));
 }
 
-class Trivial implements Model {
-  @override
+@Model()
+class Trivial {
   final Id id;
 
   Trivial._(this.id);
@@ -166,6 +169,9 @@ class TrivialRepository implements Repository<Trivial> {
   }
 
   @override
+  Id id(Trivial object) => object.id;
+
+  @override
   Trivial? get(Id? id) {
     if (id == null) return null;
     final store = Store.instance;
@@ -182,8 +188,8 @@ class TrivialRepository implements Repository<Trivial> {
   }
 }
 
-class Something implements Model {
-  @override
+@Model()
+class Something {
   final Id id;
   final Atom<String> atomOne;
   final AtomOption<String> atomTwo;
@@ -256,6 +262,9 @@ class SomethingRepository implements Repository<Something> {
     // Return.
     return get(id)!;
   }
+
+  @override
+  Id id(Something object) => object.id;
 
   @override
   Something? get(Id? id) {

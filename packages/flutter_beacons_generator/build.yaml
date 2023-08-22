@@ -1,0 +1,20 @@
+# See: https://github.com/dart-lang/source_gen/blob/master/example/build.yaml
+# See: https://pub.dev/packages/build_config
+builders:
+  # Name of the builder.
+  model_repository:
+    # Library URI containing the builder.
+    import: "package:flutter_beacons_generator/builders.dart"
+    # Name of the function in the above library to call.
+    builder_factories: ["modelRepositoryBuilder"]
+    # The mapping from the source extension to the generated file extension.
+    # Format: `NAME.g.part` where
+    # - `NAME` corresponds to the second argument to the `SharedPartBuilder` constructor.
+    # - `.g.part` is the extension expected by `SharedPartBuilder`.
+    build_extensions: {".dart": ["model_repository.g.part"]}
+    # Will automatically run on any package that depends on it.
+    auto_apply: dependents
+    # First generate the output to a hidden cache dir.
+    build_to: cache
+    # Then use the `combining_builder` from `source_gen` to combine the parts from each builder into one part file.
+    applies_builders: ["source_gen|combining_builder"]

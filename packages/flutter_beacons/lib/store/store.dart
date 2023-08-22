@@ -367,21 +367,21 @@ class Store {
     return res;
   }
 
-  Link<T> getLink<T extends Model>(Repository<T> repository, Id id) {
+  Link<T> getLink<T extends Object>(Repository<T> repository, Id id) {
     final res = Link<T>._(repository, id);
     final weak = WeakReference(res);
     subscribeEdge(id, newPort(), (data) => weak.target?._update(data), res);
     return res;
   }
 
-  LinkOption<T> getLinkOption<T extends Model>(Repository<T> repository, Id id) {
+  LinkOption<T> getLinkOption<T extends Object>(Repository<T> repository, Id id) {
     final res = LinkOption<T>._(repository, id);
     final weak = WeakReference(res);
     subscribeEdge(id, newPort(), (data) => weak.target?._update(data), res);
     return res;
   }
 
-  Multilinks<T> getMultilinks<T extends Model>(Repository<T> repository, Id src, int label) {
+  Multilinks<T> getMultilinks<T extends Object>(Repository<T> repository, Id src, int label) {
     final res = Multilinks<T>._(repository, src, label);
     final weak = WeakReference(res);
     subscribeMultiedge(
@@ -395,7 +395,7 @@ class Store {
     return res;
   }
 
-  Backlinks<T> getBacklinks<T extends Model>(Repository<T> repository, Id dst, int label) {
+  Backlinks<T> getBacklinks<T extends Object>(Repository<T> repository, Id dst, int label) {
     final res = Backlinks<T>._(repository, dst, label);
     final weak = WeakReference(res);
     subscribeBackedge(

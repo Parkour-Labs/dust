@@ -1,6 +1,6 @@
 part of 'store.dart';
 
-class LinkOption<T extends Model> extends Node implements Observable<T?> {
+class LinkOption<T extends Object> extends Node implements Observable<T?> {
   final Repository<T> repository;
   final Id id;
   Id? dst;
@@ -24,11 +24,11 @@ class LinkOption<T extends Model> extends Node implements Observable<T?> {
   }
 
   void set(T? value) {
-    Store.instance.setEdgeDst(id, value?.id);
+    Store.instance.setEdgeDst(id, value == null ? null : repository.id(value));
   }
 }
 
-class Link<T extends Model> extends Node implements Observable<T> {
+class Link<T extends Object> extends Node implements Observable<T> {
   final Repository<T> repository;
   final Id id;
   Id? dst;
@@ -51,7 +51,7 @@ class Link<T extends Model> extends Node implements Observable<T> {
     notify();
   }
 
-  void set(T? value) {
-    Store.instance.setEdgeDst(id, value?.id);
+  void set(T value) {
+    Store.instance.setEdgeDst(id, repository.id(value));
   }
 }

@@ -1,6 +1,6 @@
 part of 'store.dart';
 
-class Backlinks<T extends Model> extends Node implements Observable<List<T>> {
+class Backlinks<T extends Object> extends Node implements Observable<List<T>> {
   final Repository<T> repository;
   final Id dst;
   final int label;

@@ -1,6 +1,6 @@
 part of 'store.dart';
 
-class Multilinks<T extends Model> extends Node implements Observable<List<T>> {
+class Multilinks<T extends Object> extends Node implements Observable<List<T>> {
   final Repository<T> repository;
   final Id src;
   final int label;
@@ -30,12 +30,12 @@ class Multilinks<T extends Model> extends Node implements Observable<List<T>> {
   }
 
   void insert(T value) {
-    Store.instance.setEdge(Store.instance.randomId(), (src, label, value.id));
+    Store.instance.setEdge(Store.instance.randomId(), (src, label, repository.id(value)));
   }
 
   void remove(T value) {
     for (final (id, dst) in edges) {
-      if (dst == value.id) {
+      if (dst == repository.id(value)) {
         Store.instance.setEdge(id, null);
         break;
       }
