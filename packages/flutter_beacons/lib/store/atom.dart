@@ -1,6 +1,6 @@
 part of 'store.dart';
 
-class AtomOption<T extends Object> extends Node implements Observable<T?> {
+class AtomOption<T> extends Node implements Observable<T?> {
   final Serializer<T> serializer;
   final Id id;
   T? value;
@@ -28,7 +28,7 @@ class AtomOption<T extends Object> extends Node implements Observable<T?> {
   }
 }
 
-class Atom<T extends Object> extends Node implements Observable<T> {
+class Atom<T> extends Node implements Observable<T> {
   final Serializer<T> serializer;
   final Id id;
   T? value;

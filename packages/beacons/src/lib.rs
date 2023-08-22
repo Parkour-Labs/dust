@@ -60,6 +60,8 @@ mod tests {
     assert_eq!(serialize(&-2i64).unwrap(), [255, 255, 255, 255, 255, 255, 255, 254]);
     assert_eq!(deserialize::<u64>(&[0, 0, 0, 0, 0, 0, 0, 1]).unwrap(), 1u64);
     assert_eq!(deserialize::<i64>(&[255, 255, 255, 255, 255, 255, 255, 254]).unwrap(), -2i64);
+    assert_eq!(serialize(&None::<i64>).unwrap(), [0]);
+    assert_eq!(serialize(&Some(-1i64)).unwrap(), [1, 255, 255, 255, 255, 255, 255, 255, 255]);
   }
 
   #[test]

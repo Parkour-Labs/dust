@@ -147,7 +147,7 @@ class Store {
     _pollEvents();
   }
 
-  void setAtom<T extends Object>(Serializer<T> serializer, Id id, T? value) {
+  void setAtom<T>(Serializer<T> serializer, Id id, T? value) {
     if (value == null) {
       bindings.set_atom_none(id.high, id.low);
     } else {
@@ -351,14 +351,14 @@ class Store {
     bindings.drop_array_u64_event_data(data);
   }
 
-  Atom<T> getAtom<T extends Object>(Serializer<T> serializer, Id id) {
+  Atom<T> getAtom<T>(Serializer<T> serializer, Id id) {
     final res = Atom<T>._(serializer, id);
     final weak = WeakReference(res);
     subscribeAtom(id, newPort(), serializer, (data) => weak.target?._update(data as T?), res);
     return res;
   }
 
-  AtomOption<T> getAtomOption<T extends Object>(Serializer<T> serializer, Id id) {
+  AtomOption<T> getAtomOption<T>(Serializer<T> serializer, Id id) {
     final res = AtomOption<T>._(serializer, id);
     final weak = WeakReference(res);
     subscribeAtom(id, newPort(), serializer, (data) => weak.target?._update(data as T?), res);

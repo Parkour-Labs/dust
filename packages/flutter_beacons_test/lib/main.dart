@@ -196,6 +196,16 @@ class Something implements Model {
 
   Something._(this.id, this.atomOne, this.atomTwo, this.linkOne, this.linkTwo, this.linkThree, this.backlink);
 
+  /*
+  Serializers for more complex types can be generated, e.g:
+  ```
+  static const Serializer<Map<String, List<int>?>> serializer =
+      MapSerializer(StringSerializer(), OptionSerializer(ListSerializer(IntSerializer())));
+  ```
+  */
+  static const Serializer<String> kAtomOneSerializer = StringSerializer();
+  static const Serializer<String> kAtomTwoSerializer = StringSerializer();
+
   static const int kLabel = 1 /* Calculated from fnv64Hash("Something") */;
   static const int kAtomOneLabel = 2 /* Calculated from fnv64Hash("Something.atomOne") */;
   static const int kAtomTwoLabel = 3 /* Calculated from fnv64Hash("Something.atomTwo") */;
@@ -220,7 +230,7 @@ class SomethingRepository implements Repository<Something> {
     // Create `Something.atomOne`.
     final atomOneId = store.randomId();
     store.setEdge(store.randomId(), (id, Something.kAtomOneLabel, atomOneId));
-    store.setAtom(kStringSerializer, atomOneId, atomOne);
+    store.setAtom(Something.kAtomOneSerializer, atomOneId, atomOne);
 
     // Create `Something.atomTwo`.
     if (atomTwo == null) {
@@ -228,7 +238,7 @@ class SomethingRepository implements Repository<Something> {
     } else {
       final atomTwoId = store.randomId();
       store.setEdge(store.randomId(), (id, Something.kAtomTwoLabel, atomTwoId));
-      store.setAtom(kStringSerializer, atomTwoId, atomTwo);
+      store.setAtom(Something.kAtomTwoSerializer, atomTwoId, atomTwo);
     }
 
     // Create `Something.linkOne`.
@@ -261,9 +271,9 @@ class SomethingRepository implements Repository<Something> {
     for (final (edge, (_, label, dst)) in store.getEdgesBySrc(id)) {
       switch (label) {
         case Something.kAtomOneLabel:
-          atomOne = store.getAtom(kStringSerializer, dst);
+          atomOne = store.getAtom(Something.kAtomOneSerializer, dst);
         case Something.kAtomTwoLabel:
-          atomTwo = store.getAtomOption(kStringSerializer, dst);
+          atomTwo = store.getAtomOption(Something.kAtomTwoSerializer, dst);
         case Something.kLinkOneLabel:
           linkOne = store.getLink(TrivialRepository.instance, edge);
         case Something.kLinkTwoLabel:
