@@ -5,7 +5,7 @@ export 'bool.dart';
 export 'int.dart';
 export 'uint.dart';
 export 'float.dart';
-export 'bytes.dart';
+export 'uint8list.dart';
 export 'string.dart';
 export 'option.dart';
 export 'list.dart';

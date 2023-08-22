@@ -7,6 +7,8 @@ import '../ffi/ffi_structs.dart';
 import '../serializer/serializer.dart';
 import '../reactive/reactive.dart';
 
+export 'hash.dart';
+
 part 'id.dart';
 part 'repository.dart';
 part 'atom.dart';

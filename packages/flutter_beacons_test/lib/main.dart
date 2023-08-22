@@ -144,25 +144,25 @@ class Trivial implements Model {
 
   Trivial._(this.id);
 
-  static const int kLabel = 0 /* Calculated from fnv64Hash("Trivial") */;
-
-  factory Trivial.create() => TrivialRepository.create();
+  factory Trivial.create() => const TrivialRepository().create();
 }
 
 class TrivialRepository implements Repository<Trivial> {
-  const TrivialRepository._();
+  const TrivialRepository();
 
-  static Trivial create() {
+  static const int kLabel = 0 /* Calculated from fnv64Hash("Trivial") */;
+
+  Trivial create() {
     final store = Store.instance;
     final id = store.randomId();
 
     // Create `Trivial`.
-    store.setNode(id, Trivial.kLabel);
+    store.setNode(id, kLabel);
 
     /* (No code generated here) */
 
     // Return.
-    return TrivialRepository.instance.get(id)!;
+    return get(id)!;
   }
 
   @override
@@ -180,8 +180,6 @@ class TrivialRepository implements Repository<Trivial> {
     // Pack together. Fail if a field is not found.
     return Trivial._(id /* (No code generated here) */);
   }
-
-  static const instance = TrivialRepository._();
 }
 
 class Something implements Model {
@@ -196,6 +194,20 @@ class Something implements Model {
 
   Something._(this.id, this.atomOne, this.atomTwo, this.linkOne, this.linkTwo, this.linkThree, this.backlink);
 
+  factory Something.create(String atomOne, String? atomTwo, Trivial linkOne, Trivial? linkTwo) =>
+      const SomethingRepository().create(atomOne, atomTwo, linkOne, linkTwo);
+}
+
+class SomethingRepository implements Repository<Something> {
+  const SomethingRepository();
+
+  static const int kLabel = 1 /* Calculated from fnv64Hash("Something") */;
+  static const int kAtomOneLabel = 2 /* Calculated from fnv64Hash("Something.atomOne") */;
+  static const int kAtomTwoLabel = 3 /* Calculated from fnv64Hash("Something.atomTwo") */;
+  static const int kLinkOneLabel = 4 /* Calculated from fnv64Hash("Something.linkOne") */;
+  static const int kLinkTwoLabel = 5 /* Calculated from fnv64Hash("Something.linkTwo") */;
+  static const int kLinkThreeLabel = 6 /* Calculated from fnv64Hash("Something.linkThree") */;
+
   /*
   Serializers for more complex types can be generated, e.g:
   ```
@@ -205,54 +217,44 @@ class Something implements Model {
   */
   static const Serializer<String> kAtomOneSerializer = StringSerializer();
   static const Serializer<String> kAtomTwoSerializer = StringSerializer();
-
-  static const int kLabel = 1 /* Calculated from fnv64Hash("Something") */;
-  static const int kAtomOneLabel = 2 /* Calculated from fnv64Hash("Something.atomOne") */;
-  static const int kAtomTwoLabel = 3 /* Calculated from fnv64Hash("Something.atomTwo") */;
-  static const int kLinkOneLabel = 4 /* Calculated from fnv64Hash("Something.linkOne") */;
-  static const int kLinkTwoLabel = 5 /* Calculated from fnv64Hash("Something.linkTwo") */;
-  static const int kLinkThreeLabel = 6 /* Calculated from fnv64Hash("Something.linkThree") */;
-
-  factory Something.create(String atomOne, String? atomTwo, Trivial linkOne, Trivial? linkTwo) =>
-      SomethingRepository.instance.create(atomOne, atomTwo, linkOne, linkTwo);
-}
-
-class SomethingRepository implements Repository<Something> {
-  const SomethingRepository._();
+  static const Repository<Trivial> kLinkOneRepository = TrivialRepository();
+  static const Repository<Trivial> kLinkTwoRepository = TrivialRepository();
+  static const Repository<Something> kLinkThreeRepository = SomethingRepository();
+  static const Repository<Something> kBacklinkRepository = SomethingRepository();
 
   Something create(String atomOne, String? atomTwo, Trivial linkOne, Trivial? linkTwo) {
     final store = Store.instance;
     final id = store.randomId();
 
     // Create `Something`.
-    store.setNode(id, Something.kLabel);
+    store.setNode(id, kLabel);
 
     // Create `Something.atomOne`.
     final atomOneId = store.randomId();
-    store.setEdge(store.randomId(), (id, Something.kAtomOneLabel, atomOneId));
-    store.setAtom(Something.kAtomOneSerializer, atomOneId, atomOne);
+    store.setEdge(store.randomId(), (id, kAtomOneLabel, atomOneId));
+    store.setAtom(kAtomOneSerializer, atomOneId, atomOne);
 
     // Create `Something.atomTwo`.
     if (atomTwo == null) {
-      store.setEdge(store.randomId(), (id, Something.kAtomTwoLabel, store.randomId()));
+      store.setEdge(store.randomId(), (id, kAtomTwoLabel, store.randomId()));
     } else {
       final atomTwoId = store.randomId();
-      store.setEdge(store.randomId(), (id, Something.kAtomTwoLabel, atomTwoId));
-      store.setAtom(Something.kAtomTwoSerializer, atomTwoId, atomTwo);
+      store.setEdge(store.randomId(), (id, kAtomTwoLabel, atomTwoId));
+      store.setAtom(kAtomTwoSerializer, atomTwoId, atomTwo);
     }
 
     // Create `Something.linkOne`.
-    store.setEdge(store.randomId(), (id, Something.kLinkOneLabel, linkOne.id));
+    store.setEdge(store.randomId(), (id, kLinkOneLabel, linkOne.id));
 
     // Create `Something.linkTwo`.
     if (linkTwo == null) {
-      store.setEdge(store.randomId(), (id, Something.kLinkTwoLabel, store.randomId()));
+      store.setEdge(store.randomId(), (id, kLinkTwoLabel, store.randomId()));
     } else {
-      store.setEdge(store.randomId(), (id, Something.kLinkTwoLabel, linkTwo.id));
+      store.setEdge(store.randomId(), (id, kLinkTwoLabel, linkTwo.id));
     }
 
     // Return.
-    return SomethingRepository.instance.get(id)!;
+    return get(id)!;
   }
 
   @override
@@ -270,14 +272,14 @@ class SomethingRepository implements Repository<Something> {
     if (store.getNode(id) == null) return null;
     for (final (edge, (_, label, dst)) in store.getEdgesBySrc(id)) {
       switch (label) {
-        case Something.kAtomOneLabel:
-          atomOne = store.getAtom(Something.kAtomOneSerializer, dst);
-        case Something.kAtomTwoLabel:
-          atomTwo = store.getAtomOption(Something.kAtomTwoSerializer, dst);
-        case Something.kLinkOneLabel:
-          linkOne = store.getLink(TrivialRepository.instance, edge);
-        case Something.kLinkTwoLabel:
-          linkTwo = store.getLinkOption(TrivialRepository.instance, edge);
+        case kAtomOneLabel:
+          atomOne = store.getAtom(kAtomOneSerializer, dst);
+        case kAtomTwoLabel:
+          atomTwo = store.getAtomOption(kAtomTwoSerializer, dst);
+        case kLinkOneLabel:
+          linkOne = store.getLink(kLinkOneRepository, edge);
+        case kLinkTwoLabel:
+          linkTwo = store.getLinkOption(kLinkTwoRepository, edge);
       }
     }
 
@@ -288,12 +290,10 @@ class SomethingRepository implements Repository<Something> {
       atomTwo!,
       linkOne!,
       linkTwo!,
-      store.getMultilinks(SomethingRepository.instance, id, Something.kLinkThreeLabel),
-      store.getBacklinks(SomethingRepository.instance, id, Something.kLinkThreeLabel),
+      store.getMultilinks(kLinkThreeRepository, id, kLinkThreeLabel),
+      store.getBacklinks(kBacklinkRepository, id, kLinkThreeLabel),
     );
   }
-
-  static const instance = SomethingRepository._();
 }
 
 void testObjectStoreWrapper() async {
@@ -304,8 +304,8 @@ void testObjectStoreWrapper() async {
   final somethingElse = Something.create("test", null, trivial, null);
   somethingElse.linkThree.insert(something);
 
-  final somethingCopy = SomethingRepository.instance.get(something.id)!;
-  final somethingElseCopy = SomethingRepository.instance.get(somethingElse.id)!;
+  final somethingCopy = const SomethingRepository().get(something.id)!;
+  final somethingElseCopy = const SomethingRepository().get(somethingElse.id)!;
 
   assert(somethingCopy.atomOne.peek() == "test");
   assert(somethingCopy.atomTwo.peek()! == "2333");
@@ -402,6 +402,7 @@ class MyApp extends StatelessWidget {
                 ? Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: <Widget>[
+                      Text('${fnv64Hash("hello")}'),
                       Text('${testHash("hello")}'),
                       Text('${testList()}'),
                       const Text('All tests passed!'),
