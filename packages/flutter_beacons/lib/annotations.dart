@@ -1,4 +1,4 @@
-import 'package:flutter_beacons/flutter_beacons.dart';
+import 'serializer.dart';
 
 class Model {
   const Model();

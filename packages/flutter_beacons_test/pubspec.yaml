@@ -15,11 +15,11 @@ dependencies:
     sdk: flutter
   flutter_beacons:
     path: ../flutter_beacons
-  flutter_beacons_generator:
-    path: ../flutter_beacons_generator
   path_provider: ^2.1.0
 
 dev_dependencies:
+  flutter_beacons_generator:
+    path: ../flutter_beacons_generator
   flutter_lints: ^2.0.0
   flutter_test:
     sdk: flutter

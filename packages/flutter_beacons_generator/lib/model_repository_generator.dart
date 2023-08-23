@@ -2,11 +2,32 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:build/build.dart';
+import 'package:source_gen/source_gen.dart';
+import 'package:flutter_beacons/annotations.dart';
 import 'package:flutter_beacons_generator/serializable_generator.dart';
 import 'package:flutter_beacons_generator/utils.dart';
-import 'package:source_gen/source_gen.dart';
 
-import 'annotations.dart';
+/// Suppressed lints.
+const kIgnoreForFile = [
+  'duplicate_ignore',
+  'unused_local_variable',
+  'non_constant_identifier_names',
+  'constant_identifier_names',
+  'invalid_use_of_protected_member',
+  'unnecessary_cast',
+  'prefer_const_constructors',
+  'lines_longer_than_80_chars',
+  'require_trailing_commas',
+  'inference_failure_on_function_invocation',
+  'unnecessary_parenthesis',
+  'unnecessary_raw_strings',
+  'unnecessary_null_checks',
+  'join_return_with_assignment',
+  'prefer_final_locals',
+  'avoid_js_rounded_ints',
+  'avoid_positional_boolean_parameters',
+  'always_specify_types',
+];
 
 /// All supported field types.
 sealed class FieldType {}
@@ -60,12 +81,12 @@ final class Struct {
 
 /// Resolves any type aliases and ensures that [type] is a non-nullable object type.
 InterfaceType resolve(DartType type, FieldElement elem) {
-  if (type.nullabilitySuffix != NullabilitySuffix.none) fail('Type $type should not be nullable.', elem);
+  if (type.nullabilitySuffix != NullabilitySuffix.none) fail('Type `$type` should not be nullable.', elem);
   final alias = type.alias;
   if (alias != null) {
     return resolve(alias.element.aliasedType, elem);
   } else {
-    if (type is! InterfaceType) fail('Type $type should be an object type (class or interface).', elem);
+    if (type is! InterfaceType) fail('Type `$type` should be an object type (class or interface).', elem);
     return type;
   }
 }
@@ -76,23 +97,33 @@ const kSerializableAnnotation = TypeChecker.fromRuntime(Serializable);
 /// Converts [DartType] to [FieldType].
 FieldType convertType(DartType rawType, FieldElement elem) {
   final type = resolve(rawType, elem);
-  if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in $type (expected 1).', elem);
+  if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
   final inner = resolve(type.typeArguments.single, elem);
   if (type.element.name == 'Atom') {
     final annots = kSerializableAnnotation.annotationsOfExact(elem);
     final value = annots.firstOrNull?.getField('serializer');
-    final serializer = value != null ? value.toString() : emitSerializer(inner);
+    final serializer = value != null ? value.variable?.name : emitSerializer(inner);
     if (serializer == null) {
-      fail('Failed to synthesize serializer. Please specify one using `@Serializable(serializerInstance)`.', elem);
+      fail(
+        'Failed to synthesize serializer for type `$inner`. '
+        'Please specify one using `@Serializable(serializerInstance)`. '
+        'Instance must be a constant variable.',
+        elem,
+      );
     }
     return Atom(inner, serializer);
   }
   if (type.element.name == 'AtomOption') {
     final annots = kSerializableAnnotation.annotationsOfExact(elem);
     final value = annots.firstOrNull?.getField('serializer');
-    final serializer = value != null ? value.toString() : emitSerializer(inner);
+    final serializer = value != null ? value.variable?.name : emitSerializer(inner);
     if (serializer == null) {
-      fail('Failed to synthesize serializer. Please specify one using `@Serializable(serializerInstance)`.', elem);
+      fail(
+        'Failed to synthesize serializer for type `$inner`. '
+        'Please specify one using `@Serializable(serializerInstance)`. '
+        'Instance must be a constant variable.',
+        elem,
+      );
     }
     return AtomOption(inner, serializer);
   }
@@ -105,7 +136,7 @@ FieldType convertType(DartType rawType, FieldElement elem) {
     if (value == null) fail('Backlinks must be annotated with `@Backlink(\'fieldName\')`.', elem);
     return Backlinks(inner, value);
   }
-  fail('Unsupported field type $type (must be one of: ...).', elem);
+  fail('Unsupported field type `$type` (must be one of: ...).', elem);
 }
 
 const kTransientAnnotation = TypeChecker.fromRuntime(Transient);
@@ -154,6 +185,11 @@ String label(String type, String field) {
   return '\$${type}Repository.${field}Label';
 }
 
+/// Returns the corresponding serializer constant name.
+String serializer(String type, String field) {
+  return '\$${type}Repository.${field}Serializer';
+}
+
 /// Creates the label constants for the [struct].
 String emitLabelDecls(Struct struct) {
   var res = '';
@@ -166,11 +202,6 @@ String emitLabelDecls(Struct struct) {
     }
   }
   return res;
-}
-
-/// Returns the corresponding serializer constant name.
-String serializer(String type, String field) {
-  return '\$${type}Repository.${field}Serializer';
 }
 
 /// Creates the serializer constants for the [struct].
@@ -211,27 +242,27 @@ String emitCreateFunctionBody(Struct struct) {
     final name = field.name;
     res += switch (field.type) {
       Atom() => '''
-        final ${name}Dst = store.randomId();
-        store.setEdge(store.randomId(), (id, ${label(struct.name, field.name)}, ${name}Dst));
-        store.setAtom(${serializer(struct.name, field.name)}, ${name}Dst, $name);
+        final \$${name}Dst = \$store.randomId();
+        \$store.setEdge(\$store.randomId(), (id, ${label(struct.name, field.name)}, \$${name}Dst));
+        \$store.setAtom(${serializer(struct.name, field.name)}, \$${name}Dst, $name);
       ''',
       AtomOption() => '''
         if ($name == null) {
-          store.setEdge(store.randomId(), (id, ${label(struct.name, field.name)}, store.randomId()));
+          \$store.setEdge(\$store.randomId(), (id, ${label(struct.name, field.name)}, \$store.randomId()));
         } else {
-          final ${name}Dst = store.randomId();
-          store.setEdge(store.randomId(), (id, ${label(struct.name, field.name)}, ${name}Dst));
-          store.setAtom(${serializer(struct.name, field.name)}, ${name}Dst, $name);
+          final \$${name}Dst = \$store.randomId();
+          \$store.setEdge(\$store.randomId(), (id, ${label(struct.name, field.name)}, \$${name}Dst));
+          \$store.setAtom(${serializer(struct.name, field.name)}, \$${name}Dst, $name);
         }
       ''',
       Link() => '''
-        store.setEdge(store.randomId(), (id, ${label(struct.name, field.name)}, $name.id));
+        \$store.setEdge(\$store.randomId(), (id, ${label(struct.name, field.name)}, $name.id));
       ''',
       LinkOption() => '''
         if ($name == null) {
-          store.setEdge(store.randomId(), (id, ${label(struct.name, field.name)}, store.randomId()));
+          \$store.setEdge(\$store.randomId(), (id, ${label(struct.name, field.name)}, \$store.randomId()));
         } else {
-          store.setEdge(store.randomId(), (id, ${label(struct.name, field.name)}, $name.id));
+          \$store.setEdge(\$store.randomId(), (id, ${label(struct.name, field.name)}, $name.id));
         }
       ''',
       Multilinks() => '',
@@ -245,10 +276,10 @@ String emitCreateFunctionBody(Struct struct) {
 String emitCreateFunction(Struct struct) {
   return '''
     ${struct.name} create(${emitCreateFunctionParams(struct)}) {
-      final store = Store.instance;
-      final id = store.randomId();
+      final \$store = Store.instance;
+      final id = \$store.randomId();
 
-      store.setNode(id, ${label(struct.name, "")});
+      \$store.setNode(id, ${label(struct.name, "")});
 
       ${emitCreateFunctionBody(struct)}
 
@@ -262,9 +293,81 @@ String emitIdFunction(Struct struct) {
   return 'Id id(${struct.name} object) => object.id;';
 }
 
+String emitGetFunctionFieldDecls(Struct struct) {
+  var res = '';
+  for (final field in struct.fields) {
+    final name = field.name;
+    res += switch (field.type) {
+      Atom(type: final inner) => 'Atom<$inner>? $name;',
+      AtomOption(type: final inner) => 'AtomOption<$inner>? $name;',
+      Link(type: final inner) => 'Link<$inner>? $name;',
+      LinkOption(type: final inner) => 'LinkOption<$inner>? $name;',
+      Multilinks() => '',
+      Backlinks() => '',
+    };
+  }
+  return res;
+}
+
+String emitGetFunctionMatchArms(Struct struct) {
+  var res = '';
+  for (final field in struct.fields) {
+    final name = field.name;
+    final lab = label(struct.name, field.name);
+    res += switch (field.type) {
+      Atom() => 'case $lab: $name = \$store.getAtom(${serializer(struct.name, field.name)}, \$dst);',
+      AtomOption() => 'case $lab: $name = \$store.getAtomOption(${serializer(struct.name, field.name)}, \$dst);',
+      Link(type: final inner) =>
+        'case $lab: $name = \$store.getLink(const ${repository(inner.element.name)}(), \$edge);',
+      LinkOption(type: final inner) =>
+        'case $lab: $name = \$store.getLinkOption(const ${repository(inner.element.name)}(), \$edge);',
+      Multilinks() => '',
+      Backlinks() => '',
+    };
+  }
+  return res;
+}
+
+String emitGetFunctionCtorArgs(Struct struct) {
+  var res = '';
+  for (final field in struct.fields) {
+    final name = field.name;
+    res += switch (field.type) {
+      Atom() => '$name!,',
+      AtomOption() => '$name!,',
+      Link() => '$name!,',
+      LinkOption() => '$name!,',
+      Multilinks(type: final inner) =>
+        '\$store.getMultilinks(const ${repository(inner.element.name)}(), id, ${label(struct.name, field.name)}),',
+      Backlinks(type: final inner, field: final field) =>
+        '\$store.getBacklinks(const ${repository(inner.element.name)}(), id, ${label(inner.element.name, field)}),',
+    };
+  }
+  return res;
+}
+
 /// Creates the function that obtains a [struct] by ID.
 String emitGetFunction(Struct struct) {
-  return '${struct.name}? get(Id? id) => null;';
+  return '''
+    ${struct.name}? get(Id? id) {
+      if (id == null) return null;
+      final \$store = Store.instance;
+
+      ${emitGetFunctionFieldDecls(struct)}
+
+      if (\$store.getNode(id) == null) return null;
+      for (final (\$edge, (_, \$label, \$dst)) in \$store.getEdgesBySrc(id)) {
+        switch (\$label) {
+          ${emitGetFunctionMatchArms(struct)}
+        }
+      }
+
+      return ${struct.name}._(
+        id,
+        ${emitGetFunctionCtorArgs(struct)}
+      );
+    }
+  ''';
 }
 
 /// Procedural macro entry point.
@@ -278,7 +381,7 @@ class ModelRepositoryGenerator extends GeneratorForAnnotation<Model> {
     }
     final struct = convertStruct(element);
     return '''
-      // ignore_for_file: duplicate_ignore, non_constant_identifier_names, constant_identifier_names, invalid_use_of_protected_member, unnecessary_cast, prefer_const_constructors, lines_longer_than_80_chars, require_trailing_commas, inference_failure_on_function_invocation, unnecessary_parenthesis, unnecessary_raw_strings, unnecessary_null_checks, join_return_with_assignment, prefer_final_locals, avoid_js_rounded_ints, avoid_positional_boolean_parameters, always_specify_types
+      // ignore_for_file: ${kIgnoreForFile.join(', ')}
       // coverage:ignore-file
 
       class ${repository(struct.name)} implements Repository<${struct.name}> {

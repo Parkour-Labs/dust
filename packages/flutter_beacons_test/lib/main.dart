@@ -3,9 +3,9 @@ import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_beacons/flutter_beacons.dart';
-import 'package:flutter_beacons_generator/annotations.dart';
-import 'package:flutter_beacons_generator/utils.dart';
+import 'package:flutter_beacons/store.dart';
+import 'package:flutter_beacons/serializer.dart';
+import 'package:flutter_beacons/annotations.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'ffi.dart';
@@ -141,61 +141,25 @@ void testObjectStore() async {
   assert(edges.single.$2 == (id0, 23333, id1));
 }
 
+const _kStringSerializer = StringSerializer();
+
 @Model()
 class Trivial {
   final Id id;
 
   Trivial._(this.id);
 
-  factory Trivial.create() => const TrivialRepository().create();
-}
-
-class TrivialRepository implements Repository<Trivial> {
-  const TrivialRepository();
-
-  static const int kLabel = 0 /* Calculated from fnv64Hash("Trivial") */;
-
-  Trivial create() {
-    final store = Store.instance;
-    final id = store.randomId();
-
-    // Create `Trivial`.
-    store.setNode(id, kLabel);
-
-    /* (No code generated here) */
-
-    // Return.
-    return get(id)!;
-  }
-
-  @override
-  Id id(Trivial object) => object.id;
-
-  @override
-  Trivial? get(Id? id) {
-    if (id == null) return null;
-    final store = Store.instance;
-
-    // Variables for existing data.
-    /* (No code generated here) */
-
-    // Load existing data.
-    if (store.getNode(id) == null) return null;
-    /* (No code generated here) */
-
-    // Pack together. Fail if a field is not found.
-    return Trivial._(id /* (No code generated here) */);
-  }
+  factory Trivial.create() => const $TrivialRepository().create();
 }
 
 @Model()
 class Something {
   final Id id;
 
-  @Serializable(StringSerializer())
+  @Serializable(_kStringSerializer)
   final Atom<String> atomOne;
 
-  @Serializable(StringSerializer())
+  @Serializable(_kStringSerializer)
   final AtomOption<String> atomTwo;
 
   final Link<Trivial> linkOne;
@@ -207,119 +171,25 @@ class Something {
   @Backlink('linkThree')
   final Backlinks<Something> backlink;
 
+  @Transient()
+  int someNonPersistentField = 233;
+
   Something._(this.id, this.atomOne, this.atomTwo, this.linkOne, this.linkTwo, this.linkThree, this.backlink);
 
-  factory Something.create(String atomOne, String? atomTwo, Trivial linkOne, Trivial? linkTwo) =>
-      const SomethingRepository().create(atomOne, atomTwo, linkOne, linkTwo);
-}
-
-class SomethingRepository implements Repository<Something> {
-  const SomethingRepository();
-
-  static const int kLabel = 1 /* Calculated from fnv64Hash("Something") */;
-  static const int kAtomOneLabel = 2 /* Calculated from fnv64Hash("Something.atomOne") */;
-  static const int kAtomTwoLabel = 3 /* Calculated from fnv64Hash("Something.atomTwo") */;
-  static const int kLinkOneLabel = 4 /* Calculated from fnv64Hash("Something.linkOne") */;
-  static const int kLinkTwoLabel = 5 /* Calculated from fnv64Hash("Something.linkTwo") */;
-  static const int kLinkThreeLabel = 6 /* Calculated from fnv64Hash("Something.linkThree") */;
-
-  /*
-  Serializers for more complex types can be generated, e.g:
-  ```
-  static const Serializer<Map<String, List<int>?>> serializer =
-      MapSerializer(StringSerializer(), OptionSerializer(ListSerializer(IntSerializer())));
-  ```
-  */
-  static const Serializer<String> kAtomOneSerializer = StringSerializer();
-  static const Serializer<String> kAtomTwoSerializer = StringSerializer();
-
-  Something create(String atomOne, String? atomTwo, Trivial linkOne, Trivial? linkTwo) {
-    final store = Store.instance;
-    final id = store.randomId();
-
-    // Create `Something`.
-    store.setNode(id, kLabel);
-
-    // Create `Something.atomOne`.
-    final atomOneId = store.randomId();
-    store.setEdge(store.randomId(), (id, kAtomOneLabel, atomOneId));
-    store.setAtom(kAtomOneSerializer, atomOneId, atomOne);
-
-    // Create `Something.atomTwo`.
-    if (atomTwo == null) {
-      store.setEdge(store.randomId(), (id, kAtomTwoLabel, store.randomId()));
-    } else {
-      final atomTwoId = store.randomId();
-      store.setEdge(store.randomId(), (id, kAtomTwoLabel, atomTwoId));
-      store.setAtom(kAtomTwoSerializer, atomTwoId, atomTwo);
-    }
-
-    // Create `Something.linkOne`.
-    store.setEdge(store.randomId(), (id, kLinkOneLabel, linkOne.id));
-
-    // Create `Something.linkTwo`.
-    if (linkTwo == null) {
-      store.setEdge(store.randomId(), (id, kLinkTwoLabel, store.randomId()));
-    } else {
-      store.setEdge(store.randomId(), (id, kLinkTwoLabel, linkTwo.id));
-    }
-
-    // Return.
-    return get(id)!;
-  }
-
-  @override
-  Id id(Something object) => object.id;
-
-  @override
-  Something? get(Id? id) {
-    if (id == null) return null;
-    final store = Store.instance;
-
-    // Variables for existing data.
-    Atom<String>? atomOne;
-    AtomOption<String>? atomTwo;
-    Link<Trivial>? linkOne;
-    LinkOption<Trivial>? linkTwo;
-
-    // Load existing data.
-    if (store.getNode(id) == null) return null;
-    for (final (edge, (_, label, dst)) in store.getEdgesBySrc(id)) {
-      switch (label) {
-        case kAtomOneLabel:
-          atomOne = store.getAtom(kAtomOneSerializer, dst);
-        case kAtomTwoLabel:
-          atomTwo = store.getAtomOption(kAtomTwoSerializer, dst);
-        case kLinkOneLabel:
-          linkOne = store.getLink(const TrivialRepository(), edge);
-        case kLinkTwoLabel:
-          linkTwo = store.getLinkOption(const TrivialRepository(), edge);
-      }
-    }
-
-    // Pack together. Fail if a field is not found.
-    return Something._(
-      id,
-      atomOne!,
-      atomTwo!,
-      linkOne!,
-      linkTwo!,
-      store.getMultilinks(const SomethingRepository(), id, kLinkThreeLabel),
-      store.getBacklinks(const SomethingRepository(), id, kLinkThreeLabel),
-    );
-  }
+  factory Something.create({required String atomOne, String? atomTwo, required Trivial linkOne, Trivial? linkTwo}) =>
+      const $SomethingRepository().create(atomOne, atomTwo, linkOne, linkTwo);
 }
 
 void testObjectStoreWrapper() async {
   final trivial = Trivial.create();
   final trivialAgain = Trivial.create();
 
-  final something = Something.create("test", "2333", trivial, trivial);
-  final somethingElse = Something.create("test", null, trivial, null);
+  final something = Something.create(atomOne: "test", atomTwo: "2333", linkOne: trivial, linkTwo: trivial);
+  final somethingElse = Something.create(atomOne: "test", linkOne: trivial);
   somethingElse.linkThree.insert(something);
 
-  final somethingCopy = const SomethingRepository().get(something.id)!;
-  final somethingElseCopy = const SomethingRepository().get(somethingElse.id)!;
+  final somethingCopy = const $SomethingRepository().get(something.id)!;
+  final somethingElseCopy = const $SomethingRepository().get(somethingElse.id)!;
 
   assert(somethingCopy.atomOne.peek() == "test");
   assert(somethingCopy.atomTwo.peek()! == "2333");
@@ -353,32 +223,6 @@ void testObjectStoreWrapper() async {
   somethingElse.linkThree.remove(something);
   assert(something.backlink.peek().length == 1);
 }
-
-/*
-Future<bool> allTests() async {
-  final Completer<bool> completer = Completer();
-  final ReceivePort receivePort = ReceivePort()
-    ..listen((dynamic data) {
-      if (data is bool) {
-        completer.complete(data);
-      } else {
-        throw UnsupportedError('Unsupported message type: ${data.runtimeType}');
-      }
-    });
-
-  // Do the tests in a separate isolate and send the results back.
-  Isolate.spawn(
-    (SendPort sendPort) async {
-      testFfiParamPassing();
-      // stressTestFfiDropping(10);
-      sendPort.send(true);
-    },
-    receivePort.sendPort,
-  );
-
-  return completer.future;
-}
-*/
 
 Future<bool> allTests() async {
   // Initialisation.
@@ -416,7 +260,7 @@ class MyApp extends StatelessWidget {
                 ? Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: <Widget>[
-                      Text('${fnv64Hash("hello")}'),
+                      // Text('${fnv64Hash("hello")}'),
                       Text('${testHash("hello")}'),
                       Text('${testList()}'),
                       const Text('All tests passed!'),

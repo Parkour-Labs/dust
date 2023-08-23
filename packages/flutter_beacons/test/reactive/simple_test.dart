@@ -1,5 +1,5 @@
 import 'package:test/test.dart';
-import 'package:flutter_beacons/flutter_beacons.dart';
+import 'package:flutter_beacons/reactive.dart';
 
 void main() {
   test('active_reactive_simple', () {
