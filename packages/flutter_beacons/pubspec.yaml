@@ -2,6 +2,7 @@ name: flutter_beacons
 description: The Dart side of beacons.
 version: 1.0.0
 repository: https://github.com/Parkour-Labs/beacons/
+publish_to: "none"
 
 environment:
   sdk: ^3.1.0

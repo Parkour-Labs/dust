@@ -17,3 +17,7 @@ class Backlink {
 class Transient {
   const Transient();
 }
+
+class Global {
+  const Global();
+}

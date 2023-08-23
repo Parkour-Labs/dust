@@ -29,6 +29,12 @@ const kIgnoreForFile = [
   'always_specify_types',
 ];
 
+/// Sub-annotations.
+const kBacklinkAnnotation = TypeChecker.fromRuntime(Backlink);
+const kSerializableAnnotation = TypeChecker.fromRuntime(Serializable);
+const kTransientAnnotation = TypeChecker.fromRuntime(Transient);
+const kGlobalAnnotation = TypeChecker.fromRuntime(Global);
+
 /// All supported field types.
 sealed class FieldType {}
 
@@ -79,21 +85,6 @@ final class Struct {
   Struct(this.name, this.fields);
 }
 
-/// Resolves any type aliases and ensures that [type] is a non-nullable object type.
-InterfaceType resolve(DartType type, FieldElement elem) {
-  if (type.nullabilitySuffix != NullabilitySuffix.none) fail('Type `$type` should not be nullable.', elem);
-  final alias = type.alias;
-  if (alias != null) {
-    return resolve(alias.element.aliasedType, elem);
-  } else {
-    if (type is! InterfaceType) fail('Type `$type` should be an object type (class or interface).', elem);
-    return type;
-  }
-}
-
-const kBacklinkAnnotation = TypeChecker.fromRuntime(Backlink);
-const kSerializableAnnotation = TypeChecker.fromRuntime(Serializable);
-
 /// Converts [DartType] to [FieldType].
 FieldType convertType(DartType rawType, FieldElement elem) {
   final type = resolve(rawType, elem);
@@ -138,8 +129,6 @@ FieldType convertType(DartType rawType, FieldElement elem) {
   }
   fail('Unsupported field type `$type` (must be one of: ...).', elem);
 }
-
-const kTransientAnnotation = TypeChecker.fromRuntime(Transient);
 
 /// Converts [FieldElement] to [Field].
 Field? convertField(FieldElement elem) {
@@ -236,6 +225,22 @@ String emitCreateFunctionParams(Struct struct) {
   return res;
 }
 
+String emitCreateFunctionArgs(Struct struct) {
+  var res = '';
+  for (final field in struct.fields) {
+    final name = field.name;
+    res += switch (field.type) {
+      Atom() => '$name,',
+      AtomOption() => '$name,',
+      Link() => '$name,',
+      LinkOption() => '$name,',
+      Multilinks() => '',
+      Backlinks() => '',
+    };
+  }
+  return res;
+}
+
 String emitCreateFunctionBody(Struct struct) {
   var res = '';
   for (final field in struct.fields) {
@@ -272,12 +277,11 @@ String emitCreateFunctionBody(Struct struct) {
   return res;
 }
 
-/// Creates the function that creates a new [struct].
-String emitCreateFunction(Struct struct) {
+/// Creates the functions that create new [struct]s.
+String emitCreateFunctions(Struct struct) {
   return '''
-    ${struct.name} create(${emitCreateFunctionParams(struct)}) {
+    ${struct.name} createAt(Id id, ${emitCreateFunctionParams(struct)}) {
       final \$store = Store.instance;
-      final id = \$store.randomId();
 
       \$store.setNode(id, ${label(struct.name, "")});
 
@@ -285,6 +289,12 @@ String emitCreateFunction(Struct struct) {
 
       return get(id)!;
     }
+
+    ${struct.name} create(${emitCreateFunctionParams(struct)}) =>
+        createAt(Store.instance.randomId(), ${emitCreateFunctionArgs(struct)});
+
+    ${struct.name} getOrCreateAt(Id id, ${emitCreateFunctionParams(struct)}) =>
+        get(id) ?? createAt(id, ${emitCreateFunctionArgs(struct)});
   ''';
 }
 
@@ -370,6 +380,22 @@ String emitGetFunction(Struct struct) {
   ''';
 }
 
+/// Generate deterministic ID for global object constructors.
+String emitGlobalIds(Struct struct, ClassElement elem) {
+  var res = '';
+  for (final ctor in elem.constructors) {
+    if (kGlobalAnnotation.annotationsOfExact(ctor).isNotEmpty) {
+      final high = fnv64Hash(struct.name);
+      final low = fnv64Hash(ctor.name);
+      res += '''
+        // Type `${struct.name}`, name `${ctor.name}`
+        const Id \$${ctor.name}Id = Id($high, $low);
+      ''';
+    }
+  }
+  return res;
+}
+
 /// Procedural macro entry point.
 ///
 /// For more details, see [https://parkourlabs.feishu.cn/docx/SGi2dLIUUo4MjVxdzsvcxseBnZc](https://parkourlabs.feishu.cn/docx/SGi2dLIUUo4MjVxdzsvcxseBnZc).
@@ -391,7 +417,7 @@ class ModelRepositoryGenerator extends GeneratorForAnnotation<Model> {
 
         ${emitSerializerDecls(struct)}
 
-        ${emitCreateFunction(struct)}
+        ${emitCreateFunctions(struct)}
 
         @override
         ${emitIdFunction(struct)}
@@ -399,6 +425,8 @@ class ModelRepositoryGenerator extends GeneratorForAnnotation<Model> {
         @override
         ${emitGetFunction(struct)}
       }
+
+      ${emitGlobalIds(struct, element)}
     ''';
   }
 }

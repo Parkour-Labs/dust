@@ -14,14 +14,27 @@ class $TrivialRepository implements Repository<Trivial> {
 
   static const int Label = 4898135217045869580;
 
-  Trivial create() {
+  Trivial createAt(
+    Id id,
+  ) {
     final $store = Store.instance;
-    final id = $store.randomId();
 
     $store.setNode(id, $TrivialRepository.Label);
 
     return get(id)!;
   }
+
+  Trivial create() => createAt(
+        Store.instance.randomId(),
+      );
+
+  Trivial getOrCreateAt(
+    Id id,
+  ) =>
+      get(id) ??
+      createAt(
+        id,
+      );
 
   @override
   Id id(Trivial object) => object.id;
@@ -58,14 +71,14 @@ class $SomethingRepository implements Repository<Something> {
   static const atomOneSerializer = _kStringSerializer;
   static const atomTwoSerializer = _kStringSerializer;
 
-  Something create(
+  Something createAt(
+    Id id,
     String atomOne,
     String? atomTwo,
     Trivial linkOne,
     Trivial? linkTwo,
   ) {
     final $store = Store.instance;
-    final id = $store.randomId();
 
     $store.setNode(id, $SomethingRepository.Label);
 
@@ -96,6 +109,36 @@ class $SomethingRepository implements Repository<Something> {
 
     return get(id)!;
   }
+
+  Something create(
+    String atomOne,
+    String? atomTwo,
+    Trivial linkOne,
+    Trivial? linkTwo,
+  ) =>
+      createAt(
+        Store.instance.randomId(),
+        atomOne,
+        atomTwo,
+        linkOne,
+        linkTwo,
+      );
+
+  Something getOrCreateAt(
+    Id id,
+    String atomOne,
+    String? atomTwo,
+    Trivial linkOne,
+    Trivial? linkTwo,
+  ) =>
+      get(id) ??
+      createAt(
+        id,
+        atomOne,
+        atomTwo,
+        linkOne,
+        linkTwo,
+      );
 
   @override
   Id id(Something object) => object.id;
