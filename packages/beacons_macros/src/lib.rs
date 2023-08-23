@@ -26,8 +26,8 @@ enum FieldType<'a> {
   Link(&'a syn::Type),                   // (destination type)
   AtomOption(&'a syn::Type),             // (content type)
   LinkOption(&'a syn::Type),             // (destination type)
-  Multilinks(&'a syn::Type, syn::Ident), // (label, destination type)
-  Backlinks(&'a syn::Type, syn::Ident),  // (label, source type)
+  Multilinks(&'a syn::Type, syn::Ident), // (destination type, label)
+  Backlinks(&'a syn::Type, syn::Ident),  // (source type, label)
 }
 
 /// A field to be mapped.

@@ -1,4 +1,4 @@
-part of 'store.dart';
+part of '../store.dart';
 
 class Multilinks<T extends Object> extends Node implements Observable<List<T>> {
   final Repository<T> repository;

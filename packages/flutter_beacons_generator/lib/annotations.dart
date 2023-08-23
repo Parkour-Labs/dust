@@ -1,5 +1,12 @@
+import 'package:flutter_beacons/flutter_beacons.dart';
+
 class Model {
   const Model();
+}
+
+class Serializable<T> {
+  final Serializer<T> serializer;
+  const Serializable(this.serializer);
 }
 
 class Backlink {
@@ -7,6 +14,6 @@ class Backlink {
   const Backlink(this.name);
 }
 
-class Ignored {
-  const Ignored();
+class Transient {
+  const Transient();
 }

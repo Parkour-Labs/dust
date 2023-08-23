@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 import 'dart:convert' show utf8;
 
-import 'serializer.dart';
+import '../serializer.dart';
 
 class StringSerializer implements Serializer<String> {
   const StringSerializer();

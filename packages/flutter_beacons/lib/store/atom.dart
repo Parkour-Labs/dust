@@ -1,4 +1,4 @@
-part of 'store.dart';
+part of '../store.dart';
 
 class AtomOption<T> extends Node implements Observable<T?> {
   final Serializer<T> serializer;

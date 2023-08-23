@@ -10,6 +10,8 @@ dependencies:
   analyzer: ^6.2.0
   build: ^2.4.1
   build_config: ^1.1.1
+  flutter_beacons:
+    path: ../flutter_beacons
   source_gen: ^1.4.0
 
 dev_dependencies:

@@ -1,4 +1,4 @@
-part of 'store.dart';
+part of '../store.dart';
 
 class LinkOption<T extends Object> extends Node implements Observable<T?> {
   final Repository<T> repository;

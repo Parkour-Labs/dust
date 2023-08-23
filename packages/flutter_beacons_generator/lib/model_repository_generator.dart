@@ -1,18 +1,301 @@
 import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/dart/element/nullability_suffix.dart';
+import 'package:analyzer/dart/element/type.dart';
 import 'package:build/build.dart';
+import 'package:flutter_beacons_generator/serializable_generator.dart';
+import 'package:flutter_beacons_generator/utils.dart';
 import 'package:source_gen/source_gen.dart';
 
 import 'annotations.dart';
 
+/// All supported field types.
+sealed class FieldType {}
+
+final class Atom extends FieldType {
+  final InterfaceType type;
+  final String serializer;
+  Atom(this.type, this.serializer);
+}
+
+final class AtomOption extends FieldType {
+  final InterfaceType type;
+  final String serializer;
+  AtomOption(this.type, this.serializer);
+}
+
+final class Link extends FieldType {
+  final InterfaceType type;
+  Link(this.type);
+}
+
+final class LinkOption extends FieldType {
+  final InterfaceType type;
+  LinkOption(this.type);
+}
+
+final class Multilinks extends FieldType {
+  final InterfaceType type;
+  Multilinks(this.type);
+}
+
+final class Backlinks extends FieldType {
+  final InterfaceType type;
+  final String field;
+  Backlinks(this.type, this.field);
+}
+
+/// A field to be mapped.
+final class Field {
+  final String name;
+  final FieldType type;
+  Field(this.name, this.type);
+}
+
+/// A struct to be mapped.
+final class Struct {
+  final String name;
+  final List<Field> fields;
+  Struct(this.name, this.fields);
+}
+
+/// Resolves any type aliases and ensures that [type] is a non-nullable object type.
+InterfaceType resolve(DartType type, FieldElement elem) {
+  if (type.nullabilitySuffix != NullabilitySuffix.none) fail('Type $type should not be nullable.', elem);
+  final alias = type.alias;
+  if (alias != null) {
+    return resolve(alias.element.aliasedType, elem);
+  } else {
+    if (type is! InterfaceType) fail('Type $type should be an object type (class or interface).', elem);
+    return type;
+  }
+}
+
+const kBacklinkAnnotation = TypeChecker.fromRuntime(Backlink);
+const kSerializableAnnotation = TypeChecker.fromRuntime(Serializable);
+
+/// Converts [DartType] to [FieldType].
+FieldType convertType(DartType rawType, FieldElement elem) {
+  final type = resolve(rawType, elem);
+  if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in $type (expected 1).', elem);
+  final inner = resolve(type.typeArguments.single, elem);
+  if (type.element.name == 'Atom') {
+    final annots = kSerializableAnnotation.annotationsOfExact(elem);
+    final value = annots.firstOrNull?.getField('serializer');
+    final serializer = value != null ? value.toString() : emitSerializer(inner);
+    if (serializer == null) {
+      fail('Failed to synthesize serializer. Please specify one using `@Serializable(serializerInstance)`.', elem);
+    }
+    return Atom(inner, serializer);
+  }
+  if (type.element.name == 'AtomOption') {
+    final annots = kSerializableAnnotation.annotationsOfExact(elem);
+    final value = annots.firstOrNull?.getField('serializer');
+    final serializer = value != null ? value.toString() : emitSerializer(inner);
+    if (serializer == null) {
+      fail('Failed to synthesize serializer. Please specify one using `@Serializable(serializerInstance)`.', elem);
+    }
+    return AtomOption(inner, serializer);
+  }
+  if (type.element.name == 'Link') return Link(inner);
+  if (type.element.name == 'LinkOption') return LinkOption(inner);
+  if (type.element.name == 'Multilinks') return Multilinks(inner);
+  if (type.element.name == 'Backlinks') {
+    final annots = kBacklinkAnnotation.annotationsOfExact(elem);
+    final value = annots.firstOrNull?.getField('name')?.toStringValue();
+    if (value == null) fail('Backlinks must be annotated with `@Backlink(\'fieldName\')`.', elem);
+    return Backlinks(inner, value);
+  }
+  fail('Unsupported field type $type (must be one of: ...).', elem);
+}
+
+const kTransientAnnotation = TypeChecker.fromRuntime(Transient);
+
+/// Converts [FieldElement] to [Field].
+Field? convertField(FieldElement elem) {
+  if (elem.isStatic || kTransientAnnotation.annotationsOfExact(elem).isNotEmpty) return null;
+  if (!elem.isFinal) fail('Field must be marked as final.', elem);
+  if (elem.isLate) fail('Field must not be marked as late.', elem);
+  final name = elem.name;
+  final type = convertType(elem.type, elem);
+  return Field(name, type);
+}
+
+/// Converts [ClassElement] to [Struct].
+Struct convertStruct(ClassElement elem) {
+  if (elem.isAbstract) fail('Class must not be abstract.', elem);
+  if (elem.typeParameters.isNotEmpty) fail('Class must not be generic.', elem);
+  final name = elem.name;
+  final fields = <Field>[];
+  var hasId = false;
+  for (final e in elem.fields) {
+    if (e.name == 'id') {
+      final type = e.type;
+      if (!e.isFinal) fail('Field must be marked as final.', e);
+      if (e.isLate) fail('Field must not be marked as late.', e);
+      if (type.nullabilitySuffix != NullabilitySuffix.none) fail('Field must not be marked as nullable.', e);
+      if (type is! InterfaceType || type.element.name != 'Id') fail('Field must have type `Id`.', e);
+      hasId = true;
+    } else {
+      final field = convertField(e);
+      if (field != null) fields.add(field);
+    }
+  }
+  if (!hasId) fail('Class must contain a field `final Id id`.', elem);
+  return Struct(name, fields);
+}
+
+/// Returns the corresponding repository class name.
+String repository(String name) {
+  return '\$${name}Repository';
+}
+
+/// Returns the corresponding label constant name.
+String label(String type, String field) {
+  return '\$${type}Repository.${field}Label';
+}
+
+/// Creates the label constants for the [struct].
+String emitLabelDecls(Struct struct) {
+  var res = '';
+  final value = fnv64Hash(struct.name);
+  res += 'static const int Label = $value;';
+  for (final field in struct.fields) {
+    if (field.type is! Backlinks) {
+      final value = fnv64Hash('${struct.name}.${field.name}'); // TODO: convert to snake case before hashing?
+      res += 'static const int ${field.name}Label = $value;';
+    }
+  }
+  return res;
+}
+
+/// Returns the corresponding serializer constant name.
+String serializer(String type, String field) {
+  return '\$${type}Repository.${field}Serializer';
+}
+
+/// Creates the serializer constants for the [struct].
+String emitSerializerDecls(Struct struct) {
+  var res = '';
+  for (final field in struct.fields) {
+    res += switch (field.type) {
+      Atom(serializer: final serializer) => 'static const ${field.name}Serializer = $serializer;',
+      AtomOption(serializer: final serializer) => 'static const ${field.name}Serializer = $serializer;',
+      Link() => '',
+      LinkOption() => '',
+      Multilinks() => '',
+      Backlinks() => '',
+    };
+  }
+  return res;
+}
+
+String emitCreateFunctionParams(Struct struct) {
+  var res = '';
+  for (final field in struct.fields) {
+    final name = field.name;
+    res += switch (field.type) {
+      Atom(type: final inner) => '$inner $name,',
+      AtomOption(type: final inner) => '$inner? $name,',
+      Link(type: final inner) => '$inner $name,',
+      LinkOption(type: final inner) => '$inner? $name,',
+      Multilinks() => '',
+      Backlinks() => '',
+    };
+  }
+  return res;
+}
+
+String emitCreateFunctionBody(Struct struct) {
+  var res = '';
+  for (final field in struct.fields) {
+    final name = field.name;
+    res += switch (field.type) {
+      Atom() => '''
+        final ${name}Dst = store.randomId();
+        store.setEdge(store.randomId(), (id, ${label(struct.name, field.name)}, ${name}Dst));
+        store.setAtom(${serializer(struct.name, field.name)}, ${name}Dst, $name);
+      ''',
+      AtomOption() => '''
+        if ($name == null) {
+          store.setEdge(store.randomId(), (id, ${label(struct.name, field.name)}, store.randomId()));
+        } else {
+          final ${name}Dst = store.randomId();
+          store.setEdge(store.randomId(), (id, ${label(struct.name, field.name)}, ${name}Dst));
+          store.setAtom(${serializer(struct.name, field.name)}, ${name}Dst, $name);
+        }
+      ''',
+      Link() => '''
+        store.setEdge(store.randomId(), (id, ${label(struct.name, field.name)}, $name.id));
+      ''',
+      LinkOption() => '''
+        if ($name == null) {
+          store.setEdge(store.randomId(), (id, ${label(struct.name, field.name)}, store.randomId()));
+        } else {
+          store.setEdge(store.randomId(), (id, ${label(struct.name, field.name)}, $name.id));
+        }
+      ''',
+      Multilinks() => '',
+      Backlinks() => '',
+    };
+  }
+  return res;
+}
+
+/// Creates the function that creates a new [struct].
+String emitCreateFunction(Struct struct) {
+  return '''
+    ${struct.name} create(${emitCreateFunctionParams(struct)}) {
+      final store = Store.instance;
+      final id = store.randomId();
+
+      store.setNode(id, ${label(struct.name, "")});
+
+      ${emitCreateFunctionBody(struct)}
+
+      return get(id)!;
+    }
+  ''';
+}
+
+/// Creates the function that obtains the ID of a [struct].
+String emitIdFunction(Struct struct) {
+  return 'Id id(${struct.name} object) => object.id;';
+}
+
+/// Creates the function that obtains a [struct] by ID.
+String emitGetFunction(Struct struct) {
+  return '${struct.name}? get(Id? id) => null;';
+}
+
+/// Procedural macro entry point.
+///
+/// For more details, see [https://parkourlabs.feishu.cn/docx/SGi2dLIUUo4MjVxdzsvcxseBnZc](https://parkourlabs.feishu.cn/docx/SGi2dLIUUo4MjVxdzsvcxseBnZc).
 class ModelRepositoryGenerator extends GeneratorForAnnotation<Model> {
   @override
   String generateForAnnotatedElement(Element element, ConstantReader annotation, BuildStep buildStep) {
-    final name = element.name!;
+    if (element is! ClassElement || element is EnumElement || element is MixinElement) {
+      fail('Only classes may be annotated with @Model().', element);
+    }
+    final struct = convertStruct(element);
     return '''
-// ignore_for_file: duplicate_ignore, non_constant_identifier_names, constant_identifier_names, invalid_use_of_protected_member, unnecessary_cast, prefer_const_constructors, lines_longer_than_80_chars, require_trailing_commas, inference_failure_on_function_invocation, unnecessary_parenthesis, unnecessary_raw_strings, unnecessary_null_checks, join_return_with_assignment, prefer_final_locals, avoid_js_rounded_ints, avoid_positional_boolean_parameters, always_specify_types
-// coverage:ignore-file
+      // ignore_for_file: duplicate_ignore, non_constant_identifier_names, constant_identifier_names, invalid_use_of_protected_member, unnecessary_cast, prefer_const_constructors, lines_longer_than_80_chars, require_trailing_commas, inference_failure_on_function_invocation, unnecessary_parenthesis, unnecessary_raw_strings, unnecessary_null_checks, join_return_with_assignment, prefer_final_locals, avoid_js_rounded_ints, avoid_positional_boolean_parameters, always_specify_types
+      // coverage:ignore-file
 
-const int _\$$name = 233;
-''';
+      class ${repository(struct.name)} implements Repository<${struct.name}> {
+        const ${repository(struct.name)}();
+
+        ${emitLabelDecls(struct)}
+
+        ${emitSerializerDecls(struct)}
+
+        ${emitCreateFunction(struct)}
+
+        @override
+        ${emitIdFunction(struct)}
+
+        @override
+        ${emitGetFunction(struct)}
+      }
+    ''';
   }
 }

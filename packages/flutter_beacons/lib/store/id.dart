@@ -1,4 +1,4 @@
-part of 'store.dart';
+part of '../store.dart';
 
 final class Id {
   final int high;

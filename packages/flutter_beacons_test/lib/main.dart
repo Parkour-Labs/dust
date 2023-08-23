@@ -3,9 +3,9 @@ import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_beacons/serializer/serializer.dart';
-import 'package:flutter_beacons/store/store.dart';
+import 'package:flutter_beacons/flutter_beacons.dart';
 import 'package:flutter_beacons_generator/annotations.dart';
+import 'package:flutter_beacons_generator/utils.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'ffi.dart';
@@ -191,11 +191,20 @@ class TrivialRepository implements Repository<Trivial> {
 @Model()
 class Something {
   final Id id;
+
+  @Serializable(StringSerializer())
   final Atom<String> atomOne;
+
+  @Serializable(StringSerializer())
   final AtomOption<String> atomTwo;
+
   final Link<Trivial> linkOne;
+
   final LinkOption<Trivial> linkTwo;
+
   final Multilinks<Something> linkThree;
+
+  @Backlink('linkThree')
   final Backlinks<Something> backlink;
 
   Something._(this.id, this.atomOne, this.atomTwo, this.linkOne, this.linkTwo, this.linkThree, this.backlink);
@@ -223,10 +232,6 @@ class SomethingRepository implements Repository<Something> {
   */
   static const Serializer<String> kAtomOneSerializer = StringSerializer();
   static const Serializer<String> kAtomTwoSerializer = StringSerializer();
-  static const Repository<Trivial> kLinkOneRepository = TrivialRepository();
-  static const Repository<Trivial> kLinkTwoRepository = TrivialRepository();
-  static const Repository<Something> kLinkThreeRepository = SomethingRepository();
-  static const Repository<Something> kBacklinkRepository = SomethingRepository();
 
   Something create(String atomOne, String? atomTwo, Trivial linkOne, Trivial? linkTwo) {
     final store = Store.instance;
@@ -286,9 +291,9 @@ class SomethingRepository implements Repository<Something> {
         case kAtomTwoLabel:
           atomTwo = store.getAtomOption(kAtomTwoSerializer, dst);
         case kLinkOneLabel:
-          linkOne = store.getLink(kLinkOneRepository, edge);
+          linkOne = store.getLink(const TrivialRepository(), edge);
         case kLinkTwoLabel:
-          linkTwo = store.getLinkOption(kLinkTwoRepository, edge);
+          linkTwo = store.getLinkOption(const TrivialRepository(), edge);
       }
     }
 
@@ -299,8 +304,8 @@ class SomethingRepository implements Repository<Something> {
       atomTwo!,
       linkOne!,
       linkTwo!,
-      store.getMultilinks(kLinkThreeRepository, id, kLinkThreeLabel),
-      store.getBacklinks(kBacklinkRepository, id, kLinkThreeLabel),
+      store.getMultilinks(const SomethingRepository(), id, kLinkThreeLabel),
+      store.getBacklinks(const SomethingRepository(), id, kLinkThreeLabel),
     );
   }
 }

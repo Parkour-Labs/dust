@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'serializer.dart';
+import '../serializer.dart';
 
 class SetSerializer<T> implements Serializer<Set<T>> {
   final Serializer<T> t;

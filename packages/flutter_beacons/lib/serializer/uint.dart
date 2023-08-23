@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'serializer.dart';
+import '../serializer.dart';
 
 class Uint8Serializer implements Serializer<int> {
   const Uint8Serializer();

@@ -1,6 +1,5 @@
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart';
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:flutter_beacons/flutter_beacons.dart';
 
 Uint8List serialize<T>(T value, Serializer<T> serializer) {
@@ -11,6 +10,14 @@ Uint8List serialize<T>(T value, Serializer<T> serializer) {
 
 T deserialize<T>(List<int> bytes, Serializer<T> serializer) {
   return serializer.deserialize(BytesReader(Uint8List.fromList(bytes).buffer.asByteData()));
+}
+
+bool listEquals<T>(List<T> lhs, List<T> rhs) {
+  if (lhs.length != rhs.length) return false;
+  for (var i = 0; i < lhs.length; i++) {
+    if (lhs[i] != rhs[i]) return false;
+  }
+  return true;
 }
 
 void main() {

@@ -2,19 +2,17 @@ import 'dart:ffi';
 import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
 
-import '../ffi/ffi_bindings.dart';
-import '../ffi/ffi_structs.dart';
-import '../serializer/serializer.dart';
-import '../reactive/reactive.dart';
+import 'ffi/ffi_bindings.dart';
+import 'ffi/ffi_structs.dart';
+import 'serializer.dart';
+import 'reactive.dart';
 
-export 'hash.dart';
-
-part 'id.dart';
-part 'repository.dart';
-part 'atom.dart';
-part 'link.dart';
-part 'multilinks.dart';
-part 'backlinks.dart';
+part 'store/id.dart';
+part 'store/repository.dart';
+part 'store/atom.dart';
+part 'store/link.dart';
+part 'store/multilinks.dart';
+part 'store/backlinks.dart';
 
 class Store {
   final FfiBindings bindings;

@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'serializer.dart';
+import '../serializer.dart';
 
 class BoolSerializer implements Serializer<bool> {
   const BoolSerializer();
