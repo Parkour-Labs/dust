@@ -1,18 +1,16 @@
 abstract interface class Observable<T> {
-  void register(WeakReference<Node> ref);
+  void register(Node ref);
   void notify();
   T peek();
-  T get(WeakReference<Node> ref);
+  T get(Node ref);
 }
 
 class Node {
+  List<Node> _in = [];
   List<WeakReference<Node>> _out = [];
 
-  WeakReference<Node> weak() {
-    return WeakReference(this);
-  }
-
   void notify() {
+    _in.clear();
     final out = _out;
     _out = [];
     for (final weak in out) {
@@ -23,8 +21,9 @@ class Node {
     }
   }
 
-  void register(WeakReference<Node> ref) {
-    _out.add(ref);
+  void register(Node ref) {
+    ref._in.add(this);
+    _out.add(WeakReference(ref));
   }
 }
 
@@ -34,7 +33,7 @@ class Active<T> extends Node implements Observable<T> {
   Active(this.value);
 
   @override
-  T get(WeakReference<Node> ref) {
+  T get(Node ref) {
     register(ref);
     return peek();
   }
@@ -53,10 +52,10 @@ class Active<T> extends Node implements Observable<T> {
 class Reactive<T> extends Node implements Observable<T> {
   late T value;
   bool notified = false;
-  T Function(WeakReference<Node> ref) recompute;
+  T Function(Node ref) recompute;
 
   Reactive(this.recompute) {
-    value = recompute(weak());
+    value = recompute(this);
   }
 
   @override
@@ -66,7 +65,7 @@ class Reactive<T> extends Node implements Observable<T> {
   }
 
   @override
-  T get(WeakReference<Node> ref) {
+  T get(Node ref) {
     register(ref);
     return peek();
   }
@@ -75,12 +74,12 @@ class Reactive<T> extends Node implements Observable<T> {
   T peek() {
     if (notified) {
       notified = false;
-      value = recompute(weak());
+      value = recompute(this);
     }
     return value;
   }
 
-  void set(T Function(WeakReference<Node> ref) recompute) {
+  void set(T Function(Node ref) recompute) {
     this.recompute = recompute;
     notify();
   }

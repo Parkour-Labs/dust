@@ -9,7 +9,7 @@ class Multilinks<T extends Object> extends Node implements Observable<List<T>> {
   Multilinks._(this.repository, this.src, this.label);
 
   @override
-  List<T> get(WeakReference<Node> ref) {
+  List<T> get(Node ref) {
     register(ref);
     return peek();
   }

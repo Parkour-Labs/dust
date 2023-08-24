@@ -9,7 +9,7 @@ class Backlinks<T extends Object> extends Node implements Observable<List<T>> {
   Backlinks._(this.repository, this.dst, this.label);
 
   @override
-  List<T> get(WeakReference<Node> ref) {
+  List<T> get(Node ref) {
     register(ref);
     return peek();
   }

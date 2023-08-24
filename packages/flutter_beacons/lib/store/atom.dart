@@ -8,7 +8,7 @@ class AtomOption<T> extends Node implements Observable<T?> {
   AtomOption._(this.serializer, this.id);
 
   @override
-  T? get(WeakReference<Node> ref) {
+  T? get(Node ref) {
     register(ref);
     return peek();
   }
@@ -36,7 +36,7 @@ class Atom<T> extends Node implements Observable<T> {
   Atom._(this.serializer, this.id);
 
   @override
-  T get(WeakReference<Node> ref) {
+  T get(Node ref) {
     register(ref);
     return peek();
   }

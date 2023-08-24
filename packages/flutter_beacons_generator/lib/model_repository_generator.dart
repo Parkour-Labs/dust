@@ -361,6 +361,8 @@ String emitGetFunction(Struct struct) {
   return '''
     ${struct.name}? get(Id? id) {
       if (id == null) return null;
+      final \$object = objects[id]?.target;
+      if (\$object != null) return \$object;
       final \$store = Store.instance;
 
       ${emitGetFunctionFieldDecls(struct)}
@@ -372,10 +374,13 @@ String emitGetFunction(Struct struct) {
         }
       }
 
-      return ${struct.name}._(
+      final \$res = ${struct.name}._(
         id,
         ${emitGetFunctionCtorArgs(struct)}
       );
+
+      objects[id] = WeakReference(\$res);
+      return \$res;
     }
   ''';
 }
@@ -416,6 +421,8 @@ class ModelRepositoryGenerator extends GeneratorForAnnotation<Model> {
         ${emitLabelDecls(struct)}
 
         ${emitSerializerDecls(struct)}
+
+        static final Map<Id, WeakReference<${struct.name}>> objects = {};
 
         ${emitCreateFunctions(struct)}
 
