@@ -1,8 +1,7 @@
 abstract interface class Observable<T> {
-  void register(Node ref);
+  void register(Node? ref);
   void notify();
-  T peek();
-  T get(Node ref);
+  T get(Node? ref);
 }
 
 class Node {
@@ -21,9 +20,11 @@ class Node {
     }
   }
 
-  void register(Node ref) {
-    ref._in.add(this);
-    _out.add(WeakReference(ref));
+  void register(Node? ref) {
+    if (ref != null) {
+      ref._in.add(this);
+      _out.add(WeakReference(ref));
+    }
   }
 }
 
@@ -33,13 +34,8 @@ class Active<T> extends Node implements Observable<T> {
   Active(this.value);
 
   @override
-  T get(Node ref) {
+  T get(Node? ref) {
     register(ref);
-    return peek();
-  }
-
-  @override
-  T peek() {
     return value;
   }
 
@@ -65,17 +61,12 @@ class Reactive<T> extends Node implements Observable<T> {
   }
 
   @override
-  T get(Node ref) {
-    register(ref);
-    return peek();
-  }
-
-  @override
-  T peek() {
+  T get(Node? ref) {
     if (notified) {
       notified = false;
       value = recompute(this);
     }
+    register(ref);
     return value;
   }
 

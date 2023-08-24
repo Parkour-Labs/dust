@@ -191,37 +191,37 @@ void testObjectStoreWrapper() async {
   final somethingCopy = const $SomethingRepository().get(something.id)!;
   final somethingElseCopy = const $SomethingRepository().get(somethingElse.id)!;
 
-  assert(somethingCopy.atomOne.peek() == "test");
-  assert(somethingCopy.atomTwo.peek()! == "2333");
-  assert(somethingCopy.linkOne.peek().id == trivial.id);
-  assert(somethingCopy.linkTwo.peek()!.id == trivial.id);
-  assert(somethingCopy.linkThree.peek().isEmpty);
+  assert(somethingCopy.atomOne.get(null) == "test");
+  assert(somethingCopy.atomTwo.get(null)! == "2333");
+  assert(somethingCopy.linkOne.get(null).id == trivial.id);
+  assert(somethingCopy.linkTwo.get(null)!.id == trivial.id);
+  assert(somethingCopy.linkThree.get(null).isEmpty);
 
-  assert(somethingElseCopy.atomOne.peek() == "test");
-  assert(somethingElseCopy.atomTwo.peek() == null);
-  assert(somethingElseCopy.linkOne.peek().id == trivial.id);
-  assert(somethingElseCopy.linkTwo.peek() == null);
-  assert(somethingElseCopy.linkThree.peek().length == 1);
-  assert(somethingElseCopy.linkThree.peek().single.id == something.id);
+  assert(somethingElseCopy.atomOne.get(null) == "test");
+  assert(somethingElseCopy.atomTwo.get(null) == null);
+  assert(somethingElseCopy.linkOne.get(null).id == trivial.id);
+  assert(somethingElseCopy.linkTwo.get(null) == null);
+  assert(somethingElseCopy.linkThree.get(null).length == 1);
+  assert(somethingElseCopy.linkThree.get(null).single.id == something.id);
 
   somethingCopy.atomTwo.set(null);
-  assert(somethingCopy.atomTwo.peek() == null);
+  assert(somethingCopy.atomTwo.get(null) == null);
   somethingCopy.atomTwo.set("gg");
-  assert(somethingCopy.atomTwo.peek()! == "gg");
+  assert(somethingCopy.atomTwo.get(null)! == "gg");
   somethingCopy.linkTwo.set(null);
-  assert(somethingCopy.linkTwo.peek() == null);
+  assert(somethingCopy.linkTwo.get(null) == null);
   somethingCopy.linkTwo.set(trivialAgain);
-  assert(somethingCopy.linkTwo.peek()!.id == trivialAgain.id);
+  assert(somethingCopy.linkTwo.get(null)!.id == trivialAgain.id);
 
-  assert(something.backlink.peek().length == 1);
+  assert(something.backlink.get(null).length == 1);
   something.linkThree.insert(something);
-  assert(something.backlink.peek().length == 2);
+  assert(something.backlink.get(null).length == 2);
   something.linkThree.insert(something);
-  assert(something.backlink.peek().length == 3);
+  assert(something.backlink.get(null).length == 3);
   something.linkThree.remove(something);
-  assert(something.backlink.peek().length == 2);
+  assert(something.backlink.get(null).length == 2);
   somethingElse.linkThree.remove(something);
-  assert(something.backlink.peek().length == 1);
+  assert(something.backlink.get(null).length == 1);
 }
 
 Future<bool> allTests() async {

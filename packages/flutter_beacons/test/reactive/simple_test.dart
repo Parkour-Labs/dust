@@ -23,17 +23,17 @@ void main() {
       Reactive((r) => c[3].get(r) + c[0].get(r)),
     ];
     final sum = Reactive((r) => d[0].get(r) + d[1].get(r) + d[2].get(r) + d[3].get(r));
-    assert(sum.peek() == 40);
+    assert(sum.get(null) == 40);
 
     c[0].set((r) => b[0].get(r) + b[1].get(r));
     c[1].set((r) => b[1].get(r) + b[2].get(r));
     c[2].set((r) => b[2].get(r) + b[3].get(r));
     c[3].set((r) => b[3].get(r) + b[0].get(r));
-    assert(sum.peek() == 80);
+    assert(sum.get(null) == 80);
 
     a[0].set(233);
-    assert(sum.peek() == 80 + 8 * 232);
-    assert(c[3].peek() == 8 + 2 * 232);
+    assert(sum.get(null) == 80 + 8 * 232);
+    assert(c[3].get(null) == 8 + 2 * 232);
   });
 
   test('dynamic_dependencies_simple', () {
@@ -63,8 +63,8 @@ void main() {
       }));
     }
 
-    assert(a.last.peek() == 0);
-    assert(b.last.peek() == 0);
+    assert(a.last.get(null) == 0);
+    assert(b.last.get(null) == 0);
     assert(updates == 32);
 
     a[0].set((_) {
@@ -76,8 +76,8 @@ void main() {
       return 1;
     });
 
-    assert(a.last.peek() == 32768);
-    assert(b.last.peek() == 32768);
+    assert(a.last.get(null) == 32768);
+    assert(b.last.get(null) == 32768);
     assert(updates == 64);
   });
 }

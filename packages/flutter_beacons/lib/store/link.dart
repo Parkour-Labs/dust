@@ -8,13 +8,8 @@ class LinkOption<T extends Object> extends Node implements Observable<T?> {
   LinkOption._(this.repository, this.id);
 
   @override
-  T? get(Node ref) {
+  T? get(Node? ref) {
     register(ref);
-    return peek();
-  }
-
-  @override
-  T? peek() {
     return repository.get(dst);
   }
 
@@ -36,13 +31,8 @@ class Link<T extends Object> extends Node implements Observable<T> {
   Link._(this.repository, this.id);
 
   @override
-  T get(Node ref) {
+  T get(Node? ref) {
     register(ref);
-    return peek();
-  }
-
-  @override
-  T peek() {
     return repository.get(dst)!;
   }
 

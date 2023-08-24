@@ -9,13 +9,8 @@ class Backlinks<T extends Object> extends Node implements Observable<List<T>> {
   Backlinks._(this.repository, this.dst, this.label);
 
   @override
-  List<T> get(Node ref) {
+  List<T> get(Node? ref) {
     register(ref);
-    return peek();
-  }
-
-  @override
-  List<T> peek() {
     return edges.map<T>((elem) => repository.get(elem.$2)!).toList();
   }
 
