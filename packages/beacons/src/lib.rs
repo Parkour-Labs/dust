@@ -1,6 +1,7 @@
-pub mod crdt;
 pub mod ffi;
 pub mod global;
+pub mod joinable;
+pub mod observable;
 pub mod store;
 pub use beacons_macros::*;
 

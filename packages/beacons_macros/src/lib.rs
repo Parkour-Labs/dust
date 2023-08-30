@@ -250,27 +250,19 @@ fn create_new_fn_body(field: &Field) -> TokenStream {
   let label = create_label(field.name);
   match &field.ty {
     FieldType::Atom(_) => quote! {
-      let dst = rng.gen();
-      store.set_edge(rng.gen(), Some((id, Self::#label, dst)));
-      store.set_atom(dst, Some(serialize(#name).unwrap().into()));
+      store.set_atom(rng.gen(), Some((id, Self::#label, serialize(#name).unwrap().into())));
     },
     FieldType::Link(_) => quote! {
       store.set_edge(rng.gen(), Some((id, Self::#label, #name.id())));
     },
     FieldType::AtomOption(_) => quote! {
       if let Some(#name) = #name {
-        let dst = rng.gen();
-        store.set_edge(rng.gen(), Some((id, Self::#label, dst)));
-        store.set_atom(dst, Some(serialize(#name).unwrap().into()));
-      } else {
-        store.set_edge(rng.gen(), Some((id, Self::#label, rng.gen())));
+        store.set_atom(rng.gen(), Some((id, Self::#label, serialize(#name).unwrap().into())));
       }
     },
     FieldType::LinkOption(_) => quote! {
       if let Some(#name) = #name {
         store.set_edge(rng.gen(), Some((id, Self::#label, #name.id())));
-      } else {
-        store.set_edge(rng.gen(), Some((id, Self::#label, rng.gen())));
       }
     },
     FieldType::Multilinks(_, _) => quote! {},
@@ -290,7 +282,7 @@ fn create_new_fn(s: &Struct) -> TokenStream {
       let id = rng.gen();
 
       global::access_store_with(|store| {
-        store.set_node(id, Some(#name::LABEL));
+        store.set_atom(id, Some((id, #name::LABEL, Vec::new().into())));
 
         #(#bodies)*
       });
@@ -304,7 +296,7 @@ fn create_new_fn(s: &Struct) -> TokenStream {
 fn create_delete_fn(_s: &Struct) -> TokenStream {
   quote! {
     pub fn delete(self) {
-      global::access_store_with(|store| store.set_node(self.id, None));
+      global::access_store_with(|store| store.set_atom(self.id, None));
     }
   }
 }
@@ -321,14 +313,27 @@ fn create_get_fn_field_decls(field: &Field) -> TokenStream {
   }
 }
 
-fn create_get_fn_match_arms(field: &Field) -> TokenStream {
+fn create_get_fn_atom_match_arms(field: &Field) -> TokenStream {
   let name = &field.name;
   let label = create_label(field.name);
   match &field.ty {
-    FieldType::Atom(_) => quote! { Self::#label => #name = Some(Atom::from_raw(dst)), },
-    FieldType::Link(_) => quote! { Self::#label => #name = Some(Link::from_raw(edge)), },
-    FieldType::AtomOption(_) => quote! { Self::#label => #name = Some(AtomOption::from_raw(dst)), },
-    FieldType::LinkOption(_) => quote! { Self::#label => #name = Some(LinkOption::from_raw(edge)), },
+    FieldType::Atom(_) => quote! { Self::#label => #name = Some(Atom::from_raw(atom, id, label)), },
+    FieldType::Link(_) => quote! {},
+    FieldType::AtomOption(_) => quote! { Self::#label => #name = Some(AtomOption::from_raw(atom, id, label)), },
+    FieldType::LinkOption(_) => quote! {},
+    FieldType::Multilinks(_, _) => quote! {},
+    FieldType::Backlinks(_, _) => quote! {},
+  }
+}
+
+fn create_get_fn_edge_match_arms(field: &Field) -> TokenStream {
+  let name = &field.name;
+  let label = create_label(field.name);
+  match &field.ty {
+    FieldType::Atom(_) => quote! {},
+    FieldType::Link(_) => quote! { Self::#label => #name = Some(Link::from_raw(edge, id, label)), },
+    FieldType::AtomOption(_) => quote! {},
+    FieldType::LinkOption(_) => quote! { Self::#label => #name = Some(LinkOption::from_raw(edge, id, label)), },
     FieldType::Multilinks(_, _) => quote! {},
     FieldType::Backlinks(_, _) => quote! {},
   }
@@ -336,19 +341,25 @@ fn create_get_fn_match_arms(field: &Field) -> TokenStream {
 
 fn create_get_fn_ctor_args(field: &Field) -> TokenStream {
   let name = &field.name;
+  let label = create_label(field.name);
   match &field.ty {
     FieldType::Atom(_) => quote! { #name: #name?, },
-    FieldType::Link(_) => quote! { #name: #name?, },
-    FieldType::AtomOption(_) => quote! { #name: #name?, },
-    FieldType::LinkOption(_) => quote! { #name: #name?, },
-    FieldType::Multilinks(ty, label) => quote! { #name: Multilinks::from_raw(id, #ty::#label), },
+    FieldType::Link(_) => quote! {#name: #name?,},
+    FieldType::AtomOption(_) => quote! {
+      #name: #name.unwrap_or(AtomOption::from_raw(id ^ (Self::#label as u128), id, Self::#label)),
+    },
+    FieldType::LinkOption(_) => quote! {
+      #name: #name.unwrap_or(LinkOption::from_raw(id ^ (Self::#label as u128), id, Self::#label)),
+    },
+    FieldType::Multilinks(_, label) => quote! { #name: Multilinks::from_raw(id, Self::#label), },
     FieldType::Backlinks(ty, label) => quote! { #name: Backlinks::from_raw(id, #ty::#label), },
   }
 }
 
 fn create_get_fn(s: &Struct) -> TokenStream {
   let field_decls = s.fields.iter().map(create_get_fn_field_decls).collect::<Vec<TokenStream>>();
-  let match_arms = s.fields.iter().map(create_get_fn_match_arms).collect::<Vec<TokenStream>>();
+  let atom_match_arms = s.fields.iter().map(create_get_fn_atom_match_arms).collect::<Vec<TokenStream>>();
+  let edge_match_arms = s.fields.iter().map(create_get_fn_edge_match_arms).collect::<Vec<TokenStream>>();
   let ctor_args = s.fields.iter().map(create_get_fn_ctor_args).collect::<Vec<TokenStream>>();
 
   quote! {
@@ -356,10 +367,16 @@ fn create_get_fn(s: &Struct) -> TokenStream {
       global::access_store_with(|store| {
         #(#field_decls)*
 
-        store.node(id)?;
-        for (edge, (_, label, dst)) in store.edges_by_src(id) {
+        store.atom(id)?;
+        for (atom, (label, _)) in store.atom_label_value_by_src(id) {
           match label {
-            #(#match_arms)*
+            #(#atom_match_arms)*
+            _ => (),
+          }
+        }
+        for (edge, (label, _)) in store.edge_label_dst_by_src(id) {
+          match label {
+            #(#edge_match_arms)*
             _ => (),
           }
         }

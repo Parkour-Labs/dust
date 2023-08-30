@@ -50,18 +50,22 @@ pub trait Model: Sized {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AtomOption<T: Serialize + DeserializeOwned> {
   id: u128,
+  src: u128,
+  label: u64,
   _t: PhantomData<T>,
 }
 
 impl<T: Serialize + DeserializeOwned> AtomOption<T> {
-  pub fn from_raw(id: u128) -> Self {
-    Self { id, _t: Default::default() }
+  pub fn from_raw(id: u128, src: u128, label: u64) -> Self {
+    Self { id, src, label, _t: PhantomData }
   }
   pub fn get(&self) -> Option<T> {
-    access_store_with(|store| store.atom(self.id).map(|bytes| deserialize(&bytes).unwrap()))
+    access_store_with(|store| store.atom(self.id).map(|(_, _, bytes)| deserialize(&bytes).unwrap()))
   }
   pub fn set(&self, value: Option<&T>) {
-    access_store_with(|store| store.set_atom(self.id, value.map(|inner| serialize(inner).unwrap().into())));
+    access_store_with(|store| {
+      store.set_atom(self.id, value.map(|inner| (self.src, self.label, serialize(inner).unwrap().into())))
+    });
   }
 }
 
@@ -72,8 +76,8 @@ pub struct Atom<T: Serialize + DeserializeOwned> {
 }
 
 impl<T: Serialize + DeserializeOwned> Atom<T> {
-  pub fn from_raw(id: u128) -> Self {
-    Self { inner: AtomOption::from_raw(id) }
+  pub fn from_raw(id: u128, src: u128, label: u64) -> Self {
+    Self { inner: AtomOption::from_raw(id, src, label) }
   }
   pub fn get(&self) -> T {
     self.inner.get().unwrap()
@@ -87,20 +91,20 @@ impl<T: Serialize + DeserializeOwned> Atom<T> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LinkOption<T: Model> {
   id: u128,
+  src: u128,
+  label: u64,
   _t: PhantomData<T>,
 }
 
 impl<T: Model> LinkOption<T> {
-  pub fn from_raw(id: u128) -> Self {
-    Self { id, _t: Default::default() }
+  pub fn from_raw(id: u128, src: u128, label: u64) -> Self {
+    Self { id, src, label, _t: PhantomData }
   }
   pub fn get(&self) -> Option<T> {
     access_store_with(|store| store.edge(self.id)).and_then(|(_, _, dst)| T::get(dst))
   }
   pub fn set(&self, value: Option<&T>) {
-    access_store_with(|store| {
-      store.set_edge_dst(self.id, value.map_or_else(|| rand::thread_rng().gen(), |inner| inner.id()))
-    });
+    access_store_with(|store| store.set_edge(self.id, value.map(|inner| (self.src, self.label, inner.id()))));
   }
 }
 
@@ -111,8 +115,8 @@ pub struct Link<T: Model> {
 }
 
 impl<T: Model> Link<T> {
-  pub fn from_raw(id: u128) -> Self {
-    Self { inner: LinkOption::from_raw(id) }
+  pub fn from_raw(id: u128, src: u128, label: u64) -> Self {
+    Self { inner: LinkOption::from_raw(id, src, label) }
   }
   pub fn get(&self) -> T {
     self.inner.get().unwrap()
@@ -132,11 +136,11 @@ pub struct Multilinks<T> {
 
 impl<T: Model> Multilinks<T> {
   pub fn from_raw(src: u128, label: u64) -> Self {
-    Self { src, label, _t: Default::default() }
+    Self { src, label, _t: PhantomData }
   }
   pub fn get(&self) -> Vec<T> {
     let mut res = Vec::new();
-    for (_, dst) in access_store_with(|store| store.id_dst_by_src_label(self.src, self.label)) {
+    for (_, dst) in access_store_with(|store| store.edge_dst_by_src_label(self.src, self.label)) {
       if let Some(inner) = T::get(dst) {
         res.push(inner);
       }
@@ -147,7 +151,7 @@ impl<T: Model> Multilinks<T> {
     access_store_with(|store| store.set_edge(rand::thread_rng().gen(), Some((self.src, self.label, object.id()))));
   }
   pub fn remove(&self, object: &T) {
-    for (id, dst) in access_store_with(|store| store.id_dst_by_src_label(self.src, self.label)) {
+    for (id, dst) in access_store_with(|store| store.edge_dst_by_src_label(self.src, self.label)) {
       if dst == object.id() {
         access_store_with(|store| store.set_edge(id, None));
         break;
@@ -166,11 +170,11 @@ pub struct Backlinks<T: Model> {
 
 impl<T: Model> Backlinks<T> {
   pub fn from_raw(dst: u128, label: u64) -> Self {
-    Self { dst, label, _t: Default::default() }
+    Self { dst, label, _t: PhantomData }
   }
   pub fn get(&self) -> Vec<T> {
     let mut res = Vec::new();
-    for (_, src) in access_store_with(|store| store.id_src_by_dst_label(self.dst, self.label)) {
+    for (_, src) in access_store_with(|store| store.edge_src_by_label_dst(self.label, self.dst)) {
       if let Some(inner) = T::get(src) {
         res.push(inner);
       }
@@ -214,8 +218,8 @@ mod tests {
       let id = rng.gen();
 
       global::access_store_with(|store| {
-        // Create `Trivial`.
-        store.set_node(id, Some(Trivial::LABEL));
+        // Create deletion flag.
+        store.set_atom(id, Some((id, Trivial::LABEL, Vec::new().into())));
 
         /* (No code generated here) */
       });
@@ -225,7 +229,7 @@ mod tests {
     }
 
     pub fn delete(self) {
-      global::access_store_with(|store| store.set_node(self.id, None));
+      global::access_store_with(|store| store.set_atom(self.id, None));
     }
   }
 
@@ -239,8 +243,10 @@ mod tests {
         // Variables for existing data.
         /* (No code generated here) */
 
+        // Check deletion flag.
+        store.atom(id)?;
+
         // Load existing data.
-        store.node(id)?;
         /* (No code generated here) */
 
         // Pack together. Fail if a field is not found.
@@ -276,31 +282,23 @@ mod tests {
       let id = rng.gen();
 
       global::access_store_with(|store| {
-        // Create `Something`.
-        store.set_node(id, Some(Something::LABEL));
+        // Create deletion flag.
+        store.set_atom(id, Some((id, Self::LABEL, Vec::new().into())));
 
         // Create `Something.atom_one`.
-        let atom_one_id = rng.gen();
-        store.set_edge(rng.gen(), Some((id, Something::ATOM_ONE_LABEL, atom_one_id)));
-        store.set_atom(atom_one_id, Some(serialize(atom_one).unwrap().into()));
+        store.set_atom(rng.gen(), Some((id, Self::ATOM_ONE_LABEL, serialize(atom_one).unwrap().into())));
 
         // Create `Something.atom_two`.
         if let Some(atom_two) = atom_two {
-          let atom_two_id = rng.gen();
-          store.set_edge(rng.gen(), Some((id, Something::ATOM_TWO_LABEL, atom_two_id)));
-          store.set_atom(atom_two_id, Some(serialize(atom_two).unwrap().into()));
-        } else {
-          store.set_edge(rng.gen(), Some((id, Something::ATOM_TWO_LABEL, rng.gen())));
+          store.set_atom(rng.gen(), Some((id, Self::ATOM_TWO_LABEL, serialize(atom_two).unwrap().into())));
         }
 
         // Create `Something.link_one`.
-        store.set_edge(rng.gen(), Some((id, Something::LINK_ONE_LABEL, link_one.id())));
+        store.set_edge(rng.gen(), Some((id, Self::LINK_ONE_LABEL, link_one.id())));
 
         // Create `Something.link_two`.
         if let Some(link_two) = link_two {
-          store.set_edge(rng.gen(), Some((id, Something::LINK_TWO_LABEL, link_two.id())));
-        } else {
-          store.set_edge(rng.gen(), Some((id, Something::LINK_TWO_LABEL, rng.gen())));
+          store.set_edge(rng.gen(), Some((id, Self::LINK_TWO_LABEL, link_two.id())));
         }
       });
 
@@ -309,7 +307,7 @@ mod tests {
     }
 
     pub fn delete(self) {
-      global::access_store_with(|store| store.set_node(self.id, None));
+      global::access_store_with(|store| store.set_atom(self.id, None));
     }
   }
 
@@ -326,26 +324,41 @@ mod tests {
         let mut link_one: Option<Link<Trivial>> = None;
         let mut link_two: Option<LinkOption<Trivial>> = None;
 
+        // Check deletion flag.
+        store.atom(id)?;
+
         // Load existing data.
-        store.node(id)?;
-        for (edge, (_, label, dst)) in store.edges_by_src(id) {
+        for (atom, (label, _)) in store.atom_label_value_by_src(id) {
           match label {
-            Something::ATOM_ONE_LABEL => atom_one = Some(Atom::from_raw(dst)),
-            Something::ATOM_TWO_LABEL => atom_two = Some(AtomOption::from_raw(dst)),
-            Something::LINK_ONE_LABEL => link_one = Some(Link::from_raw(edge)),
-            Something::LINK_TWO_LABEL => link_two = Some(LinkOption::from_raw(edge)),
+            Self::ATOM_ONE_LABEL => atom_one = Some(Atom::from_raw(atom, id, label)),
+            Self::ATOM_TWO_LABEL => atom_two = Some(AtomOption::from_raw(atom, id, label)),
+            _ => (),
+          }
+        }
+        for (edge, (label, _)) in store.edge_label_dst_by_src(id) {
+          match label {
+            Self::LINK_ONE_LABEL => link_one = Some(Link::from_raw(edge, id, label)),
+            Self::LINK_TWO_LABEL => link_two = Some(LinkOption::from_raw(edge, id, label)),
             _ => (),
           }
         }
 
-        // Pack together. Fail if a field is not found.
+        // Pack together. Fail if a required field is not found.
         Some(Self {
           id,
           atom_one: atom_one?,
-          atom_two: atom_two?,
+          atom_two: atom_two.unwrap_or(AtomOption::from_raw(
+            id ^ (Self::ATOM_TWO_LABEL as u128),
+            id,
+            Self::ATOM_TWO_LABEL,
+          )),
           link_one: link_one?,
-          link_two: link_two?,
-          link_three: Multilinks::from_raw(id, Something::LINK_THREE_LABEL),
+          link_two: link_two.unwrap_or(LinkOption::from_raw(
+            id ^ (Self::LINK_TWO_LABEL as u128),
+            id,
+            Self::LINK_TWO_LABEL,
+          )),
+          link_three: Multilinks::from_raw(id, Self::LINK_THREE_LABEL),
           backlink: Backlinks::from_raw(id, Something::LINK_THREE_LABEL),
         })
       })
@@ -355,14 +368,14 @@ mod tests {
   #[test]
   fn object_store_simple() {
     global::init_in_memory();
-    global::access_store_with(|store| store.set_node(0, Some(233)));
-    global::access_store_with(|store| store.set_node(1, Some(2333)));
+    global::access_store_with(|store| store.set_atom(0, Some((1, 2, vec![2, 3, 3].into()))));
+    global::access_store_with(|store| store.set_atom(1, Some((3, 4, vec![2, 3, 3, 3].into()))));
     global::access_store_with(|store| store.set_edge(rand::thread_rng().gen(), Some((0, 23333, 1))));
-    assert_eq!(global::access_store_with(|store| store.node(0)), Some(233));
-    assert_eq!(global::access_store_with(|store| store.node(1)), Some(2333));
-    let edges = global::access_store_with(|store| store.edges_by_src(0));
+    assert_eq!(global::access_store_with(|store| store.atom(0)), Some((1, 2, vec![2, 3, 3].into())));
+    assert_eq!(global::access_store_with(|store| store.atom(1)), Some((3, 4, vec![2, 3, 3, 3].into())));
+    let edges = global::access_store_with(|store| store.edge_label_dst_by_src(0));
     assert_eq!(edges.len(), 1);
-    assert_eq!(edges[0].1, (0, 23333, 1));
+    assert_eq!(edges[0].1, (23333, 1));
   }
 
   #[test]

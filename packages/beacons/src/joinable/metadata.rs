@@ -1,29 +1,18 @@
 use rand::Rng;
-use rusqlite::{
-  types::{FromSql, ToSql},
-  OptionalExtension, Transaction,
-};
+use rusqlite::{OptionalExtension, Transaction};
 use std::collections::HashMap;
-
-/// [`VersionClock`] must be serialised in a way that preserves total order.
-pub trait VersionClock: Clone + Ord {
-  type SqlType: FromSql + ToSql;
-
-  fn serialize(&self) -> Self::SqlType;
-  fn deserialize(data: Self::SqlType) -> Self;
-}
 
 /// Stores the metadata for Γ-joinable structures.
 #[derive(Debug, Clone)]
-pub struct Version<T: VersionClock> {
+pub struct Metadata {
   name: &'static str,
   this: u64,
-  buckets: HashMap<u64, T>,
+  buckets: HashMap<u64, u64>,
 }
 
-impl<T: VersionClock> Version<T> {
+impl Metadata {
   /// Creates or loads metadata.
-  pub fn new(name: &'static str, store: &mut impl VersionStore<T>) -> Self {
+  pub fn new(name: &'static str, store: &mut impl MetadataStore) -> Self {
     store.init_buckets(name);
     store.init_this(name);
     let buckets = store.get_buckets(name);
@@ -46,31 +35,38 @@ impl<T: VersionClock> Version<T> {
   }
 
   /// Returns the current clock values values for each bucket.
-  pub fn buckets(&self) -> &HashMap<u64, T> {
+  pub fn buckets(&self) -> &HashMap<u64, u64> {
     &self.buckets
   }
 
+  /// Returns the largest clock value across all buckets plus one.
+  pub fn next(&self) -> u64 {
+    self.buckets.values().fold(0, |acc, &clock| acc.max(clock + 1))
+  }
+
   /// Updates clock for one bucket.
-  pub fn update(&mut self, store: &mut impl VersionStore<T>, bucket: u64, clock: T) {
+  pub fn update(&mut self, store: &mut impl MetadataStore, bucket: u64, clock: u64) -> bool {
     if self.buckets.get(&bucket) < Some(&clock) {
-      store.set_bucket(self.name, bucket, &clock);
+      store.set_bucket(self.name, bucket, clock);
       self.buckets.insert(bucket, clock);
+      true
+    } else {
+      false
     }
   }
 }
 
-/// Database interface for [`Version`].
-pub trait VersionStore<T: VersionClock> {
+/// Database interface for [`Metadata`].
+pub trait MetadataStore {
   fn init_this(&mut self, name: &str);
   fn get_this(&mut self, name: &str) -> Option<u64>;
   fn put_this(&mut self, name: &str, this: u64);
-
   fn init_buckets(&mut self, name: &str);
-  fn get_buckets(&mut self, name: &str) -> HashMap<u64, T>;
-  fn set_bucket(&mut self, name: &str, bucket: u64, clock: &T);
+  fn get_buckets(&mut self, name: &str) -> HashMap<u64, u64>;
+  fn set_bucket(&mut self, name: &str, bucket: u64, clock: u64);
 }
 
-impl<'a, T: VersionClock> VersionStore<T> for Transaction<'a> {
+impl<'a> MetadataStore for Transaction<'a> {
   fn init_this(&mut self, name: &str) {
     self
       .execute_batch(&format!(
@@ -118,25 +114,25 @@ impl<'a, T: VersionClock> VersionStore<T> for Transaction<'a> {
       .unwrap();
   }
 
-  fn get_buckets(&mut self, name: &str) -> HashMap<u64, T> {
+  fn get_buckets(&mut self, name: &str) -> HashMap<u64, u64> {
     self
       .prepare_cached(&format!("SELECT bucket, clock FROM \"{name}.buckets\""))
       .unwrap()
       .query_map((), |row| {
         let bucket = row.get(0).unwrap();
         let clock = row.get(1).unwrap();
-        Ok((u64::from_be_bytes(bucket), T::deserialize(clock)))
+        Ok((u64::from_be_bytes(bucket), u64::from_be_bytes(clock)))
       })
       .unwrap()
       .map(Result::unwrap)
       .collect()
   }
 
-  fn set_bucket(&mut self, name: &str, bucket: u64, clock: &T) {
+  fn set_bucket(&mut self, name: &str, bucket: u64, clock: u64) {
     self
       .prepare_cached(&format!("REPLACE INTO \"{name}.buckets\" VALUES (?, ?)"))
       .unwrap()
-      .execute((bucket.to_be_bytes(), clock.serialize()))
+      .execute((bucket.to_be_bytes(), clock.to_be_bytes()))
       .unwrap();
   }
 }
@@ -147,38 +143,38 @@ mod tests {
   use rusqlite::Connection;
 
   #[test]
-  fn version_store_simple() {
+  fn metadata_store_simple() {
     let mut conn = Connection::open_in_memory().unwrap();
     let mut txn = conn.transaction().unwrap();
-    let mut version = Version::new("name", &mut txn);
-    let this = version.this();
-    assert_eq!(version.name(), "name");
-    assert_eq!(version.buckets().len(), 0);
+    let mut metadata = Metadata::new("name", &mut txn);
+    let this = metadata.this();
+    assert_eq!(metadata.name(), "name");
+    assert_eq!(metadata.buckets().len(), 0);
 
-    version.update(&mut txn, 1, 3u64);
-    assert_eq!(version.buckets().get(&1).unwrap(), &3);
-    version.update(&mut txn, 1, 2u64);
-    assert_eq!(version.buckets().get(&1).unwrap(), &3);
-    version.update(&mut txn, 1, 3u64);
-    assert_eq!(version.buckets().get(&1).unwrap(), &3);
-    version.update(&mut txn, 1, 4u64);
-    assert_eq!(version.buckets().get(&1).unwrap(), &4);
-    version.update(&mut txn, 2, 3u64);
-    assert_eq!(version.buckets().get(&2).unwrap(), &3);
-    version.update(&mut txn, 2, 2u64);
-    assert_eq!(version.buckets().get(&2).unwrap(), &3);
+    metadata.update(&mut txn, 1, 3u64);
+    assert_eq!(metadata.buckets().get(&1).unwrap(), &3);
+    metadata.update(&mut txn, 1, 2u64);
+    assert_eq!(metadata.buckets().get(&1).unwrap(), &3);
+    metadata.update(&mut txn, 1, 3u64);
+    assert_eq!(metadata.buckets().get(&1).unwrap(), &3);
+    metadata.update(&mut txn, 1, 4u64);
+    assert_eq!(metadata.buckets().get(&1).unwrap(), &4);
+    metadata.update(&mut txn, 2, 3u64);
+    assert_eq!(metadata.buckets().get(&2).unwrap(), &3);
+    metadata.update(&mut txn, 2, 2u64);
+    assert_eq!(metadata.buckets().get(&2).unwrap(), &3);
 
-    let mut version = Version::new("name", &mut txn);
-    assert_eq!(version.name(), "name");
-    assert_eq!(version.this(), this);
-    assert_eq!(version.buckets(), &HashMap::from([(1, 4u64), (2, 3u64)]));
+    let mut metadata = Metadata::new("name", &mut txn);
+    assert_eq!(metadata.name(), "name");
+    assert_eq!(metadata.this(), this);
+    assert_eq!(metadata.buckets(), &HashMap::from([(1, 4u64), (2, 3u64)]));
 
-    version.update(&mut txn, 3, 3u64);
-    assert_eq!(version.buckets(), &HashMap::from([(1, 4u64), (2, 3u64), (3, 3u64)]));
+    metadata.update(&mut txn, 3, 3u64);
+    assert_eq!(metadata.buckets(), &HashMap::from([(1, 4u64), (2, 3u64), (3, 3u64)]));
 
-    let version = Version::<u64>::new("another_name", &mut txn);
-    assert_eq!(version.name(), "another_name");
-    assert_ne!(version.this(), this);
-    assert_eq!(version.buckets().len(), 0);
+    let metadata = Metadata::new("another_name", &mut txn);
+    assert_eq!(metadata.name(), "another_name");
+    assert_ne!(metadata.this(), this);
+    assert_eq!(metadata.buckets().len(), 0);
   }
 }

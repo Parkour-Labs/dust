@@ -5,13 +5,13 @@ abstract interface class Observable<T> {
 }
 
 class Node {
-  List<Node> _in = [];
-  List<WeakReference<Node>> _out = [];
+  Set<Node> _in = {};
+  Set<WeakReference<Node>> _out = {};
 
   void notify() {
     _in.clear();
     final out = _out;
-    _out = [];
+    _out = {};
     for (final weak in out) {
       final node = weak.target;
       if (node != null) {
@@ -29,65 +29,65 @@ class Node {
 }
 
 class Active<T> extends Node implements Observable<T> {
-  T value;
+  T _value;
 
-  Active(this.value);
+  Active(this._value);
 
   @override
   T get(Node? ref) {
     register(ref);
-    return value;
+    return _value;
   }
 
   void set(T value) {
-    this.value = value;
+    this._value = value;
     notify();
   }
 }
 
 class Reactive<T> extends Node implements Observable<T> {
-  late T value;
-  bool notified = false;
-  T Function(Node ref) recompute;
+  late T _value;
+  bool _notified = false;
+  T Function(Node ref) _recompute;
 
-  Reactive(this.recompute) {
-    value = recompute(this);
+  Reactive(this._recompute) {
+    _value = _recompute(this);
   }
 
   @override
   void notify() {
     super.notify();
-    notified = true;
+    _notified = true;
   }
 
   @override
   T get(Node? ref) {
-    if (notified) {
-      notified = false;
-      value = recompute(this);
+    if (_notified) {
+      _notified = false;
+      _value = _recompute(this);
     }
     register(ref);
-    return value;
+    return _value;
   }
 
   void set(T Function(Node ref) recompute) {
-    this.recompute = recompute;
+    this._recompute = recompute;
     notify();
   }
 }
 
 class Observer extends Node {
-  void Function()? callback;
+  void Function()? _callback;
 
-  Observer(this.callback);
+  Observer(this._callback);
 
   @override
   void notify() {
     super.notify();
-    callback?.call();
+    _callback?.call();
   }
 
   void set(void Function()? callback) {
-    this.callback = callback;
+    this._callback = callback;
   }
 }

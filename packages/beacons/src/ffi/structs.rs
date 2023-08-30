@@ -1,8 +1,13 @@
+/// `(high, low)`.
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
-pub struct CId {
-  pub high: u64,
-  pub low: u64,
+pub struct CId(pub u64, pub u64);
+
+#[repr(C)]
+pub struct CAtom {
+  pub src: CId,
+  pub label: u64,
+  pub value: CArray<u8>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -13,12 +18,10 @@ pub struct CEdge {
   pub dst: CId,
 }
 
+/// `(first, second)`.
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
-pub struct CPair<T, U> {
-  pub first: T,
-  pub second: U,
-}
+pub struct CPair<T, U>(pub T, pub U);
 
 #[repr(C)]
 pub struct CArray<T> {
@@ -36,68 +39,55 @@ pub enum COption<T> {
 
 #[repr(C, u8)]
 pub enum CEventData {
-  Node { value: COption<u64> },
-  Atom { value: COption<CArray<u8>> },
-  Edge { value: COption<CEdge> },
-  MultiedgeInsert { id: CId, dst: CId },
-  MultiedgeRemove { id: CId, dst: CId },
-  BackedgeInsert { id: CId, src: CId },
-  BackedgeRemove { id: CId, src: CId },
+  Atom { id: CId, prev: COption<CAtom>, curr: COption<CAtom> },
+  Edge { id: CId, prev: COption<CEdge>, curr: COption<CEdge> },
 }
 
 impl From<u128> for CId {
   fn from(value: u128) -> Self {
-    Self { high: (value >> 64) as u64, low: value as u64 }
+    Self((value >> 64) as u64, value as u64)
   }
 }
 
 impl From<CId> for u128 {
   fn from(value: CId) -> Self {
-    ((value.high as u128) << 64) ^ (value.low as u128)
+    ((value.0 as u128) << 64) ^ (value.1 as u128)
+  }
+}
+
+impl From<(u128, u64, Box<[u8]>)> for CAtom {
+  fn from(slv: (u128, u64, Box<[u8]>)) -> Self {
+    let (src, label, value) = slv;
+    Self { src: src.into(), label, value: value.into() }
   }
 }
 
 impl From<(u128, u64, u128)> for CEdge {
-  fn from(value: (u128, u64, u128)) -> Self {
-    let (src, label, dst) = value;
+  fn from(sld: (u128, u64, u128)) -> Self {
+    let (src, label, dst) = sld;
     Self { src: src.into(), label, dst: dst.into() }
-  }
-}
-
-impl From<CEdge> for (u128, u64, u128) {
-  fn from(value: CEdge) -> Self {
-    (value.src.into(), value.label, value.dst.into())
   }
 }
 
 impl<T, U> From<(T, U)> for CPair<T, U> {
   fn from(value: (T, U)) -> Self {
     let (first, second) = value;
-    Self { first, second }
+    Self(first, second)
   }
 }
 
-impl<T, U> From<CPair<T, U>> for (T, U) {
-  fn from(value: CPair<T, U>) -> Self {
-    (value.first, value.second)
-  }
-}
-
-impl<T> CArray<T> {
-  /// This will **move** the content of the box to the `(length, pointer)` pair.
-  pub fn from_leaked(mut value: Box<[T]>) -> Self {
+impl<T> From<Box<[T]>> for CArray<T> {
+  fn from(mut value: Box<[T]>) -> Self {
     let len = value.len() as u64;
     let ptr = value.as_mut_ptr();
     std::mem::forget(value);
     Self { len, ptr }
   }
+}
 
-  pub unsafe fn as_ref_unchecked(&self) -> &[T] {
-    unsafe { std::slice::from_raw_parts(self.ptr, self.len as usize) }
-  }
-
-  pub unsafe fn into_boxed_unchecked(self) -> Box<[T]> {
-    unsafe { Box::from_raw(std::slice::from_raw_parts_mut(self.ptr, self.len as usize)) }
+impl<T> From<Vec<T>> for CArray<T> {
+  fn from(value: Vec<T>) -> Self {
+    Self::from(Box::<[T]>::from(value))
   }
 }
 
@@ -110,11 +100,12 @@ impl<T> From<Option<T>> for COption<T> {
   }
 }
 
-impl<T> From<COption<T>> for Option<T> {
-  fn from(value: COption<T>) -> Self {
-    match value {
-      COption::None => None,
-      COption::Some(inner) => Some(inner),
-    }
+impl<T> CArray<T> {
+  pub unsafe fn as_ref_unchecked(&self) -> &[T] {
+    unsafe { std::slice::from_raw_parts(self.ptr, self.len as usize) }
+  }
+
+  pub unsafe fn into_boxed_unchecked(self) -> Box<[T]> {
+    unsafe { Box::from_raw(std::slice::from_raw_parts_mut(self.ptr, self.len as usize)) }
   }
 }
