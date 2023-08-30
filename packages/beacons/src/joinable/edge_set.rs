@@ -102,12 +102,12 @@ impl EdgeSet {
     bucket: u64,
     clock: u64,
     sld: Option<(u128, u64, u128)>,
-  ) -> Option<Item> {
+  ) -> Option<Option<Item>> {
     if self.version.update(store, bucket, clock) {
       let prev = store.get(self.name(), id);
       if prev.as_ref().map(|(_, bucket, clock, _)| (*clock, *bucket)) < Some((clock, bucket)) {
         store.set(self.name(), id, bucket, clock, sld);
-        return prev;
+        return Some(prev);
       }
     }
     None

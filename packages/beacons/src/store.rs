@@ -76,7 +76,8 @@ impl Store {
     clock: u64,
     slv: Option<(u128, u64, &[u8])>,
   ) -> bool {
-    if let Some((_, _, _, prev)) = atoms.set(txn, id, bucket, clock, slv) {
+    if let Some(prev) = atoms.set(txn, id, bucket, clock, slv) {
+      let prev = prev.and_then(|(_, _, _, slv)| slv);
       events.push(CEventData::Atom {
         id: id.into(),
         prev: prev.map(|(src, label, value)| CAtom { src: src.into(), label, value: value.into() }).into(),
@@ -95,7 +96,8 @@ impl Store {
     clock: u64,
     sld: Option<(u128, u64, u128)>,
   ) -> bool {
-    if let Some((_, _, _, prev)) = edges.set(txn, id, bucket, clock, sld) {
+    if let Some(prev) = edges.set(txn, id, bucket, clock, sld) {
+      let prev = prev.and_then(|(_, _, _, sld)| sld);
       events.push(CEventData::Edge {
         id: id.into(),
         prev: prev.map(|(src, label, dst)| CEdge { src: src.into(), label, dst: dst.into() }).into(),

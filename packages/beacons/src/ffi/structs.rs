@@ -3,6 +3,30 @@
 #[repr(C)]
 pub struct CId(pub u64, pub u64);
 
+/// `(first, second)`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub struct CPair<T, U>(pub T, pub U);
+
+/// `(first, second, third)`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub struct CTriple<T, U, V>(pub T, pub U, pub V);
+
+/// See: https://github.com/rust-lang/rfcs/blob/master/text/2195-really-tagged-unions.md
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[repr(C, u8)]
+pub enum COption<T> {
+  None,
+  Some(T),
+}
+
+#[repr(C)]
+pub struct CArray<T> {
+  pub len: u64,
+  pub ptr: *mut T,
+}
+
 #[repr(C)]
 pub struct CAtom {
   pub src: CId,
@@ -16,25 +40,6 @@ pub struct CEdge {
   pub src: CId,
   pub label: u64,
   pub dst: CId,
-}
-
-/// `(first, second)`.
-#[derive(Clone, Copy, PartialEq, Eq)]
-#[repr(C)]
-pub struct CPair<T, U>(pub T, pub U);
-
-#[repr(C)]
-pub struct CArray<T> {
-  pub len: u64,
-  pub ptr: *mut T,
-}
-
-/// See: https://github.com/rust-lang/rfcs/blob/master/text/2195-really-tagged-unions.md
-#[derive(Clone, Copy, PartialEq, Eq)]
-#[repr(C, u8)]
-pub enum COption<T> {
-  None,
-  Some(T),
 }
 
 #[repr(C, u8)]

@@ -59,6 +59,9 @@ impl<T: Serialize + DeserializeOwned> AtomOption<T> {
   pub fn from_raw(id: u128, src: u128, label: u64) -> Self {
     Self { id, src, label, _t: PhantomData }
   }
+  pub fn id(&self) -> u128 {
+    self.id
+  }
   pub fn get(&self) -> Option<T> {
     access_store_with(|store| store.atom(self.id).map(|(_, _, bytes)| deserialize(&bytes).unwrap()))
   }
@@ -78,6 +81,9 @@ pub struct Atom<T: Serialize + DeserializeOwned> {
 impl<T: Serialize + DeserializeOwned> Atom<T> {
   pub fn from_raw(id: u128, src: u128, label: u64) -> Self {
     Self { inner: AtomOption::from_raw(id, src, label) }
+  }
+  pub fn id(&self) -> u128 {
+    self.inner.id()
   }
   pub fn get(&self) -> T {
     self.inner.get().unwrap()
@@ -100,6 +106,9 @@ impl<T: Model> LinkOption<T> {
   pub fn from_raw(id: u128, src: u128, label: u64) -> Self {
     Self { id, src, label, _t: PhantomData }
   }
+  pub fn id(&self) -> u128 {
+    self.id
+  }
   pub fn get(&self) -> Option<T> {
     access_store_with(|store| store.edge(self.id)).and_then(|(_, _, dst)| T::get(dst))
   }
@@ -117,6 +126,9 @@ pub struct Link<T: Model> {
 impl<T: Model> Link<T> {
   pub fn from_raw(id: u128, src: u128, label: u64) -> Self {
     Self { inner: LinkOption::from_raw(id, src, label) }
+  }
+  pub fn id(&self) -> u128 {
+    self.inner.id()
   }
   pub fn get(&self) -> T {
     self.inner.get().unwrap()
@@ -219,7 +231,7 @@ mod tests {
 
       global::access_store_with(|store| {
         // Create deletion flag.
-        store.set_atom(id, Some((id, Trivial::LABEL, Vec::new().into())));
+        store.set_atom(id, Some((id, Self::LABEL, Vec::new().into())));
 
         /* (No code generated here) */
       });
@@ -229,7 +241,15 @@ mod tests {
     }
 
     pub fn delete(self) {
-      global::access_store_with(|store| store.set_atom(self.id, None));
+      global::access_store_with(|store| {
+        // Delete all fields.
+        for (atom, _) in store.atom_label_value_by_src(self.id) {
+          store.set_atom(atom, None);
+        }
+        for (edge, _) in store.edge_label_dst_by_src(self.id) {
+          store.set_atom(edge, None);
+        }
+      });
     }
   }
 
@@ -307,7 +327,15 @@ mod tests {
     }
 
     pub fn delete(self) {
-      global::access_store_with(|store| store.set_atom(self.id, None));
+      global::access_store_with(|store| {
+        // Delete all fields.
+        for (atom, _) in store.atom_label_value_by_src(self.id) {
+          store.set_atom(atom, None);
+        }
+        for (edge, _) in store.edge_label_dst_by_src(self.id) {
+          store.set_atom(edge, None);
+        }
+      });
     }
   }
 

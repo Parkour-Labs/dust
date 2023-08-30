@@ -14,12 +14,12 @@ class $TrivialRepository implements Repository<Trivial> {
 
   static const int Label = 4898135217045869580;
 
+  static final Map<Id, WeakReference<Trivial>> objects = {};
+
   Trivial createAt(
     Id id,
   ) {
     final $store = Store.instance;
-
-    $store.setNode(id, $TrivialRepository.Label);
 
     return get(id)!;
   }
@@ -36,22 +36,39 @@ class $TrivialRepository implements Repository<Trivial> {
         id,
       );
 
+  void delete(Trivial object) {
+    final $store = Store.instance;
+    for (final ($atom, _) in $store.getAtomLabelBySrc(object.id)) {
+      $store.setAtom($atom, null);
+    }
+    for (final ($edge, _) in $store.getEdgeLabelDstBySrc(object.id)) {
+      $store.setEdge($edge, null);
+    }
+  }
+
   @override
   Id id(Trivial object) => object.id;
 
   @override
   Trivial? get(Id? id) {
     if (id == null) return null;
+    final $object = objects[id]?.target;
+    if ($object != null) return $object;
     final $store = Store.instance;
 
-    if ($store.getNode(id) == null) return null;
-    for (final ($edge, (_, $label, $dst)) in $store.getEdgesBySrc(id)) {
+    for (final ($atom, $label) in $store.getAtomLabelBySrc(id)) {
+      switch ($label) {}
+    }
+    for (final ($edge, ($label, _)) in $store.getEdgeLabelDstBySrc(id)) {
       switch ($label) {}
     }
 
-    return Trivial._(
+    final $res = Trivial._(
       id,
     );
+
+    objects[id] = WeakReference($res);
+    return $res;
   }
 }
 
@@ -68,8 +85,10 @@ class $SomethingRepository implements Repository<Something> {
   static const int linkTwoLabel = 5802991485859318103;
   static const int linkThreeLabel = 520405320243803301;
 
-  static const atomOneSerializer = _kStringSerializer;
-  static const atomTwoSerializer = _kStringSerializer;
+  static const atomOneSerializer = kStringSerializer;
+  static const atomTwoSerializer = kStringSerializer;
+
+  static final Map<Id, WeakReference<Something>> objects = {};
 
   Something createAt(
     Id id,
@@ -80,29 +99,23 @@ class $SomethingRepository implements Repository<Something> {
   ) {
     final $store = Store.instance;
 
-    $store.setNode(id, $SomethingRepository.Label);
-
-    final $atomOneDst = $store.randomId();
-    $store.setEdge($store.randomId(),
-        (id, $SomethingRepository.atomOneLabel, $atomOneDst));
-    $store.setAtom(
-        $SomethingRepository.atomOneSerializer, $atomOneDst, atomOne);
-    if (atomTwo == null) {
-      $store.setEdge($store.randomId(),
-          (id, $SomethingRepository.atomTwoLabel, $store.randomId()));
-    } else {
-      final $atomTwoDst = $store.randomId();
-      $store.setEdge($store.randomId(),
-          (id, $SomethingRepository.atomTwoLabel, $atomTwoDst));
-      $store.setAtom(
-          $SomethingRepository.atomTwoSerializer, $atomTwoDst, atomTwo);
+    $store.setAtom($store.randomId(), (
+      id,
+      $SomethingRepository.atomOneLabel,
+      atomOne,
+      $SomethingRepository.atomOneSerializer
+    ));
+    if (atomTwo != null) {
+      $store.setAtom($store.randomId(), (
+        id,
+        $SomethingRepository.atomTwoLabel,
+        atomTwo,
+        $SomethingRepository.atomTwoSerializer
+      ));
     }
     $store.setEdge(
         $store.randomId(), (id, $SomethingRepository.linkOneLabel, linkOne.id));
-    if (linkTwo == null) {
-      $store.setEdge($store.randomId(),
-          (id, $SomethingRepository.linkTwoLabel, $store.randomId()));
-    } else {
+    if (linkTwo != null) {
       $store.setEdge($store.randomId(),
           (id, $SomethingRepository.linkTwoLabel, linkTwo.id));
     }
@@ -140,12 +153,24 @@ class $SomethingRepository implements Repository<Something> {
         linkTwo,
       );
 
+  void delete(Something object) {
+    final $store = Store.instance;
+    for (final ($atom, _) in $store.getAtomLabelBySrc(object.id)) {
+      $store.setAtom($atom, null);
+    }
+    for (final ($edge, _) in $store.getEdgeLabelDstBySrc(object.id)) {
+      $store.setEdge($edge, null);
+    }
+  }
+
   @override
   Id id(Something object) => object.id;
 
   @override
   Something? get(Id? id) {
     if (id == null) return null;
+    final $object = objects[id]?.target;
+    if ($object != null) return $object;
     final $store = Store.instance;
 
     Atom<String>? atomOne;
@@ -153,32 +178,50 @@ class $SomethingRepository implements Repository<Something> {
     Link<Trivial>? linkOne;
     LinkOption<Trivial>? linkTwo;
 
-    if ($store.getNode(id) == null) return null;
-    for (final ($edge, (_, $label, $dst)) in $store.getEdgesBySrc(id)) {
+    for (final ($atom, $label) in $store.getAtomLabelBySrc(id)) {
       switch ($label) {
         case $SomethingRepository.atomOneLabel:
-          atomOne =
-              $store.getAtom($SomethingRepository.atomOneSerializer, $dst);
+          atomOne = $store.getAtom(
+              $atom, id, $label, $SomethingRepository.atomOneSerializer);
         case $SomethingRepository.atomTwoLabel:
           atomTwo = $store.getAtomOption(
-              $SomethingRepository.atomTwoSerializer, $dst);
+              $atom, id, $label, $SomethingRepository.atomTwoSerializer);
+      }
+    }
+    for (final ($edge, ($label, _)) in $store.getEdgeLabelDstBySrc(id)) {
+      switch ($label) {
         case $SomethingRepository.linkOneLabel:
-          linkOne = $store.getLink(const $TrivialRepository(), $edge);
+          linkOne =
+              $store.getLink($edge, id, $label, const $TrivialRepository());
         case $SomethingRepository.linkTwoLabel:
-          linkTwo = $store.getLinkOption(const $TrivialRepository(), $edge);
+          linkTwo = $store.getLinkOption(
+              $edge, id, $label, const $TrivialRepository());
       }
     }
 
-    return Something._(
+    if (atomOne == null) return null;
+    atomTwo ??= $store.getAtomOption(
+        id ^ $SomethingRepository.atomTwoLabel,
+        id,
+        $SomethingRepository.atomTwoLabel,
+        $SomethingRepository.atomTwoSerializer);
+    if (linkOne == null) return null;
+    linkTwo ??= $store.getLinkOption(id ^ $SomethingRepository.linkTwoLabel, id,
+        $SomethingRepository.linkTwoLabel, const $TrivialRepository());
+
+    final $res = Something._(
       id,
-      atomOne!,
-      atomTwo!,
-      linkOne!,
-      linkTwo!,
+      atomOne,
+      atomTwo,
+      linkOne,
+      linkTwo,
       $store.getMultilinks(const $SomethingRepository(), id,
           $SomethingRepository.linkThreeLabel),
       $store.getBacklinks(const $SomethingRepository(), id,
           $SomethingRepository.linkThreeLabel),
     );
+
+    objects[id] = WeakReference($res);
+    return $res;
   }
 }

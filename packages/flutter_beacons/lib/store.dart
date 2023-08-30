@@ -4,31 +4,58 @@ import 'package:ffi/ffi.dart';
 
 import 'ffi/ffi_bindings.dart';
 import 'ffi/ffi_structs.dart';
+import 'multimap.dart';
 import 'serializer.dart';
-import 'reactive.dart';
+import 'store/id.dart';
 
-part 'store/id.dart';
-part 'store/repository.dart';
-part 'store/atom.dart';
-part 'store/link.dart';
-part 'store/multilinks.dart';
-part 'store/backlinks.dart';
+export 'store/id.dart';
+export 'store/repository.dart';
+export 'store/atom.dart';
+export 'store/link.dart';
+export 'store/multilinks.dart';
+export 'store/backlinks.dart';
 
+typedef AtomByIdSubscription = (void Function((Id, int, Object?)? slv), Serializer);
+typedef AtomBySrcSubscription = (void Function(Id id, int label), void Function(Id id)); // Special case
+typedef AtomBySrcLabelSubscription = (void Function(Id id, Object? value), void Function(Id id), Serializer);
+typedef AtomByLabelSubscription = (void Function(Id id, Id src, Object? value), void Function(Id id), Serializer);
+typedef AtomByLabelValueSubscription = (void Function(Id id, Id src), void Function(Id id), Serializer);
+
+typedef EdgeByIdSubscription = void Function((Id, int, Id)? sld);
+typedef EdgeBySrcSubscription = (void Function(Id id, int label, Id dst), void Function(Id id));
+typedef EdgeBySrcLabelSubscription = (void Function(Id id, Id dst), void Function(Id id));
+typedef EdgeByLabelSubscription = (void Function(Id id, Id src, Id dst), void Function(Id id));
+typedef EdgeByLabelDstSubscription = (void Function(Id id, Id src), void Function(Id id));
+
+/// The main wrapper class around FFI functions.
+///
+/// Also responsible for subscriptions and reactivity.
 class Store {
   final FfiBindings bindings;
-  int _ports = 0;
-  final Map<int, (Id, Serializer, void Function(Object?))> _atomSubscriptions = {};
-  final Map<int, (Id, void Function(int?))> _nodeSubscriptions = {};
-  final Map<int, (Id, void Function((Id, int, Id)?))> _edgeSubscriptions = {};
-  final Map<int, (Id, int, void Function(Id, Id), void Function(Id, Id))> _multiedgeSubscriptions = {};
-  final Map<int, (Id, int, void Function(Id, Id), void Function(Id, Id))> _backedgeSubscriptions = {};
 
-  /// These will not get dropped since [Store] is a global singleton.
-  late final Finalizer _nodeSubscriptionFinalizer = Finalizer<int>(_unsubscribeNode);
-  late final Finalizer _atomSubscriptionFinalizer = Finalizer<int>(_unsubscribeAtom);
-  late final Finalizer _edgeSubscriptionFinalizer = Finalizer<int>(_unsubscribeEdge);
-  late final Finalizer _multiedgeSubscriptionFinalizer = Finalizer<int>(_unsubscribeMultiedge);
-  late final Finalizer _backedgeSubscriptionFinalizer = Finalizer<int>(_unsubscribeBackedge);
+  final atomById = MultiMap<Id, AtomByIdSubscription>();
+  final atomBySrc = MultiMap<Id, AtomBySrcSubscription>();
+  final atomBySrcLabel = MultiMap<(Id, int), AtomBySrcLabelSubscription>();
+  final atomByLabel = MultiMap<int, AtomByLabelSubscription>();
+  // final atomByLabelValue = MultiMap<(int, Object), AtomByLabelValueSubscription>();
+
+  final edgeById = MultiMap<Id, EdgeByIdSubscription>();
+  final edgeBySrc = MultiMap<Id, EdgeBySrcSubscription>();
+  final edgeBySrcLabel = MultiMap<(Id, int), EdgeBySrcLabelSubscription>();
+  final edgeByLabel = MultiMap<int, EdgeByLabelSubscription>();
+  final edgeByLabelDst = MultiMap<(int, Id), EdgeByLabelDstSubscription>();
+
+  late final _atomByIdFinalizer = Finalizer<(Id, AtomByIdSubscription)>(_unsubscribeAtomById);
+  late final _atomBySrcFinalizer = Finalizer<(Id, AtomBySrcSubscription)>(_unsubscribeAtomBySrc);
+  late final _atomBySrcLabelFinalizer = Finalizer<((Id, int), AtomBySrcLabelSubscription)>(_unsubscribeAtomBySrcLabel);
+  late final _atomByLabelFinalizer = Finalizer<(int, AtomByLabelSubscription)>(_unsubscribeAtomByLabel);
+  // late final _atomByLabelValueFinalizer = Finalizer<((int, Object), AtomByLabelValueSubscription)>(_unsubscribeAtomByLabelValue);
+
+  late final _edgeByIdFinalizer = Finalizer<(Id, EdgeByIdSubscription)>(_unsubscribeEdgeById);
+  late final _edgeBySrcFinalizer = Finalizer<(Id, EdgeBySrcSubscription)>(_unsubscribeEdgeBySrc);
+  late final _edgeBySrcLabelFinalizer = Finalizer<((Id, int), EdgeBySrcLabelSubscription)>(_unsubscribeEdgeBySrcLabel);
+  late final _edgeByLabelFinalizer = Finalizer<(int, EdgeByLabelSubscription)>(_unsubscribeEdgeByLabel);
+  late final _edgeByLabelDstFinalizer = Finalizer<((int, Id), EdgeByLabelDstSubscription)>(_unsubscribeEdgeByLabelDst);
 
   /// The global [Store] instance.
   static late final Store _instance;
@@ -46,13 +73,6 @@ class Store {
     final ptr = databasePath.toNativeUtf8(allocator: malloc);
     bindings.init(ptr);
     malloc.free(ptr);
-  }
-
-  /// Generates a new name for subscription.
-  int newPort() {
-    final res = _ports;
-    _ports++;
-    return res;
   }
 
   /// Makes a label from name.
@@ -76,114 +96,149 @@ class Store {
     return Id.fromNative(bindings.random_id());
   }
 
-  int? getNode(Id id) {
-    final data = bindings.get_node(id.high, id.low);
-    return data.tag == 0 ? null : data.some;
+  /// A helper function for deserialisation.
+  T _de<T>(CArrayUint8 array, Serializer<T> serializer) {
+    final bytes = array.ptr.asTypedList(array.len).buffer.asByteData();
+    return serializer.deserialize(BytesReader(bytes));
   }
 
-  /*
-  T? getAtom<T extends Object>(Id id, Serializer<T> serializer) {
+  /// Obtains atom value.
+  (Id, int, T)? getAtomById<T>(Id id, Serializer<T> serializer) {
     final data = bindings.get_atom(id.high, id.low);
     if (data.tag == 0) {
       return null;
     } else {
-      final bytes = data.some.ptr.asTypedList(data.some.len).buffer.asByteData();
-      final obj = serializer.deserialize(BytesReader(bytes));
-      bindings.drop_option_array_u8(data);
-      return obj;
+      final res = (Id.fromNative(data.some.src), data.some.label, _de(data.some.value, serializer));
+      bindings.drop_option_atom(data);
+      return res;
     }
   }
 
-  (Id, int, Id)? getEdge(Id id) {
-    final data = bindings.get_edge(id.high, id.low);
-    return data.tag == 0 ? null : (Id.fromNative(data.some.src), data.some.label, Id.fromNative(data.some.dst));
-  }
-  */
-
-  List<(Id, (Id, int, Id))> getEdgesBySrc(Id src) {
-    final data = bindings.get_edges_by_src(src.high, src.low);
-    final list = <(Id, (Id, int, Id))>[];
+  /// Queries the forward index.
+  List<(Id, int)> getAtomLabelBySrc(Id src) {
+    final res = <(Id, int)>[];
+    final data = bindings.get_atom_label_value_by_src(src.high, src.low);
     for (var i = 0; i < data.len; i++) {
-      final item = data.ptr.elementAt(i).ref;
-      list.add((
-        Id.fromNative(item.first),
-        (Id.fromNative(item.second.src), item.second.label, Id.fromNative(item.second.dst))
-      ));
+      final elem = data.ptr.elementAt(i).ref;
+      res.add((Id.fromNative(elem.first), elem.second));
     }
-    bindings.drop_array_id_edge(data);
-    return list;
+    bindings.drop_array_id_u64_array_u8(data);
+    return res;
+  }
+
+  /// Queries the forward index.
+  List<(Id, T)> getAtomValueBySrcLabel<T>(Id src, int label, Serializer<T> serializer) {
+    final res = <(Id, T)>[];
+    final data = bindings.get_atom_value_by_src_label(src.high, src.low, label);
+    for (var i = 0; i < data.len; i++) {
+      final elem = data.ptr.elementAt(i).ref;
+      res.add((Id.fromNative(elem.first), _de(elem.second, serializer)));
+    }
+    bindings.drop_array_id_array_u8(data);
+    return res;
+  }
+
+  /// Queries the reverse index.
+  List<(Id, (Id, T))> getAtomSrcValueByLabel<T>(int label, Serializer<T> serializer) {
+    final res = <(Id, (Id, T))>[];
+    final data = bindings.get_atom_src_value_by_label(label);
+    for (var i = 0; i < data.len; i++) {
+      final elem = data.ptr.elementAt(i).ref;
+      res.add((Id.fromNative(elem.first), (Id.fromNative(elem.second), _de(elem.third, serializer))));
+    }
+    bindings.drop_array_id_id_array_u8(data);
+    return res;
   }
 
   /*
-  List<(Id, Id)> getIdDstBySrcLabel(Id src, int label) {
-    final data = bindings.get_id_dst_by_src_label(src.high, src.low, label);
-    final list = <(Id, Id)>[];
-    for (var i = 0; i < data.len; i++) {
-      final item = data.ptr.elementAt(i).ref;
-      list.add((Id.fromNative(item.first), Id.fromNative(item.second)));
-    }
-    bindings.drop_array_id_id(data);
-    return list;
-  }
-
-  List<(Id, Id)> getIdSrcByDstLabel(Id dst, int label) {
-    final data = bindings.get_id_src_by_dst_label(dst.high, dst.low, label);
-    final list = <(Id, Id)>[];
-    for (var i = 0; i < data.len; i++) {
-      final item = data.ptr.elementAt(i).ref;
-      list.add((Id.fromNative(item.first), Id.fromNative(item.second)));
-    }
-    bindings.drop_array_id_id(data);
-    return list;
+  /// Queries the reverse index.
+  List<(Id, Id)> getAtomSrcByLabelValue<T>(int label, T value, Serializer<T> serializer) {
+    throw UnimplementedError();
   }
   */
 
-  void setNode(Id id, int? value) {
-    if (value == null) {
-      bindings.set_node_none(id.high, id.low);
-    } else {
-      bindings.set_node_some(id.high, id.low, value);
-    }
-    _pollEvents();
+  /// Obtains edge value.
+  (Id, int, Id)? getEdgeById(Id id) {
+    final data = bindings.get_edge(id.high, id.low);
+    return data.tag == 0 ? null : (Id.fromNative(data.some.src), data.some.label, Id.fromNative(data.some.dst));
   }
 
-  void setAtom<T>(Serializer<T> serializer, Id id, T? value) {
-    if (value == null) {
+  /// Queries the forward index.
+  List<(Id, (int, Id))> getEdgeLabelDstBySrc(Id src) {
+    final res = <(Id, (int, Id))>[];
+    final data = bindings.get_edge_label_dst_by_src(src.high, src.low);
+    for (var i = 0; i < data.len; i++) {
+      final elem = data.ptr.elementAt(i).ref;
+      res.add((Id.fromNative(elem.first), (elem.second, Id.fromNative(elem.third))));
+    }
+    bindings.drop_array_id_u64_id(data);
+    return res;
+  }
+
+  /// Queries the forward index.
+  List<(Id, Id)> getEdgeDstBySrcLabel(Id src, int label) {
+    final res = <(Id, Id)>[];
+    final data = bindings.get_edge_dst_by_src_label(src.high, src.low, label);
+    for (var i = 0; i < data.len; i++) {
+      final item = data.ptr.elementAt(i).ref;
+      res.add((Id.fromNative(item.first), Id.fromNative(item.second)));
+    }
+    bindings.drop_array_id_id(data);
+    return res;
+  }
+
+  /// Queries the reverse index.
+  List<(Id, (Id, Id))> getEdgeSrcDstByLabel(int label) {
+    final res = <(Id, (Id, Id))>[];
+    final data = bindings.get_edge_src_dst_by_label(label);
+    for (var i = 0; i < data.len; i++) {
+      final item = data.ptr.elementAt(i).ref;
+      res.add((Id.fromNative(item.first), (Id.fromNative(item.second), Id.fromNative(item.third))));
+    }
+    bindings.drop_array_id_id_id(data);
+    return res;
+  }
+
+  /// Queries the reverse index.
+  List<(Id, Id)> getEdgeSrcByLabelDst(int label, Id dst) {
+    final res = <(Id, Id)>[];
+    final data = bindings.get_edge_src_by_label_dst(label, dst.high, dst.low);
+    for (var i = 0; i < data.len; i++) {
+      final item = data.ptr.elementAt(i).ref;
+      res.add((Id.fromNative(item.first), Id.fromNative(item.second)));
+    }
+    bindings.drop_array_id_id(data);
+    return res;
+  }
+
+  /// Modifies atom value.
+  void setAtom<T>(Id id, (Id, int, T, Serializer<T>)? slv) {
+    if (slv == null) {
       bindings.set_atom_none(id.high, id.low);
     } else {
+      final (src, label, value, serializer) = slv;
       final builder = BytesBuilder();
       serializer.serialize(value, builder);
       final bytes = builder.takeBytes();
       // See: https://github.com/dart-lang/sdk/issues/44589
       final len = bytes.length;
       final ptr = malloc.allocate<Uint8>(len);
-      for (var i = 0; i < len; i++) {
-        ptr.elementAt(i).value = bytes[i];
-      }
-      bindings.set_atom_some(id.high, id.low, len, ptr);
+      for (var i = 0; i < len; i++) ptr.elementAt(i).value = bytes[i];
+      bindings.set_atom_some(id.high, id.low, src.high, src.low, label, len, ptr);
       malloc.free(ptr);
     }
-    _pollEvents();
+    pollEvents();
   }
 
-  void setEdge(Id id, (Id, int, Id)? value) {
-    if (value == null) {
+  /// Modifies edge value.
+  void setEdge(Id id, (Id, int, Id)? sld) {
+    if (sld == null) {
       bindings.set_edge_none(id.high, id.low);
     } else {
-      final (src, label, dst) = value;
+      final (src, label, dst) = sld;
       bindings.set_edge_some(id.high, id.low, src.high, src.low, label, dst.high, dst.low);
     }
-    _pollEvents();
-  }
-
-  void setEdgeDst(Id id, Id? dst) {
-    if (dst == null) {
-      final dst = randomId();
-      bindings.set_edge_dst(id.high, id.low, dst.high, dst.low);
-    } else {
-      bindings.set_edge_dst(id.high, id.low, dst.high, dst.low);
-    }
-    _pollEvents();
+    pollEvents();
   }
 
   Uint8List syncVersion() {
@@ -197,9 +252,7 @@ class Store {
     // See: https://github.com/dart-lang/sdk/issues/44589
     final len = version.length;
     final ptr = malloc.allocate<Uint8>(len);
-    for (var i = 0; i < len; i++) {
-      ptr.elementAt(i).value = version[i];
-    }
+    for (var i = 0; i < len; i++) ptr.elementAt(i).value = version[i];
     final data = bindings.sync_actions(len, ptr);
     malloc.free(ptr);
     final res = Uint8List.fromList(data.ptr.asTypedList(data.len)); // Makes copy.
@@ -211,199 +264,180 @@ class Store {
     // See: https://github.com/dart-lang/sdk/issues/44589
     final len = actions.length;
     final ptr = malloc.allocate<Uint8>(len);
-    for (var i = 0; i < len; i++) {
-      ptr.elementAt(i).value = actions[i];
-    }
+    for (var i = 0; i < len; i++) ptr.elementAt(i).value = actions[i];
     final data = bindings.sync_join(len, ptr);
     malloc.free(ptr);
     final res = data.tag == 0 ? null : Uint8List.fromList(data.some.ptr.asTypedList(data.some.len)); // Makes copy.
     bindings.drop_option_array_u8(data);
-    _pollEvents();
+    pollEvents();
     return res;
   }
 
-  void subscribeNode(Id id, int port, void Function(int? label) change, Object owner) {
-    assert(!_nodeSubscriptions.containsKey(port));
-    _nodeSubscriptions[port] = (id, change);
-    bindings.subscribe_node(id.high, id.low, port);
-    _nodeSubscriptionFinalizer.attach(owner, port);
-    _pollEvents();
+  /// Subscribes to atom value changes.
+  void subscribeAtomById(Id id, void Function((Id, int, Object?)? slv) update, Serializer serializer, Object owner) {
+    final key = id;
+    final value = (update, serializer);
+    atomById.add(key, value);
+    _atomByIdFinalizer.attach(owner, (key, value));
+    update(getAtomById(id, serializer));
   }
 
-  void _unsubscribeNode(int port) {
-    final subscription = _nodeSubscriptions.remove(port);
-    if (subscription != null) {
-      final id = subscription.$1;
-      bindings.unsubscribe_node(id.high, id.low, port);
-    }
+  /// Subscribes to queries on the forward index.
+  void subscribeAtomBySrc(Id src, void Function(Id id, int label) insert, void Function(Id id) remove, Object owner) {
+    final key = src;
+    final value = (insert, remove);
+    atomBySrc.add(key, value);
+    _atomBySrcFinalizer.attach(owner, (key, value));
+    for (final (id, label) in getAtomLabelBySrc(src)) insert(id, label);
   }
 
-  void subscribeAtom(Id id, int port, Serializer serializer, void Function(Object? data) change, Object owner) {
-    assert(!_atomSubscriptions.containsKey(port));
-    _atomSubscriptions[port] = (id, serializer, change);
-    bindings.subscribe_atom(id.high, id.low, port);
-    _atomSubscriptionFinalizer.attach(owner, port);
-    _pollEvents();
+  /// Subscribes to queries on the forward index.
+  void subscribeAtomBySrcLabel(Id src, int label, void Function(Id id, Object? value) insert,
+      void Function(Id id) remove, Serializer serializer, Object owner) {
+    final key = (src, label);
+    final value = (insert, remove, serializer);
+    atomBySrcLabel.add(key, value);
+    _atomBySrcLabelFinalizer.attach(owner, (key, value));
+    for (final (id, value) in getAtomValueBySrcLabel(src, label, serializer)) insert(id, value);
   }
 
-  void _unsubscribeAtom(int port) {
-    final subscription = _atomSubscriptions.remove(port);
-    if (subscription != null) {
-      final id = subscription.$1;
-      bindings.unsubscribe_atom(id.high, id.low, port);
-    }
+  /// Subscribes to queries on the reverse index.
+  void subscribeAtomByLabel(int label, void Function(Id id, Id src, Object? value) insert, void Function(Id id) remove,
+      Serializer serializer, Object owner) {
+    final key = label;
+    final value = (insert, remove, serializer);
+    atomByLabel.add(key, value);
+    _atomByLabelFinalizer.attach(owner, (key, value));
+    for (final (id, (src, value)) in getAtomSrcValueByLabel(label, serializer)) insert(id, src, value);
   }
 
-  void subscribeEdge(Id id, int port, void Function((Id, int, Id)? value) change, Object owner) {
-    assert(!_edgeSubscriptions.containsKey(port));
-    _edgeSubscriptions[port] = (id, change);
-    bindings.subscribe_edge(id.high, id.low, port);
-    _edgeSubscriptionFinalizer.attach(owner, port);
-    _pollEvents();
+  /*
+  /// Subscribes to queries on the reverse index.
+  void subscribeAtomByLabelValue(int label, Object value, void Function(Id id, Id src) insert,
+      void Function(Id id) remove, Serializer serializer, Object owner) {
+    throw UnimplementedError();
+  }
+  */
+
+  /// Subscribes to edge value changes.
+  void subscribeEdgeById(Id id, void Function((Id, int, Id)? sld) update, Object owner) {
+    final key = id;
+    final value = update;
+    edgeById.add(key, value);
+    _edgeByIdFinalizer.attach(owner, (key, value));
+    update(getEdgeById(id));
   }
 
-  void _unsubscribeEdge(int port) {
-    final subscription = _edgeSubscriptions.remove(port);
-    if (subscription != null) {
-      final id = subscription.$1;
-      bindings.unsubscribe_edge(id.high, id.low, port);
-    }
+  /// Subscribes to queries on the forward index.
+  void subscribeEdgeBySrc(
+      Id src, void Function(Id id, int label, Id dst) insert, void Function(Id id) remove, Object owner) {
+    final key = src;
+    final value = (insert, remove);
+    edgeBySrc.add(key, value);
+    _edgeBySrcFinalizer.attach(owner, (key, value));
+    for (final (id, (label, dst)) in getEdgeLabelDstBySrc(src)) insert(id, label, dst);
   }
 
-  void subscribeMultiedge(Id src, int label, int port, void Function(Id id, Id dst) insert,
-      void Function(Id id, Id dst) remove, Object owner) {
-    assert(!_multiedgeSubscriptions.containsKey(port));
-    _multiedgeSubscriptions[port] = (src, label, insert, remove);
-    bindings.subscribe_multiedge(src.high, src.low, label, port);
-    _multiedgeSubscriptionFinalizer.attach(owner, port);
-    _pollEvents();
+  /// Subscribes to queries on the forward index.
+  void subscribeEdgeBySrcLabel(
+      Id src, int label, void Function(Id id, Id dst) insert, void Function(Id id) remove, Object owner) {
+    final key = (src, label);
+    final value = (insert, remove);
+    edgeBySrcLabel.add(key, value);
+    _edgeBySrcLabelFinalizer.attach(owner, (key, value));
+    for (final (id, dst) in getEdgeDstBySrcLabel(src, label)) insert(id, dst);
   }
 
-  void _unsubscribeMultiedge(int port) {
-    final subscription = _multiedgeSubscriptions.remove(port);
-    if (subscription != null) {
-      final src = subscription.$1;
-      final label = subscription.$2;
-      bindings.unsubscribe_multiedge(src.high, src.low, label, port);
-    }
+  /// Subscribes to queries on the reverse index.
+  void subscribeEdgeByLabel(
+      int label, void Function(Id id, Id src, Id dst) insert, void Function(Id id) remove, Object owner) {
+    final key = label;
+    final value = (insert, remove);
+    edgeByLabel.add(key, value);
+    _edgeByLabelFinalizer.attach(owner, (key, value));
+    for (final (id, (src, dst)) in getEdgeSrcDstByLabel(label)) insert(id, src, dst);
   }
 
-  void subscribeBackedge(Id dst, int label, int port, void Function(Id id, Id src) insert,
-      void Function(Id id, Id src) remove, Object owner) {
-    assert(!_backedgeSubscriptions.containsKey(port));
-    _backedgeSubscriptions[port] = (dst, label, insert, remove);
-    bindings.subscribe_backedge(dst.high, dst.low, label, port);
-    _backedgeSubscriptionFinalizer.attach(owner, port);
-    _pollEvents();
+  /// Subscribes to queries on the reverse index.
+  void subscribeEdgeByLabelDst(
+      int label, Id dst, void Function(Id id, Id src) insert, void Function(Id id) remove, Object owner) {
+    final key = (label, dst);
+    final value = (insert, remove);
+    edgeByLabelDst.add(key, value);
+    _edgeByLabelDstFinalizer.attach(owner, (key, value));
+    for (final (id, src) in getEdgeSrcByLabelDst(label, dst)) insert(id, src);
   }
 
-  void _unsubscribeBackedge(int port) {
-    final subscription = _backedgeSubscriptions.remove(port);
-    if (subscription != null) {
-      final dst = subscription.$1;
-      final label = subscription.$2;
-      bindings.unsubscribe_backedge(dst.high, dst.low, label, port);
-    }
-  }
+  void _unsubscribeAtomById((Id, AtomByIdSubscription) kv) => atomById.remove(kv.$1, kv.$2);
+  void _unsubscribeAtomBySrc((Id, AtomBySrcSubscription) kv) => atomBySrc.remove(kv.$1, kv.$2);
+  void _unsubscribeAtomBySrcLabel(((Id, int), AtomBySrcLabelSubscription) kv) => atomBySrcLabel.remove(kv.$1, kv.$2);
+  void _unsubscribeAtomByLabel((int, AtomByLabelSubscription) kv) => atomByLabel.remove(kv.$1, kv.$2);
+  // void _unsubscribeAtomByLabelValue(((int, Object), AtomByLabelValueSubscription) kv) => atomByLabelValue.remove(kv.$1, kv.$2);
 
-  void _pollEvents() {
+  void _unsubscribeEdgeById((Id, EdgeByIdSubscription) kv) => edgeById.remove(kv.$1, kv.$2);
+  void _unsubscribeEdgeBySrc((Id, EdgeBySrcSubscription) kv) => edgeBySrc.remove(kv.$1, kv.$2);
+  void _unsubscribeEdgeBySrcLabel(((Id, int), EdgeBySrcLabelSubscription) kv) => edgeBySrcLabel.remove(kv.$1, kv.$2);
+  void _unsubscribeEdgeByLabel((int, EdgeByLabelSubscription) kv) => edgeByLabel.remove(kv.$1, kv.$2);
+  void _unsubscribeEdgeByLabelDst(((int, Id), EdgeByLabelDstSubscription) kv) => edgeByLabelDst.remove(kv.$1, kv.$2);
+
+  /// Processes all events and invoke relevant observers.
+  void pollEvents() {
     final data = bindings.poll_events();
     for (var i = 0; i < data.len; i++) {
-      final CPairUint64EventData(first: port, second: item) = data.ptr.elementAt(i).ref;
-      switch (item.tag) {
+      final event = data.ptr.elementAt(i).ref;
+      switch (event.tag) {
         case 0:
-          final node = item.union.node;
-          final message = node.tag == 0 ? null : node.some;
-          _nodeSubscriptions[port]?.$2(message);
-        case 1:
-          final atom = item.union.atom;
-          final subscription = _atomSubscriptions[port];
-          if (subscription != null) {
-            if (atom.tag == 0) {
-              subscription.$3(null);
-            } else {
-              final bytes = atom.some.ptr.asTypedList(atom.some.len).buffer.asByteData();
-              final obj = subscription.$2.deserialize(BytesReader(bytes));
-              subscription.$3(obj);
-            }
+          final id = Id.fromNative(event.union.atom.id);
+          final prev = event.union.atom.prev;
+          final curr = event.union.atom.curr;
+          if (prev.tag != 0) {
+            final src = Id.fromNative(prev.some.src);
+            final label = prev.some.label;
+            final _ = prev.some.value;
+            for (final (_, remove) in atomBySrc[src]) remove(id); // Special case.
+            for (final (_, remove, _) in atomBySrcLabel[(src, label)]) remove(id);
+            for (final (_, remove, _) in atomByLabel[label]) remove(id);
           }
-        case 2:
-          final edge = item.union.edge;
-          final message =
-              edge.tag == 0 ? null : (Id.fromNative(edge.some.src), edge.some.label, Id.fromNative(edge.some.dst));
-          _edgeSubscriptions[port]?.$2(message);
-        case 3:
-          final CPairIdId(first: id, second: dst) = item.union.multiedgeInsert;
-          _multiedgeSubscriptions[port]?.$3(Id.fromNative(id), Id.fromNative(dst));
-        case 4:
-          final CPairIdId(first: id, second: dst) = item.union.multiedgeRemove;
-          _multiedgeSubscriptions[port]?.$4(Id.fromNative(id), Id.fromNative(dst));
-        case 5:
-          final CPairIdId(first: id, second: src) = item.union.backedgeInsert;
-          _backedgeSubscriptions[port]?.$3(Id.fromNative(id), Id.fromNative(src));
-        case 6:
-          final CPairIdId(first: id, second: src) = item.union.backedgeRemove;
-          _backedgeSubscriptions[port]?.$4(Id.fromNative(id), Id.fromNative(src));
+          if (curr.tag != 0) {
+            final src = Id.fromNative(curr.some.src);
+            final label = curr.some.label;
+            final value = curr.some.value;
+            for (final (update, serializer) in atomById[id]) update((id, label, _de(value, serializer)));
+            for (final (insert, _) in atomBySrc[src]) insert(id, label); // Special case.
+            for (final (insert, _, serializer) in atomBySrcLabel[(src, label)]) insert(id, _de(value, serializer));
+            for (final (insert, _, serializer) in atomByLabel[label]) insert(id, src, _de(value, serializer));
+          } else {
+            for (final (update, _) in atomById[id]) update(null);
+          }
+        case 1:
+          final id = Id.fromNative(event.union.edge.id);
+          final prev = event.union.edge.prev;
+          final curr = event.union.edge.curr;
+          if (prev.tag != 0) {
+            final src = Id.fromNative(prev.some.src);
+            final label = prev.some.label;
+            final dst = Id.fromNative(prev.some.dst);
+            for (final (_, remove) in edgeBySrc[src]) remove(id);
+            for (final (_, remove) in edgeBySrcLabel[(src, label)]) remove(id);
+            for (final (_, remove) in edgeByLabel[label]) remove(id);
+            for (final (_, remove) in edgeByLabelDst[(label, dst)]) remove(id);
+          }
+          if (curr.tag != 0) {
+            final src = Id.fromNative(curr.some.src);
+            final label = curr.some.label;
+            final dst = Id.fromNative(curr.some.dst);
+            for (final update in edgeById[id]) update((src, label, dst));
+            for (final (insert, _) in edgeBySrc[src]) insert(id, label, dst);
+            for (final (insert, _) in edgeBySrcLabel[(src, label)]) insert(id, dst);
+            for (final (insert, _) in edgeByLabel[label]) insert(id, src, dst);
+            for (final (insert, _) in edgeByLabelDst[(label, dst)]) insert(id, src);
+          } else {
+            for (final update in edgeById[id]) update(null);
+          }
         default:
           throw UnimplementedError();
       }
     }
-    bindings.drop_array_u64_event_data(data);
-  }
-
-  Atom<T> getAtom<T>(Serializer<T> serializer, Id id) {
-    final res = Atom<T>._(serializer, id);
-    final weak = WeakReference(res);
-    subscribeAtom(id, newPort(), serializer, (data) => weak.target?._update(data as T?), res);
-    return res;
-  }
-
-  AtomOption<T> getAtomOption<T>(Serializer<T> serializer, Id id) {
-    final res = AtomOption<T>._(serializer, id);
-    final weak = WeakReference(res);
-    subscribeAtom(id, newPort(), serializer, (data) => weak.target?._update(data as T?), res);
-    return res;
-  }
-
-  Link<T> getLink<T extends Object>(Repository<T> repository, Id id) {
-    final res = Link<T>._(repository, id);
-    final weak = WeakReference(res);
-    subscribeEdge(id, newPort(), (data) => weak.target?._update(data), res);
-    return res;
-  }
-
-  LinkOption<T> getLinkOption<T extends Object>(Repository<T> repository, Id id) {
-    final res = LinkOption<T>._(repository, id);
-    final weak = WeakReference(res);
-    subscribeEdge(id, newPort(), (data) => weak.target?._update(data), res);
-    return res;
-  }
-
-  Multilinks<T> getMultilinks<T extends Object>(Repository<T> repository, Id src, int label) {
-    final res = Multilinks<T>._(repository, src, label);
-    final weak = WeakReference(res);
-    subscribeMultiedge(
-      src,
-      label,
-      newPort(),
-      (id, dst) => weak.target?._insert(id, dst),
-      (id, dst) => weak.target?._remove(id, dst),
-      res,
-    );
-    return res;
-  }
-
-  Backlinks<T> getBacklinks<T extends Object>(Repository<T> repository, Id dst, int label) {
-    final res = Backlinks<T>._(repository, dst, label);
-    final weak = WeakReference(res);
-    subscribeBackedge(
-      dst,
-      label,
-      newPort(),
-      (id, src) => weak.target?._insert(id, src),
-      (id, src) => weak.target?._remove(id, src),
-      res,
-    );
-    return res;
+    bindings.drop_array_event_data(data);
   }
 }

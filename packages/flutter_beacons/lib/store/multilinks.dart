@@ -1,26 +1,27 @@
-part of '../store.dart';
+import '../store.dart';
+import '../reactive.dart';
 
 class Multilinks<T extends Object> extends Node implements Observable<List<T>> {
   final Repository<T> repository;
   final Id src;
   final int label;
-  final Set<(Id, Id)> edges = {};
+  final Map<Id, Id> edges = {};
 
   Multilinks._(this.repository, this.src, this.label);
 
   @override
   List<T> get(Node? ref) {
     register(ref);
-    return edges.map<T>((elem) => repository.get(elem.$2)!).toList();
+    return edges.values.map<T>((elem) => repository.get(elem)!).toList();
   }
 
   void _insert(Id id, Id dst) {
-    edges.add((id, dst));
+    edges[id] = dst;
     notify();
   }
 
-  void _remove(Id id, Id dst) {
-    edges.remove((id, dst));
+  void _remove(Id id) {
+    edges.remove(id);
     notify();
   }
 
@@ -29,11 +30,21 @@ class Multilinks<T extends Object> extends Node implements Observable<List<T>> {
   }
 
   void remove(T value) {
-    for (final (id, dst) in edges) {
-      if (dst == repository.id(value)) {
-        Store.instance.setEdge(id, null);
+    for (final entry in edges.entries) {
+      if (entry.value == repository.id(value)) {
+        Store.instance.setEdge(entry.key, null);
         break;
       }
     }
+  }
+}
+
+extension GetMultilinksExtension on Store {
+  Multilinks<T> getMultilinks<T extends Object>(Repository<T> repository, Id src, int label) {
+    final res = Multilinks<T>._(repository, src, label);
+    final weak = WeakReference(res);
+    subscribeEdgeBySrcLabel(
+        src, label, (id, dst) => weak.target?._insert(id, dst), (id) => weak.target?._remove(id), res);
+    return res;
   }
 }

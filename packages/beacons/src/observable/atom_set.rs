@@ -92,7 +92,8 @@ impl AtomSet {
     clock: u64,
     slv: Option<(u128, u64, &[u8])>,
   ) -> bool {
-    if let Some((_, _, _, prev)) = self.inner.set(store, id, bucket, clock, slv) {
+    if let Some(prev) = self.inner.set(store, id, bucket, clock, slv) {
+      let prev = prev.and_then(|(_, _, _, slv)| slv);
       self.notify(ctx, id, prev, slv.map(|(src, label, value)| (src, label, Vec::from(value).into())));
       return true;
     }

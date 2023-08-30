@@ -1,4 +1,4 @@
-part of '../store.dart';
+import '../ffi/ffi_structs.dart';
 
 final class Id {
   final int high;
@@ -18,4 +18,6 @@ final class Id {
 
   @override
   String toString() => hashCode.toString();
+
+  Id operator ^(int rhs) => Id(high, low ^ rhs);
 }

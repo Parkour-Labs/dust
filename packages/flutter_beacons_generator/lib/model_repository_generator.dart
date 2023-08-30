@@ -247,26 +247,18 @@ String emitCreateFunctionBody(Struct struct) {
     final name = field.name;
     res += switch (field.type) {
       Atom() => '''
-        final \$${name}Dst = \$store.randomId();
-        \$store.setEdge(\$store.randomId(), (id, ${label(struct.name, field.name)}, \$${name}Dst));
-        \$store.setAtom(${serializer(struct.name, field.name)}, \$${name}Dst, $name);
+        \$store.setAtom(\$store.randomId(), (id, ${label(struct.name, field.name)}, $name, ${serializer(struct.name, field.name)}));
       ''',
       AtomOption() => '''
-        if ($name == null) {
-          \$store.setEdge(\$store.randomId(), (id, ${label(struct.name, field.name)}, \$store.randomId()));
-        } else {
-          final \$${name}Dst = \$store.randomId();
-          \$store.setEdge(\$store.randomId(), (id, ${label(struct.name, field.name)}, \$${name}Dst));
-          \$store.setAtom(${serializer(struct.name, field.name)}, \$${name}Dst, $name);
+        if ($name != null) {
+          \$store.setAtom(\$store.randomId(), (id, ${label(struct.name, field.name)}, $name, ${serializer(struct.name, field.name)}));
         }
       ''',
       Link() => '''
         \$store.setEdge(\$store.randomId(), (id, ${label(struct.name, field.name)}, $name.id));
       ''',
       LinkOption() => '''
-        if ($name == null) {
-          \$store.setEdge(\$store.randomId(), (id, ${label(struct.name, field.name)}, \$store.randomId()));
-        } else {
+        if ($name != null) {
           \$store.setEdge(\$store.randomId(), (id, ${label(struct.name, field.name)}, $name.id));
         }
       ''',
@@ -283,8 +275,6 @@ String emitCreateFunctions(Struct struct) {
     ${struct.name} createAt(Id id, ${emitCreateFunctionParams(struct)}) {
       final \$store = Store.instance;
 
-      \$store.setNode(id, ${label(struct.name, "")});
-
       ${emitCreateFunctionBody(struct)}
 
       return get(id)!;
@@ -295,6 +285,21 @@ String emitCreateFunctions(Struct struct) {
 
     ${struct.name} getOrCreateAt(Id id, ${emitCreateFunctionParams(struct)}) =>
         get(id) ?? createAt(id, ${emitCreateFunctionArgs(struct)});
+  ''';
+}
+
+/// Creates the function that deletes an existing struct.
+String emitDeleteFunction(Struct struct) {
+  return '''
+    void delete(${struct.name} object) {
+      final \$store = Store.instance;
+      for (final (\$atom, _) in \$store.getAtomLabelBySrc(object.id)) {
+        \$store.setAtom(\$atom, null);
+      }
+      for (final (\$edge, _) in \$store.getEdgeLabelDstBySrc(object.id)) {
+        \$store.setEdge(\$edge, null);
+      }
+    }
   ''';
 }
 
@@ -319,18 +324,54 @@ String emitGetFunctionFieldDecls(Struct struct) {
   return res;
 }
 
-String emitGetFunctionMatchArms(Struct struct) {
+String emitGetFunctionAtomMatchArms(Struct struct) {
   var res = '';
   for (final field in struct.fields) {
     final name = field.name;
     final lab = label(struct.name, field.name);
     res += switch (field.type) {
-      Atom() => 'case $lab: $name = \$store.getAtom(${serializer(struct.name, field.name)}, \$dst);',
-      AtomOption() => 'case $lab: $name = \$store.getAtomOption(${serializer(struct.name, field.name)}, \$dst);',
+      Atom() => 'case $lab: $name = \$store.getAtom(\$atom, id, \$label, ${serializer(struct.name, field.name)});',
+      AtomOption() =>
+        'case $lab: $name = \$store.getAtomOption(\$atom, id, \$label, ${serializer(struct.name, field.name)});',
+      Link() => '',
+      LinkOption() => '',
+      Multilinks() => '',
+      Backlinks() => '',
+    };
+  }
+  return res;
+}
+
+String emitGetFunctionEdgeMatchArms(Struct struct) {
+  var res = '';
+  for (final field in struct.fields) {
+    final name = field.name;
+    final lab = label(struct.name, field.name);
+    res += switch (field.type) {
+      Atom() => '',
+      AtomOption() => '',
       Link(type: final inner) =>
-        'case $lab: $name = \$store.getLink(const ${repository(inner.element.name)}(), \$edge);',
+        'case $lab: $name = \$store.getLink(\$edge, id, \$label, const ${repository(inner.element.name)}());',
       LinkOption(type: final inner) =>
-        'case $lab: $name = \$store.getLinkOption(const ${repository(inner.element.name)}(), \$edge);',
+        'case $lab: $name = \$store.getLinkOption(\$edge, id, \$label, const ${repository(inner.element.name)}());',
+      Multilinks() => '',
+      Backlinks() => '',
+    };
+  }
+  return res;
+}
+
+String emitGetFunctionNullCases(Struct struct) {
+  var res = '';
+  for (final field in struct.fields) {
+    final name = field.name;
+    final lab = label(struct.name, field.name);
+    res += switch (field.type) {
+      Atom() => 'if ($name == null) return null;',
+      AtomOption() => '$name ??= \$store.getAtomOption(id ^ $lab, id, $lab, ${serializer(struct.name, field.name)});',
+      Link() => 'if ($name == null) return null;',
+      LinkOption(type: final inner) =>
+        '$name ??= \$store.getLinkOption(id ^ $lab, id, $lab, const ${repository(inner.element.name)}());',
       Multilinks() => '',
       Backlinks() => '',
     };
@@ -343,10 +384,10 @@ String emitGetFunctionCtorArgs(Struct struct) {
   for (final field in struct.fields) {
     final name = field.name;
     res += switch (field.type) {
-      Atom() => '$name!,',
-      AtomOption() => '$name!,',
-      Link() => '$name!,',
-      LinkOption() => '$name!,',
+      Atom() => '$name,',
+      AtomOption() => '$name,',
+      Link() => '$name,',
+      LinkOption() => '$name,',
       Multilinks(type: final inner) =>
         '\$store.getMultilinks(const ${repository(inner.element.name)}(), id, ${label(struct.name, field.name)}),',
       Backlinks(type: final inner, field: final field) =>
@@ -367,12 +408,18 @@ String emitGetFunction(Struct struct) {
 
       ${emitGetFunctionFieldDecls(struct)}
 
-      if (\$store.getNode(id) == null) return null;
-      for (final (\$edge, (_, \$label, \$dst)) in \$store.getEdgesBySrc(id)) {
+      for (final (\$atom, \$label) in \$store.getAtomLabelBySrc(id)) {
         switch (\$label) {
-          ${emitGetFunctionMatchArms(struct)}
+          ${emitGetFunctionAtomMatchArms(struct)}
         }
       }
+      for (final (\$edge, (\$label, _)) in \$store.getEdgeLabelDstBySrc(id)) {
+        switch (\$label) {
+          ${emitGetFunctionEdgeMatchArms(struct)}
+        }
+      }
+
+      ${emitGetFunctionNullCases(struct)}
 
       final \$res = ${struct.name}._(
         id,
@@ -425,6 +472,8 @@ class ModelRepositoryGenerator extends GeneratorForAnnotation<Model> {
         static final Map<Id, WeakReference<${struct.name}>> objects = {};
 
         ${emitCreateFunctions(struct)}
+
+        ${emitDeleteFunction(struct)}
 
         @override
         ${emitIdFunction(struct)}

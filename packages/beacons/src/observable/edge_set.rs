@@ -92,7 +92,8 @@ impl EdgeSet {
     clock: u64,
     sld: Option<(u128, u64, u128)>,
   ) -> bool {
-    if let Some((_, _, _, prev)) = self.inner.set(store, id, bucket, clock, sld) {
+    if let Some(prev) = self.inner.set(store, id, bucket, clock, sld) {
+      let prev = prev.and_then(|(_, _, _, sld)| sld);
       self.notify(ctx, id, prev, sld);
       return true;
     }

@@ -5,7 +5,7 @@ pub mod structs;
 use rand::Rng;
 use std::ffi::CStr;
 
-use self::structs::{CArray, CAtom, CEdge, CEventData, CId, COption, CPair};
+use self::structs::{CArray, CAtom, CEdge, CEventData, CId, COption, CPair, CTriple};
 use crate::{fnv64_hash, global};
 
 pub unsafe fn init(path: *const std::ffi::c_char) {
@@ -25,11 +25,11 @@ pub fn get_atom(idh: u64, idl: u64) -> COption<CAtom> {
   let id = CId(idh, idl);
   global::access_store_with(|store| store.atom(id.into())).map(Into::into).into()
 }
-pub fn get_atom_label_value_by_src(srch: u64, srcl: u64) -> CArray<CPair<CId, CPair<u64, CArray<u8>>>> {
+pub fn get_atom_label_value_by_src(srch: u64, srcl: u64) -> CArray<CTriple<CId, u64, CArray<u8>>> {
   let src = CId(srch, srcl);
   global::access_store_with(|store| store.atom_label_value_by_src(src.into()))
     .into_iter()
-    .map(|(id, (label, value))| CPair(id.into(), CPair(label, value.into())))
+    .map(|(id, (label, value))| CTriple(id.into(), label, value.into()))
     .collect::<Box<[_]>>()
     .into()
 }
@@ -41,10 +41,10 @@ pub fn get_atom_value_by_src_label(srch: u64, srcl: u64, label: u64) -> CArray<C
     .collect::<Box<[_]>>()
     .into()
 }
-pub fn get_atom_src_value_by_label(label: u64) -> CArray<CPair<CId, CPair<CId, CArray<u8>>>> {
+pub fn get_atom_src_value_by_label(label: u64) -> CArray<CTriple<CId, CId, CArray<u8>>> {
   global::access_store_with(|store| store.atom_src_value_by_label(label))
     .into_iter()
-    .map(|(id, (src, value))| CPair(id.into(), CPair(src.into(), value.into())))
+    .map(|(id, (src, value))| CTriple(id.into(), src.into(), value.into()))
     .collect::<Box<[_]>>()
     .into()
 }
@@ -60,11 +60,11 @@ pub fn get_edge(idh: u64, idl: u64) -> COption<CEdge> {
   let id = CId(idh, idl);
   global::access_store_with(|store| store.edge(id.into())).map(Into::into).into()
 }
-pub fn get_edge_label_dst_by_src(srch: u64, srcl: u64) -> CArray<CPair<CId, CPair<u64, CId>>> {
+pub fn get_edge_label_dst_by_src(srch: u64, srcl: u64) -> CArray<CTriple<CId, u64, CId>> {
   let src = CId(srch, srcl);
   global::access_store_with(|store| store.edge_label_dst_by_src(src.into()))
     .into_iter()
-    .map(|(id, (label, dst))| CPair(id.into(), CPair(label, dst.into())))
+    .map(|(id, (label, dst))| CTriple(id.into(), label, dst.into()))
     .collect::<Box<[_]>>()
     .into()
 }
@@ -76,10 +76,10 @@ pub fn get_edge_dst_by_src_label(srch: u64, srcl: u64, label: u64) -> CArray<CPa
     .collect::<Box<[_]>>()
     .into()
 }
-pub fn get_edge_src_dst_by_label(label: u64) -> CArray<CPair<CId, CPair<CId, CId>>> {
+pub fn get_edge_src_dst_by_label(label: u64) -> CArray<CTriple<CId, CId, CId>> {
   global::access_store_with(|store| store.edge_src_dst_by_label(label))
     .into_iter()
-    .map(|(id, (src, dst))| CPair(id.into(), CPair(src.into(), dst.into())))
+    .map(|(id, (src, dst))| CTriple(id.into(), src.into(), dst.into()))
     .collect::<Box<[_]>>()
     .into()
 }
@@ -125,7 +125,7 @@ pub unsafe fn sync_join(len: u64, ptr: *mut u8) -> COption<CArray<u8>> {
   global::access_store_with(|store| store.sync_join(actions.as_ref_unchecked())).map(Into::into).into()
 }
 pub fn poll_events() -> CArray<CEventData> {
-  global::access_store_with(|store| store.poll_events()).into_iter().map(Into::into).collect::<Box<[_]>>().into()
+  global::access_store_with(|store| store.poll_events()).into()
 }
 
 /// Drops the return value of [`get_atom`].
@@ -135,9 +135,9 @@ pub unsafe fn drop_option_atom(value: COption<CAtom>) {
   }
 }
 /// Drops the return value of [`get_atom_label_value_by_src`].
-pub unsafe fn drop_array_id_u64_array_u8(value: CArray<CPair<CId, CPair<u64, CArray<u8>>>>) {
+pub unsafe fn drop_array_id_u64_array_u8(value: CArray<CTriple<CId, u64, CArray<u8>>>) {
   for elem in value.into_boxed_unchecked().into_vec().into_iter() {
-    elem.1 .1.into_boxed_unchecked();
+    elem.2.into_boxed_unchecked();
   }
 }
 /// Drops the return value of [`get_atom_value_by_src_label`].
@@ -147,9 +147,9 @@ pub unsafe fn drop_array_id_array_u8(value: CArray<CPair<CId, CArray<u8>>>) {
   }
 }
 /// Drops the return value of [`get_atom_src_value_by_label`].
-pub unsafe fn drop_array_id_id_array_u8(value: CArray<CPair<CId, CPair<CId, CArray<u8>>>>) {
+pub unsafe fn drop_array_id_id_array_u8(value: CArray<CTriple<CId, CId, CArray<u8>>>) {
   for elem in value.into_boxed_unchecked().into_vec().into_iter() {
-    elem.1 .1.into_boxed_unchecked();
+    elem.2.into_boxed_unchecked();
   }
 }
 /// Drops the return value of [`get_atom_src_by_label_value`], [`get_edge_dst_by_src_label`] and [`get_edge_src_by_label_dst`].
@@ -157,14 +157,13 @@ pub unsafe fn drop_array_id_id(value: CArray<CPair<CId, CId>>) {
   value.into_boxed_unchecked();
 }
 /// Drops the return value of [`get_edge_label_dst_by_src`].
-pub unsafe fn drop_array_id_u64_id(value: CArray<CPair<CId, CPair<u64, CId>>>) {
+pub unsafe fn drop_array_id_u64_id(value: CArray<CTriple<CId, u64, CId>>) {
   value.into_boxed_unchecked();
 }
 /// Drops the return value of [`get_edge_src_dst_by_label`].
-pub unsafe fn drop_array_id_id_id(value: CArray<CPair<CId, CPair<CId, CId>>>) {
+pub unsafe fn drop_array_id_id_id(value: CArray<CTriple<CId, CId, CId>>) {
   value.into_boxed_unchecked();
 }
-
 /// Drops the return value of [`sync_version`] and [`sync_actions`].
 pub unsafe fn drop_array_u8(value: CArray<u8>) {
   value.into_boxed_unchecked();
@@ -176,7 +175,7 @@ pub unsafe fn drop_option_array_u8(value: COption<CArray<u8>>) {
   }
 }
 /// Drops the return value of [`poll_events`].
-pub unsafe fn drop_array_u64_event_data(value: CArray<CEventData>) {
+pub unsafe fn drop_array_event_data(value: CArray<CEventData>) {
   for elem in value.into_boxed_unchecked().into_vec().into_iter() {
     if let CEventData::Atom { id: _, prev, curr } = elem {
       if let COption::Some(inner) = prev {
@@ -216,18 +215,20 @@ macro_rules! export_symbols {
     export_symbol!(fn random_id() -> CId);
 
     export_symbol!(fn get_atom(idh: u64, idl: u64) -> COption<CAtom>);
-    export_symbol!(fn get_atom_label_value_by_src(srch: u64, srcl: u64) -> CArray<CPair<CId, CPair<u64, CArray<u8>>>>);
+    export_symbol!(fn get_atom_label_value_by_src(srch: u64, srcl: u64) -> CArray<CTriple<CId, u64, CArray<u8>>>);
     export_symbol!(fn get_atom_value_by_src_label(srch: u64, srcl: u64, label: u64) -> CArray<CPair<CId, CArray<u8>>>);
-    export_symbol!(fn get_atom_src_value_by_label(label: u64) -> CArray<CPair<CId, CPair<CId, CArray<u8>>>>);
+    export_symbol!(fn get_atom_src_value_by_label(label: u64) -> CArray<CTriple<CId, CId, CArray<u8>>>);
     export_symbol!(fn get_atom_src_by_label_value(label: u64, len: u64, ptr: *mut u8) -> CArray<CPair<CId, CId>>);
+
     export_symbol!(fn get_edge(idh: u64, idl: u64) -> COption<CEdge>);
-    export_symbol!(fn get_edge_label_dst_by_src(srch: u64, srcl: u64) -> CArray<CPair<CId, CPair<u64, CId>>>);
+    export_symbol!(fn get_edge_label_dst_by_src(srch: u64, srcl: u64) -> CArray<CTriple<CId, u64, CId>>);
     export_symbol!(fn get_edge_dst_by_src_label(srch: u64, srcl: u64, label: u64) -> CArray<CPair<CId, CId>>);
-    export_symbol!(fn get_edge_src_dst_by_label(label: u64) -> CArray<CPair<CId, CPair<CId, CId>>>);
+    export_symbol!(fn get_edge_src_dst_by_label(label: u64) -> CArray<CTriple<CId, CId, CId>>);
     export_symbol!(fn get_edge_src_by_label_dst(label: u64, dsth: u64, dstl: u64) -> CArray<CPair<CId, CId>>);
 
     export_symbol!(fn set_atom_none(idh: u64, idl: u64));
     export_symbol!(fn set_atom_some(idh: u64, idl: u64, srch: u64, srcl: u64, label: u64, len: u64, ptr: *mut u8));
+
     export_symbol!(fn set_edge_none(idh: u64, idl: u64));
     export_symbol!(fn set_edge_some(idh: u64, idl: u64, srch: u64, srcl: u64, label: u64, dsth: u64, dstl: u64));
 
@@ -237,15 +238,15 @@ macro_rules! export_symbols {
     export_symbol!(fn poll_events() -> CArray<CEventData>);
 
     export_symbol!(fn drop_option_atom(value: COption<CAtom>));
-    export_symbol!(fn drop_array_id_u64_array_u8(value: CArray<CPair<CId, CPair<u64, CArray<u8>>>>));
+    export_symbol!(fn drop_array_id_u64_array_u8(value: CArray<CTriple<CId, u64, CArray<u8>>>));
     export_symbol!(fn drop_array_id_array_u8(value: CArray<CPair<CId, CArray<u8>>>));
-    export_symbol!(fn drop_array_id_id_array_u8(value: CArray<CPair<CId, CPair<CId, CArray<u8>>>>));
+    export_symbol!(fn drop_array_id_id_array_u8(value: CArray<CTriple<CId, CId, CArray<u8>>>));
     export_symbol!(fn drop_array_id_id(value: CArray<CPair<CId, CId>>));
-    export_symbol!(fn drop_array_id_u64_id(value: CArray<CPair<CId, CPair<u64, CId>>>));
-    export_symbol!(fn drop_array_id_id_id(value: CArray<CPair<CId, CPair<CId, CId>>>));
+    export_symbol!(fn drop_array_id_u64_id(value: CArray<CTriple<CId, u64, CId>>));
+    export_symbol!(fn drop_array_id_id_id(value: CArray<CTriple<CId, CId, CId>>));
     export_symbol!(fn drop_array_u8(value: CArray<u8>));
     export_symbol!(fn drop_option_array_u8(value: COption<CArray<u8>>));
-    export_symbol!(fn drop_array_u64_event_data(value: CArray<CEventData>));
+    export_symbol!(fn drop_array_event_data(value: CArray<CEventData>));
   };
 }
 
@@ -263,25 +264,19 @@ pub fn test_array_id_id() -> CArray<CPair<CId, CId>> {
   let second = CPair(CId(0, 1), CId(1, 0));
   CArray::from(Box::from(vec![first, second]))
 }
-pub fn test_array_id_u64_id() -> CArray<CPair<CId, CPair<u64, CId>>> {
-  let first = CPair(test_id(), CPair(233, CId(0, 1)));
-  let second = CPair(CId(1, 1), CPair(234, CId(1, 0)));
+pub fn test_array_id_u64_id() -> CArray<CTriple<CId, u64, CId>> {
+  let first = CTriple(test_id(), 233, CId(0, 1));
+  let second = CTriple(CId(1, 1), 234, CId(1, 0));
   CArray::from(Box::from(vec![first, second]))
 }
-pub fn test_atom() -> CAtom {
-  CAtom { src: test_id(), label: (1 << 63) + 1, value: test_array_u8() }
-}
-pub fn test_edge() -> CEdge {
-  CEdge { src: test_id(), label: (1 << 63) + 1, dst: test_id_unsigned() }
-}
 pub fn test_option_atom_some() -> COption<CAtom> {
-  COption::Some(test_atom())
+  COption::Some(CAtom { src: test_id(), label: (1 << 63) + 1, value: test_array_u8() })
 }
 pub fn test_option_atom_none() -> COption<CAtom> {
   COption::None
 }
 pub fn test_option_edge_some() -> COption<CEdge> {
-  COption::Some(test_edge())
+  COption::Some(CEdge { src: test_id(), label: (1 << 63) + 2, dst: test_id_unsigned() })
 }
 pub fn test_option_edge_none() -> COption<CEdge> {
   COption::None
@@ -321,9 +316,7 @@ macro_rules! export_test_symbols {
     export_symbol!(fn test_id_unsigned() -> CId);
     export_symbol!(fn test_array_u8() -> CArray<u8>);
     export_symbol!(fn test_array_id_id() -> CArray<CPair<CId, CId>>);
-    export_symbol!(fn test_array_id_u64_id() -> CArray<CPair<CId, CPair<u64, CId>>>);
-    export_symbol!(fn test_atom() -> CAtom);
-    export_symbol!(fn test_edge() -> CEdge);
+    export_symbol!(fn test_array_id_u64_id() -> CArray<CTriple<CId, u64, CId>>);
     export_symbol!(fn test_option_atom_some() -> COption<CAtom>);
     export_symbol!(fn test_option_atom_none() -> COption<CAtom>);
     export_symbol!(fn test_option_edge_some() -> COption<CEdge>);

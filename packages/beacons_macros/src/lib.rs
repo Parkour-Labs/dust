@@ -272,7 +272,6 @@ fn create_new_fn_body(field: &Field) -> TokenStream {
 
 /// Creates the function that creates a new struct.
 fn create_new_fn(s: &Struct) -> TokenStream {
-  let name = &s.name;
   let params = s.fields.iter().map(create_new_fn_param);
   let bodies = s.fields.iter().map(create_new_fn_body);
 
@@ -282,7 +281,7 @@ fn create_new_fn(s: &Struct) -> TokenStream {
       let id = rng.gen();
 
       global::access_store_with(|store| {
-        store.set_atom(id, Some((id, #name::LABEL, Vec::new().into())));
+        store.set_atom(id, Some((id, Self::LABEL, Vec::new().into())));
 
         #(#bodies)*
       });
@@ -296,7 +295,14 @@ fn create_new_fn(s: &Struct) -> TokenStream {
 fn create_delete_fn(_s: &Struct) -> TokenStream {
   quote! {
     pub fn delete(self) {
-      global::access_store_with(|store| store.set_atom(self.id, None));
+      global::access_store_with(|store| {
+        for (atom, _) in store.atom_label_value_by_src(self.id) {
+          store.set_atom(atom, None);
+        }
+        for (edge, _) in store.edge_label_dst_by_src(self.id) {
+          store.set_edge(edge, None);
+        }
+      });
     }
   }
 }
