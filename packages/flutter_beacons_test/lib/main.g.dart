@@ -12,12 +12,13 @@ part of 'main.dart';
 class $TrivialRepository implements Repository<Trivial> {
   const $TrivialRepository();
 
-  static final Map<Id, WeakReference<Ref<Trivial>>> refs = {};
+  static final Map<Id, WeakReference<RepositoryEntry<Trivial>>> entries = {};
 
   @override
-  bool isComplete(Trivial $model) {
-    return true;
-  }
+  Id id(Trivial $model) => $model.id;
+
+  @override
+  bool exists(Trivial $model) => true;
 
   void overwrite(
     Id $id,
@@ -25,47 +26,50 @@ class $TrivialRepository implements Repository<Trivial> {
     final $store = Store.instance;
   }
 
-  Ref<Trivial> create() {
+  Trivial create() {
     final $id = Store.instance.randomId();
-    final $ref = get($id);
+    final $entry = get($id);
     overwrite(
       $id,
     );
-    return $ref;
+    return $entry.model;
   }
 
-  Ref<Trivial> init(
+  Trivial init(
     Id $id,
   ) {
-    final $ref = get($id);
-    if (!isComplete($ref.model)) {
+    final $entry = get($id);
+    if (!exists($entry.model)) {
       overwrite(
         $id,
       );
     }
-    return $ref;
+    return $entry.model;
   }
 
   @override
-  Ref<Trivial> get(Id $id) {
-    final $existing = refs[$id]?.target;
+  RepositoryEntry<Trivial> get(Id $id) {
+    final $existing = entries[$id]?.target;
     if ($existing != null) return $existing;
 
-    final $model = Trivial._();
-    final $ref = Ref($id, $model, this);
+    final $model = Trivial._(
+      $id,
+    );
+    final $entry = RepositoryEntry(this, $model);
 
-    refs[$id] = WeakReference($ref);
-    return $ref;
+    entries[$id] = WeakReference($entry);
+    return $entry;
   }
 
   @override
-  void delete(Id $id) {
+  void delete(Trivial $model) {
+    final $id = $model.id;
     final $store = Store.instance;
     $store.getAtomLabelValueBySrc(
         $id, ($atom, $label, $value) => $store.setAtom($atom, null));
     $store.getEdgeLabelDstBySrc(
         $id, ($atom, $label, $dst) => $store.setAtom($atom, null));
-    refs.remove($id);
+    entries.remove($id);
   }
 }
 
@@ -84,19 +88,21 @@ class $SomethingRepository implements Repository<Something> {
   static const atomOneSerializer = kStringSerializer;
   static const atomTwoSerializer = kStringSerializer;
 
-  static final Map<Id, WeakReference<Ref<Something>>> refs = {};
+  static final Map<Id, WeakReference<RepositoryEntry<Something>>> entries = {};
 
   @override
-  bool isComplete(Something $model) {
-    return $model.atomOne.isComplete && $model.linkOne.isComplete && true;
-  }
+  Id id(Something $model) => $model.id;
+
+  @override
+  bool exists(Something $model) =>
+      $model.atomOne.exists && $model.linkOne.exists && true;
 
   void overwrite(
     Id $id,
     String atomOne,
     String? atomTwo,
-    Ref<Trivial> linkOne,
-    Ref<Trivial>? linkTwo,
+    Trivial linkOne,
+    Trivial? linkTwo,
   ) {
     final $store = Store.instance;
     $store.setAtom(
@@ -139,14 +145,14 @@ class $SomethingRepository implements Repository<Something> {
     }
   }
 
-  Ref<Something> create(
+  Something create(
     String atomOne,
     String? atomTwo,
-    Ref<Trivial> linkOne,
-    Ref<Trivial>? linkTwo,
+    Trivial linkOne,
+    Trivial? linkTwo,
   ) {
     final $id = Store.instance.randomId();
-    final $ref = get($id);
+    final $entry = get($id);
     overwrite(
       $id,
       atomOne,
@@ -154,18 +160,18 @@ class $SomethingRepository implements Repository<Something> {
       linkOne,
       linkTwo,
     );
-    return $ref;
+    return $entry.model;
   }
 
-  Ref<Something> init(
+  Something init(
     Id $id,
     String atomOne,
     String? atomTwo,
-    Ref<Trivial> linkOne,
-    Ref<Trivial>? linkTwo,
+    Trivial linkOne,
+    Trivial? linkTwo,
   ) {
-    final $ref = get($id);
-    if (!isComplete($ref.model)) {
+    final $entry = get($id);
+    if (!exists($entry.model)) {
       overwrite(
         $id,
         atomOne,
@@ -174,15 +180,16 @@ class $SomethingRepository implements Repository<Something> {
         linkTwo,
       );
     }
-    return $ref;
+    return $entry.model;
   }
 
   @override
-  Ref<Something> get(Id $id) {
-    final $existing = refs[$id]?.target;
+  RepositoryEntry<Something> get(Id $id) {
+    final $existing = entries[$id]?.target;
     if ($existing != null) return $existing;
 
     final $model = Something._(
+      $id,
       Atom<String>(
         $id ^ $SomethingRepository.atomOneLabel,
         $id,
@@ -218,21 +225,22 @@ class $SomethingRepository implements Repository<Something> {
         const $SomethingRepository(),
       ),
     );
-    final $ref = Ref($id, $model, this);
-    $model.atomOne.parent = $ref;
-    $model.linkOne.parent = $ref;
+    final $entry = RepositoryEntry(this, $model);
+    $model.atomOne.parent = $entry;
+    $model.linkOne.parent = $entry;
 
-    refs[$id] = WeakReference($ref);
-    return $ref;
+    entries[$id] = WeakReference($entry);
+    return $entry;
   }
 
   @override
-  void delete(Id $id) {
+  void delete(Something $model) {
+    final $id = $model.id;
     final $store = Store.instance;
     $store.getAtomLabelValueBySrc(
         $id, ($atom, $label, $value) => $store.setAtom($atom, null));
     $store.getEdgeLabelDstBySrc(
         $id, ($atom, $label, $dst) => $store.setAtom($atom, null));
-    refs.remove($id);
+    entries.remove($id);
   }
 }

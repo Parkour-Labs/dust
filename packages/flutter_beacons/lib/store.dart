@@ -9,11 +9,13 @@ import 'serializer.dart';
 import 'store/id.dart';
 
 export 'store/id.dart';
-export 'store/ref.dart';
+export 'store/repository.dart';
 export 'store/atom.dart';
 export 'store/link.dart';
 export 'store/multilinks.dart';
 export 'store/backlinks.dart';
+export 'store/all_atoms.dart';
+export 'store/all_links.dart';
 
 typedef AtomByIdSubscription = void Function((Id, int, ByteData)? slv);
 typedef AtomBySrcSubscription = (void Function(Id id, int label, ByteData value), void Function(Id id));

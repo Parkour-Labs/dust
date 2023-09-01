@@ -1,4 +1,5 @@
 import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:build/build.dart';
 import 'package:source_gen/source_gen.dart';
@@ -165,7 +166,18 @@ Struct convertStruct(ClassElement elem) {
   if (elem.typeParameters.isNotEmpty) fail('Class must not be generic.', elem);
   final name = elem.name;
   final fields = <Field>[];
-  for (final e in elem.fields) {
+  final id = elem.fields.firstOrNull;
+  if (id == null || id.name != 'id') {
+    fail('The first field in a model class must be `final Id id`.', elem);
+  } else {
+    final type = id.type;
+    if (!id.isFinal) fail('The `id` field must be marked as final.', id);
+    if (id.isLate) fail('The `id` field must not be marked as late.', id);
+    if (type.nullabilitySuffix != NullabilitySuffix.none) fail('The `id` field must not be marked as nullable.', id);
+    if (type is! InterfaceType || type.element.name != 'Id') fail('The `id` field must have type `Id`.', id);
+  }
+  for (final (i, e) in elem.fields.indexed) {
+    if (i == 0) continue; // Skip the `id` field.
     final field = convertField(e);
     if (field != null) fields.add(field);
   }
@@ -217,24 +229,27 @@ String emitSerializerDecls(Struct struct) {
   return res;
 }
 
-/// Creates the function that checks if a [struct] is complete.
-String emitIsCompleteFunction(Struct struct) {
+/// Creates the function that obtains the ID of a [struct].
+String emitIdFunction(Struct struct) {
+  return 'Id id(${struct.name} \$model) => \$model.id;';
+}
+
+/// Creates the function that checks if a [struct] completely exists.
+String emitExistsFunction(Struct struct) {
   var clauses = '';
   for (final field in struct.fields) {
     final name = field.name;
     clauses += switch (field.type) {
-      Atom() => '\$model.$name.isComplete &&',
+      Atom() => '\$model.$name.exists &&',
       AtomOption() => '',
-      Link() => '\$model.$name.isComplete &&',
+      Link() => '\$model.$name.exists &&',
       LinkOption() => '',
       Multilinks() => '',
       Backlinks() => '',
     };
   }
   return '''
-    bool isComplete(${struct.name} \$model) {
-      return $clauses true;
-    }
+    bool exists(${struct.name} \$model) => $clauses true;
   ''';
 }
 
@@ -245,8 +260,8 @@ String emitCreateFunctionParams(Struct struct) {
     res += switch (field.type) {
       Atom(type: final inner) => '$inner $name,',
       AtomOption(type: final inner) => '$inner? $name,',
-      Link(type: final inner) => 'Ref<$inner> $name,',
-      LinkOption(type: final inner) => 'Ref<$inner>? $name,',
+      Link(type: final inner) => '$inner $name,',
+      LinkOption(type: final inner) => '$inner? $name,',
       Multilinks() => '',
       Backlinks() => '',
     };
@@ -307,19 +322,19 @@ String emitCreateFunctions(Struct struct) {
       ${emitCreateFunctionBody(struct)}
     }
 
-    Ref<${struct.name}> create(${emitCreateFunctionParams(struct)}) {
+    ${struct.name} create(${emitCreateFunctionParams(struct)}) {
       final \$id = Store.instance.randomId();
-      final \$ref = get(\$id);
+      final \$entry = get(\$id);
       overwrite(\$id, ${emitCreateFunctionArgs(struct)});
-      return \$ref;
+      return \$entry.model;
     }
 
-    Ref<${struct.name}> init(Id \$id, ${emitCreateFunctionParams(struct)}) {
-      final \$ref = get(\$id);
-      if (!isComplete(\$ref.model)) {
+    ${struct.name} init(Id \$id, ${emitCreateFunctionParams(struct)}) {
+      final \$entry = get(\$id);
+      if (!exists(\$entry.model)) {
         overwrite(\$id, ${emitCreateFunctionArgs(struct)});
       }
-      return \$ref;
+      return \$entry.model;
     }
   ''';
 }
@@ -349,10 +364,10 @@ String emitGetFunctionParentAssignments(Struct struct) {
     final name = field.name;
     res += switch (field.type) {
       Atom() => '''
-        \$model.$name.parent = \$ref;
+        \$model.$name.parent = \$entry;
       ''',
       Link() => '''
-        \$model.$name.parent = \$ref;
+        \$model.$name.parent = \$entry;
       ''',
       _ => '',
     };
@@ -363,16 +378,16 @@ String emitGetFunctionParentAssignments(Struct struct) {
 /// Creates the function that obtains a [struct] by ID.
 String emitGetFunction(Struct struct) {
   return '''
-    Ref<${struct.name}> get(Id \$id) {
-      final \$existing = refs[\$id]?.target;
+    RepositoryEntry<${struct.name}> get(Id \$id) {
+      final \$existing = entries[\$id]?.target;
       if (\$existing != null) return \$existing;
 
-      final \$model = ${struct.name}._(${emitGetFunctionCtorArgs(struct)});
-      final \$ref = Ref(\$id, \$model, this);
+      final \$model = ${struct.name}._(\$id, ${emitGetFunctionCtorArgs(struct)});
+      final \$entry = RepositoryEntry(this, \$model);
       ${emitGetFunctionParentAssignments(struct)}
 
-      refs[\$id] = WeakReference(\$ref);
-      return \$ref;
+      entries[\$id] = WeakReference(\$entry);
+      return \$entry;
     }
   ''';
 }
@@ -380,11 +395,12 @@ String emitGetFunction(Struct struct) {
 /// Creates the function that deletes an existing struct.
 String emitDeleteFunction(Struct struct) {
   return '''
-    void delete(Id \$id) {
+    void delete(${struct.name} \$model) {
+      final \$id = \$model.id;
       final \$store = Store.instance;
       \$store.getAtomLabelValueBySrc(\$id, (\$atom, \$label, \$value) => \$store.setAtom(\$atom, null));
       \$store.getEdgeLabelDstBySrc(\$id, (\$atom, \$label, \$dst) => \$store.setAtom(\$atom, null));
-      refs.remove(\$id);
+      entries.remove(\$id);
     }
   ''';
 }
@@ -392,8 +408,8 @@ String emitDeleteFunction(Struct struct) {
 /// Generate deterministic ID for global object constructors.
 String emitGlobalIds(Struct struct, ClassElement elem) {
   var res = '';
-  for (final ctor in elem.methods) {
-    if (ctor.isStatic) {
+  for (final ctor in elem.constructors) {
+    if (ctor.isFactory) {
       if (kGlobalAnnotation.annotationsOfExact(ctor).isNotEmpty) {
         final high = fnv64Hash(struct.name);
         final low = fnv64Hash(ctor.name);
@@ -428,10 +444,13 @@ class ModelRepositoryGenerator extends GeneratorForAnnotation<Model> {
 
         ${emitSerializerDecls(struct)}
 
-        static final Map<Id, WeakReference<Ref<${struct.name}>>> refs = {};
+        static final Map<Id, WeakReference<RepositoryEntry<${struct.name}>>> entries = {};
 
         @override
-        ${emitIsCompleteFunction(struct)}
+        ${emitIdFunction(struct)}
+
+        @override
+        ${emitExistsFunction(struct)}
 
         ${emitCreateFunctions(struct)}
 

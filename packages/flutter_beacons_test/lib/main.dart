@@ -150,13 +150,19 @@ const kStringSerializer = StringSerializer();
 
 @Model()
 class Trivial {
-  Trivial._();
+  final Id id;
 
-  static Ref<Trivial> create() => const $TrivialRepository().create();
+  Trivial._(this.id);
+
+  factory Trivial.create() => const $TrivialRepository().create();
+
+  void delete() => const $TrivialRepository().delete(this);
 }
 
 @Model()
 class Something {
+  final Id id;
+
   @Serializable(kStringSerializer)
   final Atom<String> atomOne;
 
@@ -175,15 +181,17 @@ class Something {
   @Transient()
   int someNonPersistentField = 233;
 
-  Something._(this.atomOne, this.atomTwo, this.linkOne, this.linkTwo, this.linkThree, this.backlink);
+  Something._(this.id, this.atomOne, this.atomTwo, this.linkOne, this.linkTwo, this.linkThree, this.backlink);
 
-  static Ref<Something> create({
+  factory Something.create({
     required String atomOne,
     String? atomTwo,
-    required Ref<Trivial> linkOne,
-    Ref<Trivial>? linkTwo,
+    required Trivial linkOne,
+    Trivial? linkTwo,
   }) =>
       const $SomethingRepository().create(atomOne, atomTwo, linkOne, linkTwo);
+
+  void delete() => const $SomethingRepository().delete(this);
 }
 
 void testObjectStoreWrapper() async {
@@ -192,47 +200,47 @@ void testObjectStoreWrapper() async {
 
   final something = Something.create(atomOne: "test", atomTwo: "2333", linkOne: trivial, linkTwo: trivial);
   final somethingElse = Something.create(atomOne: "test", linkOne: trivial);
-  somethingElse.get(null)!.linkThree.insert(something);
+  somethingElse.linkThree.insert(something);
 
-  final somethingCopy = const $SomethingRepository().get(something.id);
-  final somethingElseCopy = const $SomethingRepository().get(somethingElse.id);
+  final somethingCopy = const $SomethingRepository().get(something.id).get(null)!;
+  final somethingElseCopy = const $SomethingRepository().get(somethingElse.id).get(null)!;
 
-  assert(somethingCopy.get(null)!.atomOne.get(null) == "test");
-  assert(somethingCopy.get(null)!.atomTwo.get(null)! == "2333");
-  assert(somethingCopy.get(null)!.linkOne.get(null).id == trivial.id);
-  assert(somethingCopy.get(null)!.linkTwo.get(null)!.id == trivial.id);
-  assert(somethingCopy.get(null)!.linkThree.get(null).isEmpty);
+  assert(somethingCopy.atomOne.get(null) == "test");
+  assert(somethingCopy.atomTwo.get(null)! == "2333");
+  assert(somethingCopy.linkOne.get(null).id == trivial.id);
+  assert(somethingCopy.linkTwo.get(null)!.id == trivial.id);
+  assert(somethingCopy.linkThree.get(null).isEmpty);
 
-  assert(somethingElseCopy.get(null)!.atomOne.get(null) == "test");
-  assert(somethingElseCopy.get(null)!.atomTwo.get(null) == null);
-  assert(somethingElseCopy.get(null)!.linkOne.get(null).id == trivial.id);
-  assert(somethingElseCopy.get(null)!.linkTwo.get(null) == null);
-  assert(somethingElseCopy.get(null)!.linkThree.get(null).length == 1);
-  assert(somethingElseCopy.get(null)!.linkThree.get(null).single.id == something.id);
+  assert(somethingElseCopy.atomOne.get(null) == "test");
+  assert(somethingElseCopy.atomTwo.get(null) == null);
+  assert(somethingElseCopy.linkOne.get(null).id == trivial.id);
+  assert(somethingElseCopy.linkTwo.get(null) == null);
+  assert(somethingElseCopy.linkThree.get(null).length == 1);
+  assert(somethingElseCopy.linkThree.get(null).single.id == something.id);
 
-  somethingCopy.get(null)!.atomTwo.set(null);
-  assert(somethingCopy.get(null)!.atomTwo.get(null) == null);
-  somethingCopy.get(null)!.atomTwo.set("gg");
-  assert(somethingCopy.get(null)!.atomTwo.get(null)! == "gg");
-  somethingCopy.get(null)!.linkTwo.set(null);
-  assert(somethingCopy.get(null)!.linkTwo.get(null) == null);
-  somethingCopy.get(null)!.linkTwo.set(trivialAgain);
-  assert(somethingCopy.get(null)!.linkTwo.get(null)!.id == trivialAgain.id);
+  somethingCopy.atomTwo.set(null);
+  assert(somethingCopy.atomTwo.get(null) == null);
+  somethingCopy.atomTwo.set("gg");
+  assert(somethingCopy.atomTwo.get(null)! == "gg");
+  somethingCopy.linkTwo.set(null);
+  assert(somethingCopy.linkTwo.get(null) == null);
+  somethingCopy.linkTwo.set(trivialAgain);
+  assert(somethingCopy.linkTwo.get(null)!.id == trivialAgain.id);
 
-  assert(something.get(null)!.backlink.get(null).length == 1);
-  something.get(null)!.linkThree.insert(something);
-  assert(something.get(null)!.backlink.get(null).length == 2);
-  something.get(null)!.linkThree.insert(something);
-  assert(something.get(null)!.backlink.get(null).length == 3);
-  something.get(null)!.linkThree.remove(something);
-  assert(something.get(null)!.backlink.get(null).length == 2);
-  somethingElse.get(null)!.linkThree.remove(something);
-  assert(something.get(null)!.backlink.get(null).length == 1);
+  assert(something.backlink.get(null).length == 1);
+  something.linkThree.insert(something);
+  assert(something.backlink.get(null).length == 2);
+  something.linkThree.insert(something);
+  assert(something.backlink.get(null).length == 3);
+  something.linkThree.remove(something);
+  assert(something.backlink.get(null).length == 2);
+  somethingElse.linkThree.remove(something);
+  assert(something.backlink.get(null).length == 1);
 
   something.delete();
-  assert(something.get(null) == null && somethingCopy.get(null) == null);
-  Store.instance.setAtom(somethingElse.get(null)!.atomOne.id, null);
-  assert(somethingElse.get(null) == null && somethingElseCopy.get(null) == null);
+  assert(const $SomethingRepository().get(something.id).get(null) == null);
+  Store.instance.setAtom(somethingElse.atomOne.id, null);
+  assert(const $SomethingRepository().get(somethingElse.id).get(null) == null);
 }
 
 Future<bool> allTests() async {

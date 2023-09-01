@@ -1,7 +1,7 @@
 import '../store.dart';
 import '../reactive.dart';
 
-class LinkOption<T> extends Node implements Observable<Ref<T>?> {
+class LinkOption<T> extends Node implements Observable<T?> {
   final Id id;
   final Id src;
   final int label;
@@ -14,27 +14,24 @@ class LinkOption<T> extends Node implements Observable<Ref<T>?> {
   }
 
   @override
-  Ref<T>? get(Node? ref) {
+  T? get(Node? ref) {
     register(ref);
     final dst = this.dst;
-    return (dst == null) ? null : repository.get(dst);
+    return (dst == null) ? null : repository.get(dst).get(ref);
   }
-
-  /// A more convenient variant for [get].
-  T? filter(Node? ref) => get(ref)?.get(ref);
 
   void _update((Id, int, Id)? sld) {
     dst = (sld == null) ? null : sld.$3;
     notify();
   }
 
-  void set(Ref<T>? value) {
-    Store.instance.setEdge(id, (value == null) ? null : (src, label, value.id));
+  void set(T? value) {
+    Store.instance.setEdge(id, (value == null) ? null : (src, label, repository.id(value)));
   }
 }
 
-class Link<T> extends Node implements Observable<Ref<T>> {
-  Ref<Object?>? parent;
+class Link<T> extends Node implements Observable<T> {
+  RepositoryEntry<Object?>? parent;
   final Id id;
   final Id src;
   final int label;
@@ -46,25 +43,26 @@ class Link<T> extends Node implements Observable<Ref<T>> {
     Store.instance.subscribeEdgeById(id, (sld) => weak.target?._update(sld), this);
   }
 
-  bool get isComplete => dst != null;
+  bool get exists => dst != null;
 
   @override
-  Ref<T> get(Node? ref) {
+  T get(Node? ref) {
     register(ref);
-    return repository.get(dst!);
+    final dst = this.dst;
+    if (dst == null) throw AlreadyDeletedException();
+    final res = repository.get(dst).get(ref);
+    if (res == null) throw AlreadyDeletedException();
+    return res;
   }
 
-  /// A more convenient variant for [get].
-  T? filter(Node? ref) => get(ref).get(ref);
-
   void _update((Id, int, Id)? sld) {
-    final completenessChanged = (dst == null) != (sld == null);
+    final existenceChanged = (dst == null) != (sld == null);
     dst = (sld == null) ? null : sld.$3;
-    if (completenessChanged) parent?.notify();
+    if (existenceChanged) parent?.notify();
     notify();
   }
 
-  void set(Ref<T> value) {
-    Store.instance.setEdge(id, (src, label, value.id));
+  void set(T value) {
+    Store.instance.setEdge(id, (src, label, repository.id(value)));
   }
 }

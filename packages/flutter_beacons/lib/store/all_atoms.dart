@@ -4,7 +4,7 @@ import '../serializer.dart';
 import '../store.dart';
 import '../reactive.dart';
 
-class AllAtomValues<T> extends Node implements Observable<Iterable<T>> {
+class AllAtomValues<T> extends Node implements Observable<List<T>> {
   final int label;
   final Serializer<T> serializer;
   final Map<Id, T> values = {};
@@ -16,9 +16,9 @@ class AllAtomValues<T> extends Node implements Observable<Iterable<T>> {
   }
 
   @override
-  Iterable<T> get(Node? ref) {
+  List<T> get(Node? ref) {
     register(ref);
-    return values.values;
+    return values.values.toList();
   }
 
   void _insert(Id id, Id src, ByteData value) {
@@ -32,7 +32,7 @@ class AllAtomValues<T> extends Node implements Observable<Iterable<T>> {
   }
 }
 
-class AllAtomOwners<T> extends Node implements Observable<Iterable<Ref<T>>> {
+class AllAtomOwners<T> extends Node implements Observable<List<T>> {
   final int label;
   final Repository<T> repository;
   final Map<Id, Id> srcs = {};
@@ -44,16 +44,11 @@ class AllAtomOwners<T> extends Node implements Observable<Iterable<Ref<T>>> {
   }
 
   @override
-  Iterable<Ref<T>> get(Node? ref) {
+  List<T> get(Node? ref) {
     register(ref);
-    return srcs.keys.map(repository.get);
-  }
-
-  /// A more convenient variant for [get].
-  List<T> filter(Node? ref) {
     final res = <T>[];
-    for (final e in get(ref)) {
-      final item = e.get(ref);
+    for (final src in srcs.values) {
+      final item = repository.get(src).get(ref);
       if (item != null) res.add(item);
     }
     return res;

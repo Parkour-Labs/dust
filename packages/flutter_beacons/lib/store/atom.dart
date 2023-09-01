@@ -33,7 +33,7 @@ class AtomOption<T> extends Node implements Observable<T?> {
 }
 
 class Atom<T> extends Node implements Observable<T> {
-  Ref<Object?>? parent;
+  RepositoryEntry<Object?>? parent;
   final Id id;
   final Id src;
   final int label;
@@ -45,18 +45,20 @@ class Atom<T> extends Node implements Observable<T> {
     Store.instance.subscribeAtomById(id, (slv) => weak.target?._update(slv), this);
   }
 
-  bool get isComplete => value != null;
+  bool get exists => value != null;
 
   @override
   T get(Node? ref) {
     register(ref);
-    return value!;
+    final value = this.value;
+    if (value == null) throw AlreadyDeletedException();
+    return value;
   }
 
   void _update((Id, int, ByteData)? slv) {
-    final completenessChanged = (value == null) != (slv == null);
+    final existenceChanged = (value == null) != (slv == null);
     value = (slv == null) ? null : serializer.deserialize(BytesReader(slv.$3));
-    if (completenessChanged) parent?.notify();
+    if (existenceChanged) parent?.notify();
     notify();
   }
 
