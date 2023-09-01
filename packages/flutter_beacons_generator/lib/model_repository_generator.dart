@@ -88,9 +88,9 @@ final class Struct {
 /// Converts [DartType] to [FieldType].
 FieldType convertType(DartType rawType, FieldElement elem) {
   final type = resolve(rawType, elem);
-  if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
-  final inner = resolve(type.typeArguments.single, elem);
   if (type.element.name == 'Atom') {
+    if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
+    final inner = resolve(type.typeArguments.single, elem);
     final annots = kSerializableAnnotation.annotationsOfExact(elem);
     final value = annots.firstOrNull?.getField('serializer');
     final serializer = value != null ? value.variable?.name : emitSerializer(inner);
@@ -105,6 +105,8 @@ FieldType convertType(DartType rawType, FieldElement elem) {
     return Atom(inner, serializer);
   }
   if (type.element.name == 'AtomOption') {
+    if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
+    final inner = resolve(type.typeArguments.single, elem);
     final annots = kSerializableAnnotation.annotationsOfExact(elem);
     final value = annots.firstOrNull?.getField('serializer');
     final serializer = value != null ? value.variable?.name : emitSerializer(inner);
@@ -118,16 +120,33 @@ FieldType convertType(DartType rawType, FieldElement elem) {
     }
     return AtomOption(inner, serializer);
   }
-  if (type.element.name == 'Link') return Link(inner);
-  if (type.element.name == 'LinkOption') return LinkOption(inner);
-  if (type.element.name == 'Multilinks') return Multilinks(inner);
+  if (type.element.name == 'Link') {
+    if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
+    final inner = resolve(type.typeArguments.single, elem);
+    return Link(inner);
+  }
+  if (type.element.name == 'LinkOption') {
+    if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
+    final inner = resolve(type.typeArguments.single, elem);
+    return LinkOption(inner);
+  }
+  if (type.element.name == 'Multilinks') {
+    if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
+    final inner = resolve(type.typeArguments.single, elem);
+    return Multilinks(inner);
+  }
   if (type.element.name == 'Backlinks') {
+    if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
+    final inner = resolve(type.typeArguments.single, elem);
     final annots = kBacklinkAnnotation.annotationsOfExact(elem);
     final value = annots.firstOrNull?.getField('name')?.toStringValue();
     if (value == null) fail('Backlinks must be annotated with `@Backlink(\'fieldName\')`.', elem);
     return Backlinks(inner, value);
   }
-  fail('Unsupported field type `$type` (must be one of: ...).', elem);
+  fail(
+    'Unsupported field type `$type` (must be one of: `Atom`, `AtomOption`, `Link`, `LinkOption`, `Multilinks` or `Backlinks`).',
+    elem,
+  );
 }
 
 /// Converts [FieldElement] to [Field].
@@ -373,14 +392,16 @@ String emitDeleteFunction(Struct struct) {
 /// Generate deterministic ID for global object constructors.
 String emitGlobalIds(Struct struct, ClassElement elem) {
   var res = '';
-  for (final ctor in elem.constructors) {
-    if (kGlobalAnnotation.annotationsOfExact(ctor).isNotEmpty) {
-      final high = fnv64Hash(struct.name);
-      final low = fnv64Hash(ctor.name);
-      res += '''
+  for (final ctor in elem.methods) {
+    if (ctor.isStatic) {
+      if (kGlobalAnnotation.annotationsOfExact(ctor).isNotEmpty) {
+        final high = fnv64Hash(struct.name);
+        final low = fnv64Hash(ctor.name);
+        res += '''
         // Type `${struct.name}`, name `${ctor.name}`
         const Id \$${ctor.name}Id = Id($high, $low);
       ''';
+      }
     }
   }
   return res;

@@ -1,7 +1,7 @@
 import '../store.dart';
 import '../reactive.dart';
 
-class Multilinks<T extends Object> extends Node implements Observable<Iterable<Ref<T>>> {
+class Multilinks<T> extends Node implements Observable<Iterable<Ref<T>>> {
   final Id src;
   final int label;
   final Repository<T> repository;

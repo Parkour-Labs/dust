@@ -1,7 +1,7 @@
 import '../store.dart';
 import '../reactive.dart';
 
-class Backlinks<T extends Object> extends Node implements Observable<Iterable<Ref<T>>> {
+class Backlinks<T> extends Node implements Observable<Iterable<Ref<T>>> {
   final Id dst;
   final int label;
   final Repository<T> repository;
