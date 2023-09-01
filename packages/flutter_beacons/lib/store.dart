@@ -9,17 +9,17 @@ import 'serializer.dart';
 import 'store/id.dart';
 
 export 'store/id.dart';
-export 'store/repository.dart';
+export 'store/ref.dart';
 export 'store/atom.dart';
 export 'store/link.dart';
 export 'store/multilinks.dart';
 export 'store/backlinks.dart';
 
-typedef AtomByIdSubscription = (void Function((Id, int, Object?)? slv), Serializer);
-typedef AtomBySrcSubscription = (void Function(Id id, int label), void Function(Id id)); // Special case
-typedef AtomBySrcLabelSubscription = (void Function(Id id, Object? value), void Function(Id id), Serializer);
-typedef AtomByLabelSubscription = (void Function(Id id, Id src, Object? value), void Function(Id id), Serializer);
-typedef AtomByLabelValueSubscription = (void Function(Id id, Id src), void Function(Id id), Serializer);
+typedef AtomByIdSubscription = void Function((Id, int, ByteData)? slv);
+typedef AtomBySrcSubscription = (void Function(Id id, int label, ByteData value), void Function(Id id));
+typedef AtomBySrcLabelSubscription = (void Function(Id id, ByteData value), void Function(Id id));
+typedef AtomByLabelSubscription = (void Function(Id id, Id src, ByteData value), void Function(Id id));
+typedef AtomByLabelValueSubscription = (void Function(Id id, Id src), void Function(Id id));
 
 typedef EdgeByIdSubscription = void Function((Id, int, Id)? sld);
 typedef EdgeBySrcSubscription = (void Function(Id id, int label, Id dst), void Function(Id id));
@@ -96,122 +96,101 @@ class Store {
     return Id.fromNative(bindings.random_id());
   }
 
-  /// A helper function for deserialisation.
-  T _de<T>(CArrayUint8 array, Serializer<T> serializer) {
-    final bytes = array.ptr.asTypedList(array.len).buffer.asByteData();
-    return serializer.deserialize(BytesReader(bytes));
-  }
+  /// A helper function for creating a [ByteData] view.
+  ByteData _view(CArrayUint8 array) => array.ptr.asTypedList(array.len).buffer.asByteData();
 
   /// Obtains atom value.
-  (Id, int, T)? getAtomById<T>(Id id, Serializer<T> serializer) {
+  void getAtomById(Id id, void Function((Id, int, ByteData)?) fn) {
     final data = bindings.get_atom(id.high, id.low);
-    if (data.tag == 0) {
-      return null;
-    } else {
-      final res = (Id.fromNative(data.some.src), data.some.label, _de(data.some.value, serializer));
-      bindings.drop_option_atom(data);
-      return res;
-    }
+    fn(data.tag == 0 ? null : (Id.fromNative(data.some.src), data.some.label, _view(data.some.value)));
+    bindings.drop_option_atom(data);
   }
 
   /// Queries the forward index.
-  List<(Id, int)> getAtomLabelBySrc(Id src) {
-    final res = <(Id, int)>[];
+  void getAtomLabelValueBySrc(Id src, void Function(Id, int, ByteData) fn) {
     final data = bindings.get_atom_label_value_by_src(src.high, src.low);
     for (var i = 0; i < data.len; i++) {
       final elem = data.ptr.elementAt(i).ref;
-      res.add((Id.fromNative(elem.first), elem.second));
+      fn(Id.fromNative(elem.first), elem.second, _view(elem.third));
     }
     bindings.drop_array_id_u64_array_u8(data);
-    return res;
   }
 
   /// Queries the forward index.
-  List<(Id, T)> getAtomValueBySrcLabel<T>(Id src, int label, Serializer<T> serializer) {
-    final res = <(Id, T)>[];
+  void getAtomValueBySrcLabel(Id src, int label, void Function(Id, ByteData) fn) {
     final data = bindings.get_atom_value_by_src_label(src.high, src.low, label);
     for (var i = 0; i < data.len; i++) {
       final elem = data.ptr.elementAt(i).ref;
-      res.add((Id.fromNative(elem.first), _de(elem.second, serializer)));
+      fn(Id.fromNative(elem.first), _view(elem.second));
     }
     bindings.drop_array_id_array_u8(data);
-    return res;
   }
 
   /// Queries the reverse index.
-  List<(Id, (Id, T))> getAtomSrcValueByLabel<T>(int label, Serializer<T> serializer) {
-    final res = <(Id, (Id, T))>[];
+  void getAtomSrcValueByLabel(int label, void Function(Id, Id, ByteData) fn) {
     final data = bindings.get_atom_src_value_by_label(label);
     for (var i = 0; i < data.len; i++) {
       final elem = data.ptr.elementAt(i).ref;
-      res.add((Id.fromNative(elem.first), (Id.fromNative(elem.second), _de(elem.third, serializer))));
+      fn(Id.fromNative(elem.first), Id.fromNative(elem.second), _view(elem.third));
     }
     bindings.drop_array_id_id_array_u8(data);
-    return res;
   }
 
   /*
   /// Queries the reverse index.
-  List<(Id, Id)> getAtomSrcByLabelValue<T>(int label, T value, Serializer<T> serializer) {
+  void getAtomSrcByLabelValue(int label, Uint8List value, void Function(Id, Id) fn) {
     throw UnimplementedError();
   }
   */
 
   /// Obtains edge value.
-  (Id, int, Id)? getEdgeById(Id id) {
+  void getEdgeById(Id id, void Function((Id, int, Id)?) fn) {
     final data = bindings.get_edge(id.high, id.low);
-    return data.tag == 0 ? null : (Id.fromNative(data.some.src), data.some.label, Id.fromNative(data.some.dst));
+    fn(data.tag == 0 ? null : (Id.fromNative(data.some.src), data.some.label, Id.fromNative(data.some.dst)));
   }
 
   /// Queries the forward index.
-  List<(Id, (int, Id))> getEdgeLabelDstBySrc(Id src) {
-    final res = <(Id, (int, Id))>[];
+  void getEdgeLabelDstBySrc(Id src, void Function(Id, int, Id) fn) {
     final data = bindings.get_edge_label_dst_by_src(src.high, src.low);
     for (var i = 0; i < data.len; i++) {
       final elem = data.ptr.elementAt(i).ref;
-      res.add((Id.fromNative(elem.first), (elem.second, Id.fromNative(elem.third))));
+      fn(Id.fromNative(elem.first), elem.second, Id.fromNative(elem.third));
     }
     bindings.drop_array_id_u64_id(data);
-    return res;
   }
 
   /// Queries the forward index.
-  List<(Id, Id)> getEdgeDstBySrcLabel(Id src, int label) {
-    final res = <(Id, Id)>[];
+  void getEdgeDstBySrcLabel(Id src, int label, void Function(Id, Id) fn) {
     final data = bindings.get_edge_dst_by_src_label(src.high, src.low, label);
     for (var i = 0; i < data.len; i++) {
       final item = data.ptr.elementAt(i).ref;
-      res.add((Id.fromNative(item.first), Id.fromNative(item.second)));
+      fn(Id.fromNative(item.first), Id.fromNative(item.second));
     }
     bindings.drop_array_id_id(data);
-    return res;
   }
 
   /// Queries the reverse index.
-  List<(Id, (Id, Id))> getEdgeSrcDstByLabel(int label) {
-    final res = <(Id, (Id, Id))>[];
+  void getEdgeSrcDstByLabel(int label, void Function(Id, Id, Id) fn) {
     final data = bindings.get_edge_src_dst_by_label(label);
     for (var i = 0; i < data.len; i++) {
       final item = data.ptr.elementAt(i).ref;
-      res.add((Id.fromNative(item.first), (Id.fromNative(item.second), Id.fromNative(item.third))));
+      fn(Id.fromNative(item.first), Id.fromNative(item.second), Id.fromNative(item.third));
     }
     bindings.drop_array_id_id_id(data);
-    return res;
   }
 
   /// Queries the reverse index.
-  List<(Id, Id)> getEdgeSrcByLabelDst(int label, Id dst) {
-    final res = <(Id, Id)>[];
+  void getEdgeSrcByLabelDst(int label, Id dst, void Function(Id, Id) fn) {
     final data = bindings.get_edge_src_by_label_dst(label, dst.high, dst.low);
     for (var i = 0; i < data.len; i++) {
       final item = data.ptr.elementAt(i).ref;
-      res.add((Id.fromNative(item.first), Id.fromNative(item.second)));
+      fn(Id.fromNative(item.first), Id.fromNative(item.second));
     }
     bindings.drop_array_id_id(data);
-    return res;
   }
 
   /// Modifies atom value.
+  /// TODO: move to atom
   void setAtom<T>(Id id, (Id, int, T, Serializer<T>)? slv) {
     if (slv == null) {
       bindings.set_atom_none(id.high, id.low);
@@ -274,47 +253,48 @@ class Store {
   }
 
   /// Subscribes to atom value changes.
-  void subscribeAtomById(Id id, void Function((Id, int, Object?)? slv) update, Serializer serializer, Object owner) {
+  void subscribeAtomById(Id id, void Function((Id, int, ByteData)? slv) update, Object owner) {
     final key = id;
-    final value = (update, serializer);
+    final value = update;
     atomById.add(key, value);
     _atomByIdFinalizer.attach(owner, (key, value));
-    update(getAtomById(id, serializer));
+    getAtomById(id, update);
   }
 
   /// Subscribes to queries on the forward index.
-  void subscribeAtomBySrc(Id src, void Function(Id id, int label) insert, void Function(Id id) remove, Object owner) {
+  void subscribeAtomBySrc(
+      Id src, void Function(Id id, int label, ByteData value) insert, void Function(Id id) remove, Object owner) {
     final key = src;
     final value = (insert, remove);
     atomBySrc.add(key, value);
     _atomBySrcFinalizer.attach(owner, (key, value));
-    for (final (id, label) in getAtomLabelBySrc(src)) insert(id, label);
+    getAtomLabelValueBySrc(src, insert);
   }
 
   /// Subscribes to queries on the forward index.
-  void subscribeAtomBySrcLabel(Id src, int label, void Function(Id id, Object? value) insert,
-      void Function(Id id) remove, Serializer serializer, Object owner) {
+  void subscribeAtomBySrcLabel(
+      Id src, int label, void Function(Id id, ByteData value) insert, void Function(Id id) remove, Object owner) {
     final key = (src, label);
-    final value = (insert, remove, serializer);
+    final value = (insert, remove);
     atomBySrcLabel.add(key, value);
     _atomBySrcLabelFinalizer.attach(owner, (key, value));
-    for (final (id, value) in getAtomValueBySrcLabel(src, label, serializer)) insert(id, value);
+    getAtomValueBySrcLabel(src, label, insert);
   }
 
   /// Subscribes to queries on the reverse index.
-  void subscribeAtomByLabel(int label, void Function(Id id, Id src, Object? value) insert, void Function(Id id) remove,
-      Serializer serializer, Object owner) {
+  void subscribeAtomByLabel(
+      int label, void Function(Id id, Id src, ByteData value) insert, void Function(Id id) remove, Object owner) {
     final key = label;
-    final value = (insert, remove, serializer);
+    final value = (insert, remove);
     atomByLabel.add(key, value);
     _atomByLabelFinalizer.attach(owner, (key, value));
-    for (final (id, (src, value)) in getAtomSrcValueByLabel(label, serializer)) insert(id, src, value);
+    getAtomSrcValueByLabel(label, insert);
   }
 
   /*
   /// Subscribes to queries on the reverse index.
-  void subscribeAtomByLabelValue(int label, Object value, void Function(Id id, Id src) insert,
-      void Function(Id id) remove, Serializer serializer, Object owner) {
+  void subscribeAtomByLabelValue(int label, ByteData value, void Function(Id id, Id src) insert,
+      void Function(Id id) remove, Object owner) {
     throw UnimplementedError();
   }
   */
@@ -325,7 +305,7 @@ class Store {
     final value = update;
     edgeById.add(key, value);
     _edgeByIdFinalizer.attach(owner, (key, value));
-    update(getEdgeById(id));
+    getEdgeById(id, update);
   }
 
   /// Subscribes to queries on the forward index.
@@ -335,7 +315,7 @@ class Store {
     final value = (insert, remove);
     edgeBySrc.add(key, value);
     _edgeBySrcFinalizer.attach(owner, (key, value));
-    for (final (id, (label, dst)) in getEdgeLabelDstBySrc(src)) insert(id, label, dst);
+    getEdgeLabelDstBySrc(src, insert);
   }
 
   /// Subscribes to queries on the forward index.
@@ -345,7 +325,7 @@ class Store {
     final value = (insert, remove);
     edgeBySrcLabel.add(key, value);
     _edgeBySrcLabelFinalizer.attach(owner, (key, value));
-    for (final (id, dst) in getEdgeDstBySrcLabel(src, label)) insert(id, dst);
+    getEdgeDstBySrcLabel(src, label, insert);
   }
 
   /// Subscribes to queries on the reverse index.
@@ -355,7 +335,7 @@ class Store {
     final value = (insert, remove);
     edgeByLabel.add(key, value);
     _edgeByLabelFinalizer.attach(owner, (key, value));
-    for (final (id, (src, dst)) in getEdgeSrcDstByLabel(label)) insert(id, src, dst);
+    getEdgeSrcDstByLabel(label, insert);
   }
 
   /// Subscribes to queries on the reverse index.
@@ -365,7 +345,7 @@ class Store {
     final value = (insert, remove);
     edgeByLabelDst.add(key, value);
     _edgeByLabelDstFinalizer.attach(owner, (key, value));
-    for (final (id, src) in getEdgeSrcByLabelDst(label, dst)) insert(id, src);
+    getEdgeSrcByLabelDst(label, dst, insert);
   }
 
   void _unsubscribeAtomById((Id, AtomByIdSubscription) kv) => atomById.remove(kv.$1, kv.$2);
@@ -393,21 +373,21 @@ class Store {
           if (prev.tag != 0) {
             final src = Id.fromNative(prev.some.src);
             final label = prev.some.label;
-            final _ = prev.some.value;
-            for (final (_, remove) in atomBySrc[src]) remove(id); // Special case.
-            for (final (_, remove, _) in atomBySrcLabel[(src, label)]) remove(id);
-            for (final (_, remove, _) in atomByLabel[label]) remove(id);
+            final _ = _view(prev.some.value);
+            for (final (_, remove) in atomBySrc[src]) remove(id);
+            for (final (_, remove) in atomBySrcLabel[(src, label)]) remove(id);
+            for (final (_, remove) in atomByLabel[label]) remove(id);
           }
           if (curr.tag != 0) {
             final src = Id.fromNative(curr.some.src);
             final label = curr.some.label;
-            final value = curr.some.value;
-            for (final (update, serializer) in atomById[id]) update((id, label, _de(value, serializer)));
-            for (final (insert, _) in atomBySrc[src]) insert(id, label); // Special case.
-            for (final (insert, _, serializer) in atomBySrcLabel[(src, label)]) insert(id, _de(value, serializer));
-            for (final (insert, _, serializer) in atomByLabel[label]) insert(id, src, _de(value, serializer));
+            final value = _view(curr.some.value);
+            for (final update in atomById[id]) update((id, label, value));
+            for (final (insert, _) in atomBySrc[src]) insert(id, label, value);
+            for (final (insert, _) in atomBySrcLabel[(src, label)]) insert(id, value);
+            for (final (insert, _) in atomByLabel[label]) insert(id, src, value);
           } else {
-            for (final (update, _) in atomById[id]) update(null);
+            for (final update in atomById[id]) update(null);
           }
         case 1:
           final id = Id.fromNative(event.union.edge.id);

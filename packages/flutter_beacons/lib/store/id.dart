@@ -19,5 +19,7 @@ final class Id {
   @override
   String toString() => hashCode.toString();
 
+  /// This is used for generating a deterministic, unique ID for unique atoms/links.
+  /// Since both entity ID and label are random, a simple bitwise XOR would suffice.
   Id operator ^(int rhs) => Id(high, low ^ rhs);
 }

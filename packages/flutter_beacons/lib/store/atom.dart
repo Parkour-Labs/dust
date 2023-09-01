@@ -1,15 +1,20 @@
+import 'dart:typed_data';
+
 import '../store.dart';
 import '../reactive.dart';
 import '../serializer.dart';
 
 class AtomOption<T> extends Node implements Observable<T?> {
-  final Serializer<T> serializer;
   final Id id;
   final Id src;
   final int label;
+  final Serializer<T> serializer;
   T? value;
 
-  AtomOption._(this.serializer, this.id, this.src, this.label);
+  AtomOption(this.id, this.src, this.label, this.serializer) {
+    final weak = WeakReference(this);
+    Store.instance.subscribeAtomById(id, (slv) => weak.target?._update(slv), this);
+  }
 
   @override
   T? get(Node? ref) {
@@ -17,53 +22,45 @@ class AtomOption<T> extends Node implements Observable<T?> {
     return value;
   }
 
-  void _update((Id, int, Object?)? slv) {
-    value = slv == null ? null : (slv.$3 as T);
+  void _update((Id, int, ByteData)? slv) {
+    value = (slv == null) ? null : serializer.deserialize(BytesReader(slv.$3));
     notify();
   }
 
   void set(T? value) {
-    Store.instance.setAtom<T>(id, value == null ? null : (src, label, value, serializer));
+    Store.instance.setAtom<T>(id, (value == null) ? null : (src, label, value, serializer));
   }
 }
 
 class Atom<T> extends Node implements Observable<T> {
-  final Serializer<T> serializer;
+  Ref<Object?>? parent;
   final Id id;
   final Id src;
   final int label;
-  late T value;
+  final Serializer<T> serializer;
+  T? value;
 
-  Atom._(this.serializer, this.id, this.src, this.label);
+  Atom(this.id, this.src, this.label, this.serializer) {
+    final weak = WeakReference(this);
+    Store.instance.subscribeAtomById(id, (slv) => weak.target?._update(slv), this);
+  }
+
+  bool get isComplete => value != null;
 
   @override
   T get(Node? ref) {
     register(ref);
-    return value;
+    return value!;
   }
 
-  void _update((Id, int, Object?)? slv) {
-    value = slv!.$3 as T;
+  void _update((Id, int, ByteData)? slv) {
+    final completenessChanged = (value == null) != (slv == null);
+    value = (slv == null) ? null : serializer.deserialize(BytesReader(slv.$3));
+    if (completenessChanged) parent?.notify();
     notify();
   }
 
   void set(T value) {
     Store.instance.setAtom<T>(id, (src, label, value, serializer));
-  }
-}
-
-extension GetAtomExtension on Store {
-  Atom<T> getAtom<T>(Id id, Id src, int label, Serializer<T> serializer) {
-    final res = Atom<T>._(serializer, id, src, label);
-    final weak = WeakReference(res);
-    subscribeAtomById(id, (data) => weak.target?._update(data), serializer, res);
-    return res;
-  }
-
-  AtomOption<T> getAtomOption<T>(Id id, Id src, int label, Serializer<T> serializer) {
-    final res = AtomOption<T>._(serializer, id, src, label);
-    final weak = WeakReference(res);
-    subscribeAtomById(id, (data) => weak.target?._update(data), serializer, res);
-    return res;
   }
 }

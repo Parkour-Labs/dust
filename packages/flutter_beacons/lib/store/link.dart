@@ -1,68 +1,70 @@
 import '../store.dart';
 import '../reactive.dart';
 
-class LinkOption<T extends Object> extends Node implements Observable<T?> {
-  final Repository<T> repository;
+class LinkOption<T> extends Node implements Observable<Ref<T>?> {
   final Id id;
   final Id src;
   final int label;
+  final Repository<T> repository;
   Id? dst;
 
-  LinkOption._(this.repository, this.id, this.src, this.label);
-
-  @override
-  T? get(Node? ref) {
-    register(ref);
-    return repository.get(dst);
+  LinkOption(this.id, this.src, this.label, this.repository) {
+    final weak = WeakReference(this);
+    Store.instance.subscribeEdgeById(id, (sld) => weak.target?._update(sld), this);
   }
 
+  @override
+  Ref<T>? get(Node? ref) {
+    register(ref);
+    final dst = this.dst;
+    return (dst == null) ? null : repository.get(dst);
+  }
+
+  /// A more convenient variant for [get].
+  T? filter(Node? ref) => get(ref)?.get(ref);
+
   void _update((Id, int, Id)? sld) {
-    dst = sld?.$3;
+    dst = (sld == null) ? null : sld.$3;
     notify();
   }
 
-  void set(T? value) {
-    Store.instance.setEdge(id, value == null ? null : (src, label, repository.id(value)));
+  void set(Ref<T>? value) {
+    Store.instance.setEdge(id, (value == null) ? null : (src, label, value.id));
   }
 }
 
-class Link<T extends Object> extends Node implements Observable<T> {
-  final Repository<T> repository;
+class Link<T> extends Node implements Observable<Ref<T>> {
+  Ref<Object?>? parent;
   final Id id;
   final Id src;
   final int label;
-  late Id dst;
+  final Repository<T> repository;
+  Id? dst;
 
-  Link._(this.repository, this.id, this.src, this.label);
-
-  @override
-  T get(Node? ref) {
-    register(ref);
-    return repository.get(dst)!;
+  Link(this.id, this.src, this.label, this.repository) {
+    final weak = WeakReference(this);
+    Store.instance.subscribeEdgeById(id, (sld) => weak.target?._update(sld), this);
   }
 
-  void _update((Id, int, Id)? data) {
-    dst = data!.$3;
+  bool get isComplete => dst != null;
+
+  @override
+  Ref<T> get(Node? ref) {
+    register(ref);
+    return repository.get(dst!);
+  }
+
+  /// A more convenient variant for [get].
+  T? filter(Node? ref) => get(ref).get(ref);
+
+  void _update((Id, int, Id)? sld) {
+    final completenessChanged = (dst == null) != (sld == null);
+    dst = (sld == null) ? null : sld.$3;
+    if (completenessChanged) parent?.notify();
     notify();
   }
 
-  void set(T value) {
-    Store.instance.setEdge(id, (src, label, repository.id(value)));
-  }
-}
-
-extension GetLinkExtension on Store {
-  Link<T> getLink<T extends Object>(Id id, Id src, int label, Repository<T> repository) {
-    final res = Link<T>._(repository, id, src, label);
-    final weak = WeakReference(res);
-    subscribeEdgeById(id, (data) => weak.target?._update(data), res);
-    return res;
-  }
-
-  LinkOption<T> getLinkOption<T extends Object>(Id id, Id src, int label, Repository<T> repository) {
-    final res = LinkOption<T>._(repository, id, src, label);
-    final weak = WeakReference(res);
-    subscribeEdgeById(id, (data) => weak.target?._update(data), res);
-    return res;
+  void set(Ref<T> value) {
+    Store.instance.setEdge(id, (src, label, value.id));
   }
 }

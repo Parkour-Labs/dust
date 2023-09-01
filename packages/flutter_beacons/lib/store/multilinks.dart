@@ -1,18 +1,32 @@
 import '../store.dart';
 import '../reactive.dart';
 
-class Multilinks<T extends Object> extends Node implements Observable<List<T>> {
-  final Repository<T> repository;
+class Multilinks<T extends Object> extends Node implements Observable<Iterable<Ref<T>>> {
   final Id src;
   final int label;
+  final Repository<T> repository;
   final Map<Id, Id> edges = {};
 
-  Multilinks._(this.repository, this.src, this.label);
+  Multilinks(this.src, this.label, this.repository) {
+    final weak = WeakReference(this);
+    Store.instance.subscribeEdgeBySrcLabel(
+        src, label, (id, dst) => weak.target?._insert(id, dst), (id) => weak.target?._remove(id), this);
+  }
 
   @override
-  List<T> get(Node? ref) {
+  Iterable<Ref<T>> get(Node? ref) {
     register(ref);
-    return edges.values.map<T>((elem) => repository.get(elem)!).toList();
+    return edges.values.map(repository.get);
+  }
+
+  /// A more convenient variant for [get].
+  List<T> filter(Node? ref) {
+    final res = <T>[];
+    for (final e in get(ref)) {
+      final item = e.get(ref);
+      if (item != null) res.add(item);
+    }
+    return res;
   }
 
   void _insert(Id id, Id dst) {
@@ -25,26 +39,16 @@ class Multilinks<T extends Object> extends Node implements Observable<List<T>> {
     notify();
   }
 
-  void insert(T value) {
-    Store.instance.setEdge(Store.instance.randomId(), (src, label, repository.id(value)));
+  void insert(Ref<T> value) {
+    Store.instance.setEdge(Store.instance.randomId(), (src, label, value.id));
   }
 
-  void remove(T value) {
+  void remove(Ref<T> value) {
     for (final entry in edges.entries) {
-      if (entry.value == repository.id(value)) {
+      if (entry.value == value.id) {
         Store.instance.setEdge(entry.key, null);
         break;
       }
     }
-  }
-}
-
-extension GetMultilinksExtension on Store {
-  Multilinks<T> getMultilinks<T extends Object>(Repository<T> repository, Id src, int label) {
-    final res = Multilinks<T>._(repository, src, label);
-    final weak = WeakReference(res);
-    subscribeEdgeBySrcLabel(
-        src, label, (id, dst) => weak.target?._insert(id, dst), (id) => weak.target?._remove(id), res);
-    return res;
   }
 }
