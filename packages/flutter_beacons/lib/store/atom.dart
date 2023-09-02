@@ -66,3 +66,24 @@ class Atom<T> extends Node implements Observable<T> {
     Store.instance.setAtom<T>(id, (src, label, value, serializer));
   }
 }
+
+/// Just a simple wrapper around [AtomOption], using a default value when there
+/// is no value.
+class AtomDefault<T> implements Observable<T> {
+  AtomOption<T> inner;
+  T defaultValue;
+
+  AtomDefault(Id id, Id src, int label, Serializer<T> serializer, this.defaultValue)
+      : inner = AtomOption(id, src, label, serializer);
+
+  @override
+  void register(Node? ref) => inner.register(ref);
+
+  @override
+  void notify() => inner.notify();
+
+  @override
+  T get(Node? ref) => inner.get(ref) ?? defaultValue;
+
+  void set(T? value) => inner.set(value);
+}

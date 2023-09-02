@@ -9,6 +9,11 @@ class Serializable<T> {
   const Serializable(this.serializer);
 }
 
+class Default<T> {
+  final T defaultValue;
+  const Default(this.defaultValue);
+}
+
 class Backlink {
   final String name;
   const Backlink(this.name);

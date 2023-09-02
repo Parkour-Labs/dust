@@ -33,6 +33,7 @@ const kIgnoreForFile = [
 /// Sub-annotations.
 const kBacklinkAnnotation = TypeChecker.fromRuntime(Backlink);
 const kSerializableAnnotation = TypeChecker.fromRuntime(Serializable);
+const kDefaultAnnotation = TypeChecker.fromRuntime(Default);
 const kTransientAnnotation = TypeChecker.fromRuntime(Transient);
 const kGlobalAnnotation = TypeChecker.fromRuntime(Global);
 
@@ -49,6 +50,13 @@ final class AtomOption extends FieldType {
   final InterfaceType type;
   final String serializer;
   AtomOption(this.type, this.serializer);
+}
+
+final class AtomDefault extends FieldType {
+  final InterfaceType type;
+  final String serializer;
+  final String defaultValue;
+  AtomDefault(this.type, this.serializer, this.defaultValue);
 }
 
 final class Link extends FieldType {
@@ -89,37 +97,33 @@ final class Struct {
 /// Converts [DartType] to [FieldType].
 FieldType convertType(DartType rawType, FieldElement elem) {
   final type = resolve(rawType, elem);
-  if (type.element.name == 'Atom') {
+  if (type.element.name == 'Atom' || type.element.name == 'AtomOption' || type.element.name == 'AtomDefault') {
     if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
     final inner = resolve(type.typeArguments.single, elem);
-    final annots = kSerializableAnnotation.annotationsOfExact(elem);
-    final value = annots.firstOrNull?.getField('serializer');
-    final serializer = value != null ? value.variable?.name : emitSerializer(inner);
+    final value = kSerializableAnnotation.annotationsOfExact(elem).firstOrNull?.getField('serializer');
+    final serializer = (value != null) ? construct(value, elem) : emitSerializer(inner);
     if (serializer == null) {
       fail(
         'Failed to synthesize serializer for type `$inner`. '
-        'Please specify one using `@Serializable(serializerInstance)`. '
-        'Instance must be a constant variable.',
+        'Please specify one using `@Serializable(serializerInstance)`. ',
         elem,
       );
     }
-    return Atom(inner, serializer);
-  }
-  if (type.element.name == 'AtomOption') {
-    if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
-    final inner = resolve(type.typeArguments.single, elem);
-    final annots = kSerializableAnnotation.annotationsOfExact(elem);
-    final value = annots.firstOrNull?.getField('serializer');
-    final serializer = value != null ? value.variable?.name : emitSerializer(inner);
-    if (serializer == null) {
-      fail(
-        'Failed to synthesize serializer for type `$inner`. '
-        'Please specify one using `@Serializable(serializerInstance)`. '
-        'Instance must be a constant variable.',
-        elem,
-      );
+    if (type.element.name == 'Atom') {
+      return Atom(inner, serializer);
+    } else if (type.element.name == 'AtomOption') {
+      return AtomOption(inner, serializer);
+    } else {
+      final value = kDefaultAnnotation.annotationsOfExact(elem).firstOrNull?.getField('defaultValue');
+      final defaultValue = (value != null) ? construct(value, elem) : null;
+      if (defaultValue == null) {
+        fail(
+          'Please specify a default value using `@Default(defaultValue)`. ',
+          elem,
+        );
+      }
+      return AtomDefault(inner, serializer, defaultValue);
     }
-    return AtomOption(inner, serializer);
   }
   if (type.element.name == 'Link') {
     if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
@@ -145,7 +149,7 @@ FieldType convertType(DartType rawType, FieldElement elem) {
     return Backlinks(inner, value);
   }
   fail(
-    'Unsupported field type `$type` (must be one of: `Atom`, `AtomOption`, `Link`, `LinkOption`, `Multilinks` or `Backlinks`).',
+    'Unsupported field type `$type` (must be one of: `Atom`, `AtomOption`, `AtomDefault`, `Link`, `LinkOption`, `Multilinks` or `Backlinks`).',
     elem,
   );
 }
@@ -218,8 +222,10 @@ String emitSerializerDecls(Struct struct) {
   var res = '';
   for (final field in struct.fields) {
     res += switch (field.type) {
-      Atom(serializer: final serializer) => 'static const ${field.name}Serializer = $serializer;',
-      AtomOption(serializer: final serializer) => 'static const ${field.name}Serializer = $serializer;',
+      Atom(serializer: final serializer) ||
+      AtomOption(serializer: final serializer) ||
+      AtomDefault(serializer: final serializer) =>
+        'static const ${field.name}Serializer = $serializer;',
       Link() => '',
       LinkOption() => '',
       Multilinks() => '',
@@ -242,6 +248,7 @@ String emitExistsFunction(Struct struct) {
     clauses += switch (field.type) {
       Atom() => '\$model.$name.exists &&',
       AtomOption() => '',
+      AtomDefault() => '',
       Link() => '\$model.$name.exists &&',
       LinkOption() => '',
       Multilinks() => '',
@@ -259,7 +266,7 @@ String emitCreateFunctionParams(Struct struct) {
     final name = field.name;
     res += switch (field.type) {
       Atom(type: final inner) => '$inner $name,',
-      AtomOption(type: final inner) => '$inner? $name,',
+      AtomOption(type: final inner) || AtomDefault(type: final inner) => '$inner? $name,',
       Link(type: final inner) => '$inner $name,',
       LinkOption(type: final inner) => '$inner? $name,',
       Multilinks() => '',
@@ -275,7 +282,7 @@ String emitCreateFunctionArgs(Struct struct) {
     final name = field.name;
     res += switch (field.type) {
       Atom() => '$name,',
-      AtomOption() => '$name,',
+      AtomOption() || AtomDefault() => '$name,',
       Link() => '$name,',
       LinkOption() => '$name,',
       Multilinks() => '',
@@ -294,7 +301,7 @@ String emitCreateFunctionBody(Struct struct) {
       Atom() => '''
         \$store.setAtom(\$id ^ $lab, (\$id, $lab, $name, ${serializer(struct.name, field.name)},),);
       ''',
-      AtomOption() => '''
+      AtomOption() || AtomDefault() => '''
         if ($name != null) {
           \$store.setAtom(\$id ^ $lab, (\$id, $lab, $name, ${serializer(struct.name, field.name)},),);
         }
@@ -347,6 +354,8 @@ String emitGetFunctionCtorArgs(Struct struct) {
       Atom(type: final inner) => 'Atom<$inner>(\$id ^ $lab, \$id, $lab, ${serializer(struct.name, field.name)},),',
       AtomOption(type: final inner) =>
         'AtomOption<$inner>(\$id ^ $lab, \$id, $lab, ${serializer(struct.name, field.name)},),',
+      AtomDefault(type: final inner, :final defaultValue) =>
+        'AtomDefault<$inner>(\$id ^ $lab, \$id, $lab, ${serializer(struct.name, field.name)}, $defaultValue,),',
       Link(type: final inner) => 'Link<$inner>(\$id ^ $lab, \$id, $lab, const ${repository(inner.element.name)}(),),',
       LinkOption(type: final inner) =>
         'LinkOption<$inner>(\$id ^ $lab, \$id, $lab, const ${repository(inner.element.name)}(),),',
