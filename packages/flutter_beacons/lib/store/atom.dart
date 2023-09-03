@@ -17,8 +17,8 @@ class AtomOption<T> extends Node implements Observable<T?> {
   }
 
   @override
-  T? get(Node? ref) {
-    register(ref);
+  T? get(Node? o) {
+    register(o);
     return value;
   }
 
@@ -48,8 +48,8 @@ class Atom<T> extends Node implements Observable<T> {
   bool get exists => value != null;
 
   @override
-  T get(Node? ref) {
-    register(ref);
+  T get(Node? o) {
+    register(o);
     final value = this.value;
     if (value == null) throw AlreadyDeletedException();
     return value;
@@ -77,13 +77,13 @@ class AtomDefault<T> implements Observable<T> {
       : inner = AtomOption(id, src, label, serializer);
 
   @override
-  void register(Node? ref) => inner.register(ref);
+  void register(Node? o) => inner.register(o);
 
   @override
   void notify() => inner.notify();
 
   @override
-  T get(Node? ref) => inner.get(ref) ?? defaultValue;
+  T get(Node? o) => inner.get(o) ?? defaultValue;
 
   void set(T? value) => inner.set(value);
 }

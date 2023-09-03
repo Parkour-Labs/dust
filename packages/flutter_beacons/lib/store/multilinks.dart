@@ -15,11 +15,11 @@ class Multilinks<T> extends Node implements Observable<List<T>> {
 
   /// A more convenient variant of [get].
   @override
-  List<T> get(Node? ref) {
-    register(ref);
+  List<T> get(Node? o) {
+    register(o);
     final res = <T>[];
     for (final dst in dsts.values) {
-      final item = repository.get(dst).get(ref);
+      final item = repository.get(dst).get(o);
       if (item != null) res.add(item);
     }
     return res;

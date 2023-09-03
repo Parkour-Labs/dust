@@ -11,8 +11,8 @@ class RepositoryEntry<T> extends Node implements Observable<T?> {
   RepositoryEntry(this.parent, this.model);
 
   @override
-  T? get(Node? ref) {
-    register(ref);
+  T? get(Node? o) {
+    register(o);
     return parent.exists(model) ? model : null;
   }
 }

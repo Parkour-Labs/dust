@@ -14,10 +14,10 @@ class LinkOption<T> extends Node implements Observable<T?> {
   }
 
   @override
-  T? get(Node? ref) {
-    register(ref);
+  T? get(Node? o) {
+    register(o);
     final dst = this.dst;
-    return (dst == null) ? null : repository.get(dst).get(ref);
+    return (dst == null) ? null : repository.get(dst).get(o);
   }
 
   void _update((Id, int, Id)? sld) {
@@ -46,11 +46,11 @@ class Link<T> extends Node implements Observable<T> {
   bool get exists => dst != null;
 
   @override
-  T get(Node? ref) {
-    register(ref);
+  T get(Node? o) {
+    register(o);
     final dst = this.dst;
     if (dst == null) throw AlreadyDeletedException();
-    final res = repository.get(dst).get(ref);
+    final res = repository.get(dst).get(o);
     if (res == null) throw AlreadyDeletedException();
     return res;
   }

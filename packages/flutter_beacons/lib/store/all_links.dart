@@ -13,11 +13,11 @@ class AllLinkDestinations<T> extends Node implements Observable<List<T>> {
   }
 
   @override
-  List<T> get(Node? ref) {
-    register(ref);
+  List<T> get(Node? o) {
+    register(o);
     final res = <T>[];
     for (final dst in dsts.values) {
-      final item = repository.get(dst).get(ref);
+      final item = repository.get(dst).get(o);
       if (item != null) res.add(item);
     }
     return res;
@@ -46,11 +46,11 @@ class AllLinkSources<T> extends Node implements Observable<List<T>> {
   }
 
   @override
-  List<T> get(Node? ref) {
-    register(ref);
+  List<T> get(Node? o) {
+    register(o);
     final res = <T>[];
     for (final src in srcs.values) {
-      final item = repository.get(src).get(ref);
+      final item = repository.get(src).get(o);
       if (item != null) res.add(item);
     }
     return res;

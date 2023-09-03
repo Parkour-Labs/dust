@@ -1,29 +1,26 @@
 abstract interface class Observable<T> {
-  void register(Node? ref);
+  void register(Node? o);
   void notify();
-  T get(Node? ref);
+  T get(Node? o);
 }
 
 class Node {
-  Set<Node> _in = {};
-  Set<WeakReference<Node>> _out = {};
+  List<Node> _in = [];
+  List<WeakReference<Node>> _out = [];
 
   void notify() {
     _in.clear();
     final out = _out;
-    _out = {};
+    _out = [];
     for (final weak in out) {
-      final node = weak.target;
-      if (node != null) {
-        node.notify();
-      }
+      weak.target?.notify();
     }
   }
 
-  void register(Node? ref) {
-    if (ref != null) {
-      ref._in.add(this);
-      _out.add(WeakReference(ref));
+  void register(Node? o) {
+    if (o != null) {
+      o._in.add(this);
+      _out.add(WeakReference(o));
     }
   }
 }
@@ -34,8 +31,8 @@ class Active<T> extends Node implements Observable<T> {
   Active(this._value);
 
   @override
-  T get(Node? ref) {
-    register(ref);
+  T get(Node? o) {
+    register(o);
     return _value;
   }
 
@@ -48,7 +45,7 @@ class Active<T> extends Node implements Observable<T> {
 class Reactive<T> extends Node implements Observable<T> {
   late T _value;
   bool _notified = false;
-  T Function(Node ref) _recompute;
+  T Function(Node o) _recompute;
 
   Reactive(this._recompute) {
     _value = _recompute(this);
@@ -61,33 +58,35 @@ class Reactive<T> extends Node implements Observable<T> {
   }
 
   @override
-  T get(Node? ref) {
+  T get(Node? o) {
     if (_notified) {
       _notified = false;
       _value = _recompute(this);
     }
-    register(ref);
+    register(o);
     return _value;
   }
 
-  void set(T Function(Node ref) recompute) {
+  void set(T Function(Node o) recompute) {
     this._recompute = recompute;
     notify();
   }
 }
 
 class Observer extends Node {
-  void Function()? _callback;
+  void Function(Node o)? _callback;
 
-  Observer(this._callback);
+  Observer(this._callback) {
+    _callback?.call(this);
+  }
 
   @override
   void notify() {
     super.notify();
-    _callback?.call();
+    _callback?.call(this);
   }
 
-  void set(void Function()? callback) {
+  void set(void Function(Node self)? callback) {
     this._callback = callback;
   }
 }
