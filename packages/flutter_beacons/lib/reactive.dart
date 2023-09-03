@@ -8,12 +8,20 @@ class Node {
   List<Node> _in = [];
   List<WeakReference<Node>> _out = [];
 
-  void notify() {
+  void pre(List<void Function()> callbacks) {
     _in.clear();
     final out = _out;
     _out = [];
     for (final weak in out) {
-      weak.target?.notify();
+      weak.target?.pre(callbacks);
+    }
+  }
+
+  void notify() {
+    final callbacks = <void Function()>[];
+    pre(callbacks);
+    for (final callback in callbacks) {
+      callback();
     }
   }
 
@@ -52,8 +60,8 @@ class Reactive<T> extends Node implements Observable<T> {
   }
 
   @override
-  void notify() {
-    super.notify();
+  void pre(List<void Function()> callbacks) {
+    super.pre(callbacks);
     _notified = true;
   }
 
@@ -81,9 +89,9 @@ class Observer extends Node {
   }
 
   @override
-  void notify() {
-    super.notify();
-    _callback?.call(this);
+  void pre(List<void Function()> callbacks) {
+    super.pre(callbacks);
+    callbacks.add(() => _callback?.call(this));
   }
 
   void set(void Function(Node self)? callback) {
