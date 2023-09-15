@@ -26,11 +26,7 @@ jobs:
         run: flutter doctor -v
 
       - name: Flutter pub get
-        run: |
-          flutter pub get
-          flutter pub get -C cargokit/build_tool
-          flutter pub get -C example
-          flutter pub get -C generator
+        run: flutter pub get && flutter pub get -C generator
 
       - name: Flutter analyze
         run: flutter analyze

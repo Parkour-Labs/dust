@@ -1,8 +1,8 @@
-# on:
-#   push:
-#     branches: [ main ]
-#   pull_request:
-#     branches: [ main ]
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 name: Integration test (iOS)
 jobs:
@@ -10,9 +10,9 @@ jobs:
     # See: https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs
     strategy:
       matrix:
-        model: [ "iPhone 14" ]
+        model: [ 'iPhone 14' ]
 
-    runs-on: macos-13
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v3
         with:
@@ -26,20 +26,16 @@ jobs:
         run: flutter doctor -v
 
       - name: Flutter pub get
-        run: |
-          flutter pub get
-          flutter pub get -C cargokit/build_tool
-          flutter pub get -C example
-          flutter pub get -C generator
+        run: flutter pub get && flutter pub get -C generator
 
       - name: Flutter analyze
         run: flutter analyze
 
       # - name: Flutter build
-      #   run: cd example && flutter build ios --release --obfuscate --split-debug-info=symbols
+      #   run: cd example && flutter build ipa --release --obfuscate --split-debug-info=symbols --no-codesign
 
       # See: https://github.com/flutter/flutter/issues/105913
-      - name: Pre-build
+      - name: Pre-build for integration test
         run: cd example && flutter build ios --debug --simulator
 
       # See: https://github.com/marketplace/actions/launch-ios-simulator
@@ -49,7 +45,7 @@ jobs:
           model: ${{ matrix.model }}
 
       - name: Flutter integration test
-        run: cd example && flutter test && flutter test integration_test --verbose
+        run: cd example && flutter test && flutter test integration_test
 
       # - uses: actions/upload-artifact@v3
       #   with:
