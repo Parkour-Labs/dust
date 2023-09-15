@@ -1,6 +1,0 @@
-# Flutter/Dart/Pub related
-.dart_tool/
-/build/
-
-# See: https://dart.dev/tools/pub/glossary#lockfile
-pubspec.lock

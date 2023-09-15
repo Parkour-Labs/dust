@@ -1,0 +1,17 @@
+# See: https://stackoverflow.com/questions/68275811/is-there-a-way-to-let-mockito-generate-mocks-for-integration-tests-in-a-flutter
+
+targets:
+  $default:
+    sources:
+      include:
+        - $package$
+        - lib/$lib$
+        - lib/**
+        - test/**
+        - integration_test/**
+    builders:
+      beacons_generator|model_repository:
+        generate_for:
+          include:
+            - test/**
+            - integration_test/**

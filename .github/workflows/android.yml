@@ -1,0 +1,81 @@
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+name: Integration test (Android)
+jobs:
+  build:
+    # See: https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs
+    strategy:
+      matrix:
+        api-level: [ 29 ]
+
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - uses: subosito/flutter-action@v2.10.0
+        with:
+          channel: stable
+
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      - name: Flutter pub get
+        run: |
+          flutter pub get
+          flutter pub get -C cargokit/build_tool
+          flutter pub get -C example
+          flutter pub get -C generator
+
+      - name: Flutter analyze
+        run: flutter analyze
+
+      # See: https://github.com/ReactiveCircus/android-emulator-runner
+      - name: Gradle cache
+        uses: gradle/gradle-build-action@v2.8.0
+
+      # - name: Flutter build
+      #   run: cd example && flutter build appbundle --release --obfuscate --split-debug-info=symbols
+
+      # See: https://github.com/ReactiveCircus/android-emulator-runner
+      - name: Android simulator cache
+        uses: actions/cache@v3
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-${{ matrix.api-level }}
+
+      # See: https://github.com/ReactiveCircus/android-emulator-runner
+      - name: Android simulator cache initialisation
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: echo "Generated AVD snapshot for caching."
+
+      # See: https://github.com/ReactiveCircus/android-emulator-runner
+      - name: Flutter integration test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: cd example && flutter test && flutter test integration_test
+
+      # - uses: actions/upload-artifact@v3
+      #   with:
+      #     name: artifacts-android
+      #     path: |
+      #       ${{ github.workspace }}/example/symbols
+      #       ${{ github.workspace }}/example/build/app/outputs/bundle/release

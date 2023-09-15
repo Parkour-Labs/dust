@@ -1,3 +1,0 @@
-[workspace]
-members = ["beacons", "beacons_macros", "flutter_beacons_test/native"]
-resolver = "2"

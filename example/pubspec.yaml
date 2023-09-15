@@ -1,0 +1,31 @@
+name: beacons_test
+description: A new Flutter project.
+version: 1.0.0+1
+homepage:
+repository:
+publish_to: "none"
+
+environment:
+  sdk: '>=3.1.0 <4.0.0'
+
+dependencies:
+  beacons:
+    path: ../
+  cupertino_icons: ^1.0.2
+  ffi: ^2.0.1
+  flutter:
+    sdk: flutter
+  path_provider: ^2.1.1
+
+dev_dependencies:
+  beacons_generator:
+    path: ../generator
+  build_runner: ^2.4.6
+  flutter_lints: ^2.0.0
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true

@@ -1,0 +1,7 @@
+# Visual Studio Code related
+.settings/
+.vscode/
+
+# Rust/Cargo related
+/target/
+Cargo.lock
