@@ -1,10 +1,12 @@
 import 'dart:typed_data';
 
+import '../reactive.dart';
 import '../serializer.dart';
 import '../store.dart';
-import '../reactive.dart';
 
-class AllAtomValues<T> with ObservableMixin<Iterable<T>> implements ObservableSet<T> {
+class AllAtomValues<T>
+    with ObservableMixin<Iterable<T>>
+    implements ObservableSet<T> {
   final int label;
   final Serializer<T> _serializer;
   final Map<Id, T> _values = {};
@@ -12,11 +14,14 @@ class AllAtomValues<T> with ObservableMixin<Iterable<T>> implements ObservableSe
   AllAtomValues(this.label, this._serializer) {
     final weak = WeakReference(this);
     Store.instance.subscribeAtomByLabel(
-        label, (id, src, value) => weak.target?._insert(id, src, value), (id) => weak.target?._remove(id), this);
+        label,
+        (id, src, value) => weak.target?._insert(id, src, value),
+        (id) => weak.target?._remove(id),
+        this);
   }
 
   @override
-  List<T> get(Observer? o) {
+  List<T> get([Observer? o]) {
     if (o != null) connect(o);
     return _values.values.toList();
   }
@@ -32,7 +37,9 @@ class AllAtomValues<T> with ObservableMixin<Iterable<T>> implements ObservableSe
   }
 }
 
-class AllAtomOwners<T> with ObservableMixin<Iterable<T>> implements ObservableSet<T> {
+class AllAtomOwners<T>
+    with ObservableMixin<Iterable<T>>
+    implements ObservableSet<T> {
   final int label;
   final Repository<T> _repository;
   final Map<Id, Id> _srcs = {};
@@ -40,11 +47,14 @@ class AllAtomOwners<T> with ObservableMixin<Iterable<T>> implements ObservableSe
   AllAtomOwners(this.label, this._repository) {
     final weak = WeakReference(this);
     Store.instance.subscribeAtomByLabel(
-        label, (id, src, value) => weak.target?._insert(id, src, value), (id) => weak.target?._remove(id), this);
+        label,
+        (id, src, value) => weak.target?._insert(id, src, value),
+        (id) => weak.target?._remove(id),
+        this);
   }
 
   @override
-  List<T> get(Observer? o) {
+  List<T> get([Observer? o]) {
     if (o != null) connect(o);
     final res = <T>[];
     for (final src in _srcs.values) {

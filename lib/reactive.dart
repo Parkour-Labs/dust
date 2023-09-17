@@ -1,6 +1,6 @@
-export 'reactive/widgets.dart';
 export 'reactive/hooks.dart';
 export 'reactive/value_listenable.dart';
+export 'reactive/widgets.dart';
 
 /// A notifiable object.
 abstract interface class Observer {
@@ -28,7 +28,7 @@ abstract interface class Observable<T> {
   void connect(Observer o);
 
   /// Retrieves value, optionally two-way connecting with observer [o].
-  T get(Observer? o);
+  T get([Observer? o]);
 }
 
 /// An observable mutable value.
@@ -61,7 +61,8 @@ abstract interface class ObservableMutSet<T> extends ObservableSet<T> {
 }
 
 /// An observable map.
-abstract interface class ObservableMap<S, T> extends Observable<Iterable<(S, T)>> {
+abstract interface class ObservableMap<S, T>
+    extends Observable<Iterable<(S, T)>> {
   // int length(Observer? o);
   T? element(S key, Observer? o);
 }
@@ -119,7 +120,7 @@ class Active<T> with ObservableMixin<T> implements ObservableMut<T> {
   Active(this._value);
 
   @override
-  T get(Observer? o) {
+  T get([Observer? o]) {
     if (o != null) connect(o);
     return _value;
   }
@@ -131,7 +132,9 @@ class Active<T> with ObservableMixin<T> implements ObservableMut<T> {
   }
 }
 
-class Reactive<T> with ObservableMixin<T>, ObserverMixin implements Observable<T>, Observer {
+class Reactive<T>
+    with ObservableMixin<T>, ObserverMixin
+    implements Observable<T>, Observer {
   T Function(Observer o) _recompute;
   bool _dirty = false;
   late T _value;
@@ -149,7 +152,7 @@ class Reactive<T> with ObservableMixin<T>, ObserverMixin implements Observable<T
   }
 
   @override
-  T get(Observer? o) {
+  T get([Observer? o]) {
     if (_dirty) {
       _dirty = false;
       _value = _recompute(this);

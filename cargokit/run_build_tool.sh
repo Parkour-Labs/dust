@@ -15,9 +15,10 @@ cd "$CARGOKIT_TOOL_TEMP_DIR"
 BUILD_TOOL_PKG_DIR="$BASEDIR/build_tool"
 
 if [[ -z $FLUTTER_ROOT ]]; then # not defined
-  DART=dart
+  DART="dart"
+  echo "FLUTTER_ROOT is not defined. Using dart from PATH: $DART"
 else
-  DART="$FLUTTER_ROOT/bin/cache/dart-sdk/bin/dart"
+  DART="$FLUTTER_ROOT/bin/dart"
 fi
 
 cat << EOF > "pubspec.yaml"

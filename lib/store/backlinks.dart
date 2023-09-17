@@ -1,7 +1,9 @@
-import '../store.dart';
 import '../reactive.dart';
+import '../store.dart';
 
-class Backlinks<T> with ObservableMixin<Iterable<T>> implements ObservableSet<T> {
+class Backlinks<T>
+    with ObservableMixin<Iterable<T>>
+    implements ObservableSet<T> {
   final Id dst;
   final int label;
   final Repository<T> _repository;
@@ -10,11 +12,15 @@ class Backlinks<T> with ObservableMixin<Iterable<T>> implements ObservableSet<T>
   Backlinks(this.dst, this.label, this._repository) {
     final weak = WeakReference(this);
     Store.instance.subscribeEdgeByLabelDst(
-        label, dst, (id, src) => weak.target?._insert(id, src), (id) => weak.target?._remove(id), this);
+        label,
+        dst,
+        (id, src) => weak.target?._insert(id, src),
+        (id) => weak.target?._remove(id),
+        this);
   }
 
   @override
-  List<T> get(Observer? o) {
+  List<T> get([Observer? o]) {
     if (o != null) connect(o);
     final res = <T>[];
     for (final src in _srcs.values) {
