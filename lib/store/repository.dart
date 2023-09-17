@@ -1,19 +1,18 @@
 import '../reactive.dart';
 import '../store.dart';
 
-// TODO: add information?
 class AlreadyDeletedException<T> implements Exception {}
 
-class RepositoryEntry<T> extends Node implements Observable<T?> {
-  final Repository<T> parent;
+class RepositoryEntry<T> extends ObservableMixin<T?> implements Observable<T?> {
+  final Repository<T> _parent;
   final T model;
 
-  RepositoryEntry(this.parent, this.model);
+  RepositoryEntry(this._parent, this.model);
 
   @override
-  T? get(Node? o) {
-    register(o);
-    return parent.exists(model) ? model : null;
+  T? get(Observer? o) {
+    if (o != null) connect(o);
+    return _parent.exists(model) ? model : null;
   }
 }
 

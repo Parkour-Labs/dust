@@ -1,47 +1,48 @@
 import '../store.dart';
 import '../reactive.dart';
 
-class Multilinks<T> extends Node implements Observable<List<T>> {
+class Multilinks<T> with ObservableMixin<Iterable<T>> implements ObservableMutSet<T> {
   final Id src;
   final int label;
-  final Repository<T> repository;
-  final Map<Id, Id> dsts = {};
+  final Repository<T> _repository;
+  final Map<Id, Id> _dsts = {};
 
-  Multilinks(this.src, this.label, this.repository) {
+  Multilinks(this.src, this.label, this._repository) {
     final weak = WeakReference(this);
     Store.instance.subscribeEdgeBySrcLabel(
         src, label, (id, dst) => weak.target?._insert(id, dst), (id) => weak.target?._remove(id), this);
   }
 
-  /// A more convenient variant of [get].
   @override
-  List<T> get(Node? o) {
-    register(o);
+  List<T> get(Observer? o) {
+    if (o != null) connect(o);
     final res = <T>[];
-    for (final dst in dsts.values) {
-      final item = repository.get(dst).get(o);
+    for (final dst in _dsts.values) {
+      final item = _repository.get(dst).get(o);
       if (item != null) res.add(item);
     }
     return res;
   }
 
   void _insert(Id id, Id dst) {
-    dsts[id] = dst;
-    notify();
+    _dsts[id] = dst;
+    notifyAll();
   }
 
   void _remove(Id id) {
-    dsts.remove(id);
-    notify();
+    _dsts.remove(id);
+    notifyAll();
   }
 
+  @override
   void insert(T value) {
-    Store.instance.setEdge(Store.instance.randomId(), (src, label, repository.id(value)));
+    Store.instance.setEdge(Store.instance.randomId(), (src, label, _repository.id(value)));
   }
 
+  @override
   void remove(T value) {
-    for (final entry in dsts.entries) {
-      if (entry.value == repository.id(value)) {
+    for (final entry in _dsts.entries) {
+      if (entry.value == _repository.id(value)) {
         Store.instance.setEdge(entry.key, null);
         break;
       }

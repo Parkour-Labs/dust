@@ -12,6 +12,7 @@ dependencies:
   ffi: ^2.0.1
   flutter:
     sdk: flutter
+  flutter_hooks: ^0.20.1
   plugin_platform_interface: ^2.0.2
 
 dev_dependencies:

@@ -1,36 +1,36 @@
 import '../store.dart';
 import '../reactive.dart';
 
-class Backlinks<T> extends Node implements Observable<List<T>> {
+class Backlinks<T> with ObservableMixin<Iterable<T>> implements ObservableSet<T> {
   final Id dst;
   final int label;
-  final Repository<T> repository;
-  final Map<Id, Id> srcs = {};
+  final Repository<T> _repository;
+  final Map<Id, Id> _srcs = {};
 
-  Backlinks(this.dst, this.label, this.repository) {
+  Backlinks(this.dst, this.label, this._repository) {
     final weak = WeakReference(this);
     Store.instance.subscribeEdgeByLabelDst(
         label, dst, (id, src) => weak.target?._insert(id, src), (id) => weak.target?._remove(id), this);
   }
 
   @override
-  List<T> get(Node? o) {
-    register(o);
+  List<T> get(Observer? o) {
+    if (o != null) connect(o);
     final res = <T>[];
-    for (final src in srcs.values) {
-      final item = repository.get(src).get(o);
+    for (final src in _srcs.values) {
+      final item = _repository.get(src).get(o);
       if (item != null) res.add(item);
     }
     return res;
   }
 
   void _insert(Id id, Id src) {
-    srcs[id] = src;
-    notify();
+    _srcs[id] = src;
+    notifyAll();
   }
 
   void _remove(Id id) {
-    srcs.remove(id);
-    notify();
+    _srcs.remove(id);
+    notifyAll();
   }
 }
