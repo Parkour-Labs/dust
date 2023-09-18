@@ -24,6 +24,7 @@ class _AsValueListenable<T> with ObserverMixin implements Observer, ValueListena
 
   @override
   void visit(List<void Function()> posts) {
+    super.visit(posts);
     if (!_visited) {
       _visited = true;
       posts.add(() {

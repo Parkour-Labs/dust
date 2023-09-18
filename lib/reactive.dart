@@ -1,3 +1,5 @@
+import 'package:meta/meta.dart';
+
 export 'reactive/hooks.dart';
 export 'reactive/value_listenable.dart';
 export 'reactive/widgets.dart';
@@ -101,6 +103,12 @@ abstract mixin class ObserverMixin implements Observer {
   void depend(Observable o) {
     _in.add(o);
   }
+
+  @mustCallSuper
+  @override
+  void visit(List<void Function()> posts) {
+    _in.clear();
+  }
 }
 
 /// The "default" partial implementation of [Observable].
@@ -165,6 +173,7 @@ class Reactive<T> with ObservableMixin<T>, ObserverMixin implements Observable<T
 
   @override
   void visit(List<void Function()> posts) {
+    super.visit(posts);
     if (!_dirty) {
       _dirty = true;
       visitAll(posts);
@@ -199,6 +208,7 @@ class Trigger<T> with ObserverMixin implements Observer {
 
   @override
   void visit(List<void Function()> posts) {
+    super.visit(posts);
     if (!_visited) {
       _visited = true;
       posts.add(() {
@@ -227,6 +237,7 @@ class Comparer<T> with ObserverMixin implements Observer {
 
   @override
   void visit(List<void Function()> posts) {
+    super.visit(posts);
     if (!_visited) {
       _visited = true;
       posts.add(() {

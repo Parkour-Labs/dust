@@ -25,6 +25,7 @@ class _ReactiveWidgetState extends State<ReactiveWidget> with ObserverMixin impl
 
   @override
   void visit(List<void Function()> posts) {
+    super.visit(posts);
     if (!_visited) {
       _visited = true;
       posts.add(() {
