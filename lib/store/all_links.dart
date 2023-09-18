@@ -1,9 +1,7 @@
 import '../reactive.dart';
 import '../store.dart';
 
-class AllLinkDestinations<T>
-    with ObservableMixin<Iterable<T>>
-    implements ObservableSet<T> {
+class AllLinkDestinations<T> with ObservableMixin<Iterable<T>> implements ObservableSet<T> {
   final int label;
   final Repository<T> _repository;
   final Map<Id, Id> _dsts = {};
@@ -11,10 +9,7 @@ class AllLinkDestinations<T>
   AllLinkDestinations(this.label, this._repository) {
     final weak = WeakReference(this);
     Store.instance.subscribeEdgeByLabel(
-        label,
-        (id, src, dst) => weak.target?._insert(id, src, dst),
-        (id) => weak.target?._remove(id),
-        this);
+        label, (id, src, dst) => weak.target?._insert(id, src, dst), (id) => weak.target?._remove(id), this);
   }
 
   @override
@@ -39,9 +34,7 @@ class AllLinkDestinations<T>
   }
 }
 
-class AllLinkSources<T>
-    with ObservableMixin<Iterable<T>>
-    implements ObservableSet<T> {
+class AllLinkSources<T> with ObservableMixin<Iterable<T>> implements ObservableSet<T> {
   final int label;
   final Repository<T> _repository;
   final Map<Id, Id> _srcs = {};
@@ -49,10 +42,7 @@ class AllLinkSources<T>
   AllLinkSources(this.label, this._repository) {
     final weak = WeakReference(this);
     Store.instance.subscribeEdgeByLabel(
-        label,
-        (id, src, dst) => weak.target?._insert(id, src, dst),
-        (id) => weak.target?._remove(id),
-        this);
+        label, (id, src, dst) => weak.target?._insert(id, src, dst), (id) => weak.target?._remove(id), this);
   }
 
   @override

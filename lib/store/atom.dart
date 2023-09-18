@@ -13,8 +13,7 @@ class AtomOption<T> with ObservableMixin<T?> implements ObservableMut<T?> {
 
   AtomOption(this.id, this.src, this.label, this._serializer) {
     final weak = WeakReference(this);
-    Store.instance
-        .subscribeAtomById(id, (slv) => weak.target?._update(slv), this);
+    Store.instance.subscribeAtomById(id, (slv) => weak.target?._update(slv), this);
   }
 
   @override
@@ -24,15 +23,13 @@ class AtomOption<T> with ObservableMixin<T?> implements ObservableMut<T?> {
   }
 
   void _update((Id, int, ByteData)? slv) {
-    _value =
-        (slv == null) ? null : _serializer.deserialize(BytesReader(slv.$3));
+    _value = (slv == null) ? null : _serializer.deserialize(BytesReader(slv.$3));
     notifyAll();
   }
 
   @override
   void set(T? value) {
-    Store.instance.setAtom<T>(
-        id, (value == null) ? null : (src, label, value, _serializer));
+    Store.instance.setAtom<T>(id, (value == null) ? null : (src, label, value, _serializer));
   }
 }
 
@@ -46,8 +43,7 @@ class Atom<T> with ObservableMixin<T> implements ObservableMut<T> {
 
   Atom(this.id, this.src, this.label, this._serializer) {
     final weak = WeakReference(this);
-    Store.instance
-        .subscribeAtomById(id, (slv) => weak.target?._update(slv), this);
+    Store.instance.subscribeAtomById(id, (slv) => weak.target?._update(slv), this);
   }
 
   bool get exists => _value != null;
@@ -62,8 +58,7 @@ class Atom<T> with ObservableMixin<T> implements ObservableMut<T> {
 
   void _update((Id, int, ByteData)? slv) {
     final existenceChanged = (_value == null) != (slv == null);
-    _value =
-        (slv == null) ? null : _serializer.deserialize(BytesReader(slv.$3));
+    _value = (slv == null) ? null : _serializer.deserialize(BytesReader(slv.$3));
     if (existenceChanged) parent?.notifyAll();
     notifyAll();
   }
@@ -80,8 +75,7 @@ class AtomDefault<T> with ObservableMixin<T> implements ObservableMut<T> {
   final AtomOption<T> _inner;
   final T _defaultValue;
 
-  AtomDefault(
-      Id id, Id src, int label, Serializer<T> serializer, this._defaultValue)
+  AtomDefault(Id id, Id src, int label, Serializer<T> serializer, this._defaultValue)
       : _inner = AtomOption(id, src, label, serializer);
 
   Id get id => _inner.id;

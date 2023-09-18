@@ -4,9 +4,7 @@ import '../reactive.dart';
 import '../serializer.dart';
 import '../store.dart';
 
-class AllAtomValues<T>
-    with ObservableMixin<Iterable<T>>
-    implements ObservableSet<T> {
+class AllAtomValues<T> with ObservableMixin<Iterable<T>> implements ObservableSet<T> {
   final int label;
   final Serializer<T> _serializer;
   final Map<Id, T> _values = {};
@@ -14,10 +12,7 @@ class AllAtomValues<T>
   AllAtomValues(this.label, this._serializer) {
     final weak = WeakReference(this);
     Store.instance.subscribeAtomByLabel(
-        label,
-        (id, src, value) => weak.target?._insert(id, src, value),
-        (id) => weak.target?._remove(id),
-        this);
+        label, (id, src, value) => weak.target?._insert(id, src, value), (id) => weak.target?._remove(id), this);
   }
 
   @override
@@ -37,9 +32,7 @@ class AllAtomValues<T>
   }
 }
 
-class AllAtomOwners<T>
-    with ObservableMixin<Iterable<T>>
-    implements ObservableSet<T> {
+class AllAtomOwners<T> with ObservableMixin<Iterable<T>> implements ObservableSet<T> {
   final int label;
   final Repository<T> _repository;
   final Map<Id, Id> _srcs = {};
@@ -47,10 +40,7 @@ class AllAtomOwners<T>
   AllAtomOwners(this.label, this._repository) {
     final weak = WeakReference(this);
     Store.instance.subscribeAtomByLabel(
-        label,
-        (id, src, value) => weak.target?._insert(id, src, value),
-        (id) => weak.target?._remove(id),
-        this);
+        label, (id, src, value) => weak.target?._insert(id, src, value), (id) => weak.target?._remove(id), this);
   }
 
   @override

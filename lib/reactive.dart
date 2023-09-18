@@ -61,8 +61,7 @@ abstract interface class ObservableMutSet<T> extends ObservableSet<T> {
 }
 
 /// An observable map.
-abstract interface class ObservableMap<S, T>
-    extends Observable<Iterable<(S, T)>> {
+abstract interface class ObservableMap<S, T> extends Observable<Iterable<(S, T)>> {
   // int length(Observer? o);
   T? element(S key, Observer? o);
 }
@@ -132,9 +131,7 @@ class Active<T> with ObservableMixin<T> implements ObservableMut<T> {
   }
 }
 
-class Reactive<T>
-    with ObservableMixin<T>, ObserverMixin
-    implements Observable<T>, Observer {
+class Reactive<T> with ObservableMixin<T>, ObserverMixin implements Observable<T>, Observer {
   T Function(Observer o) _recompute;
   bool _dirty = false;
   late T _value;
@@ -183,6 +180,32 @@ class Trigger<T> with ObserverMixin implements Observer {
       posts.add(() {
         _visited = false;
         _callback(_observable.get(this));
+      });
+    }
+  }
+}
+
+class Comparer<T> with ObserverMixin implements Observer {
+  final Observable<T> _observable;
+  final void Function(T? prev, T curr) _callback;
+  T? _prev;
+  bool _visited = false;
+
+  Comparer(this._observable, this._callback) {
+    final curr = _observable.get(this);
+    _callback(_prev, curr);
+    _prev = curr;
+  }
+
+  @override
+  void visit(List<void Function()> posts) {
+    if (!_visited) {
+      _visited = true;
+      posts.add(() {
+        _visited = false;
+        final curr = _observable.get(this);
+        _callback(_prev, curr);
+        _prev = curr;
       });
     }
   }

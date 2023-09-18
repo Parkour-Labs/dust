@@ -16,9 +16,10 @@ BUILD_TOOL_PKG_DIR="$BASEDIR/build_tool"
 
 if [[ -z $FLUTTER_ROOT ]]; then # not defined
   DART="dart"
-  echo "FLUTTER_ROOT is not defined. Using dart from PATH: $DART"
+  echo "FLUTTER_ROOT is not defined. Using dart from PATH."
 else
   DART="$FLUTTER_ROOT/bin/dart"
+  echo "Using dart from $DART"
 fi
 
 cat << EOF > "pubspec.yaml"

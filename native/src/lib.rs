@@ -1,17 +1,12 @@
 pub mod ffi;
 pub mod global;
 pub mod joinable;
-pub mod observable;
 pub mod store;
 pub use beacons_macros::*;
 
 use bincode::{ErrorKind, Options};
 use serde::{Deserialize, Serialize};
-use std::{
-  collections::{hash_map::Entry, HashMap},
-  hash::Hash,
-  num::Wrapping,
-};
+use std::num::Wrapping;
 
 /// A wrapper around `bincode`.
 pub fn serialize<T: Serialize>(value: &T) -> Result<Vec<u8>, Box<ErrorKind>> {
@@ -23,6 +18,7 @@ pub fn deserialize<'a, T: Deserialize<'a>>(bytes: &'a [u8]) -> Result<T, Box<Err
   bincode::options().reject_trailing_bytes().with_fixint_encoding().with_big_endian().deserialize(bytes)
 }
 
+/*
 /// Multimap insert.
 fn insert<K: Eq + Hash, V: Eq>(map: &mut HashMap<K, Vec<V>>, key: K, value: V) {
   map.entry(key).or_default().push(value);
@@ -39,6 +35,7 @@ fn remove<K: Eq + Hash, V: Eq>(map: &mut HashMap<K, Vec<V>>, key: K, value: &V) 
     }
   }
 }
+*/
 
 /// Hashes the string `s` to a value of desired.
 fn fnv64_hash(s: impl AsRef<str>) -> u64 {
@@ -67,6 +64,7 @@ mod tests {
     assert_eq!(deserialize::<Option<i64>>(&[1, 255, 255, 255, 255, 255, 255, 255, 255]).unwrap(), Some(-1));
   }
 
+  /*
   #[test]
   fn multimap_simple() {
     let mut map = HashMap::<u64, Vec<u64>>::new();
@@ -89,4 +87,5 @@ mod tests {
     remove(&mut map, 0, &234);
     assert_eq!(map.get(&0), None);
   }
+  */
 }

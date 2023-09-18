@@ -7,14 +7,14 @@ void useInit(void Function() init) {
   useEffect(() {
     init();
     return null;
-  }, []);
+  }, const <Object>[]);
 }
 
 /// Flutter Hooks extension that calls a function on widget state disposal.
 void useDispose(void Function() dispose) {
   useEffect(() {
     return dispose;
-  }, []);
+  }, const <Object>[]);
 }
 
 /// Flutter Hooks extension that calls a function on widget state initialisation,
@@ -23,20 +23,25 @@ void useInitDispose(void Function() init, void Function() dispose) {
   useEffect(() {
     init();
     return dispose;
-  }, []);
+  }, const <Object>[]);
 }
 
 /// Flutter Hooks extension that gives an [Active] value.
 Active<T> useActive<T>(T value) {
-  return useRef(Active(value)).value;
+  return useMemoized(() => Active(value));
 }
 
 /// Flutter Hooks extension that gives a [Reactive] value.
 Reactive<T> useReactive<T>(T Function(Observer o) recompute) {
-  return useRef(Reactive(recompute)).value;
+  return useMemoized(() => Reactive(recompute));
 }
 
 /// Flutter Hooks extension that calls a function whenever an [Observable] is notified.
 Trigger<T> useTrigger<T>(Observable<T> observable, void Function(T value) callback) {
-  return useRef(Trigger(observable, callback)).value;
+  return useMemoized(() => Trigger(observable, callback));
+}
+
+/// Flutter Hooks extension that calls a function whenever an [Observable] is notified.
+Comparer<T> useComparer<T>(Observable<T> observable, void Function(T? prev, T curr) callback) {
+  return useMemoized(() => Comparer(observable, callback));
 }
