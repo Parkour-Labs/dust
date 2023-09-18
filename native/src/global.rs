@@ -3,7 +3,7 @@ use rusqlite::Connection;
 use serde::{de::DeserializeOwned, ser::Serialize};
 use std::{cell::RefCell, marker::PhantomData};
 
-use crate::store::Store;
+use crate::workspace::Workspace;
 use crate::{deserialize, serialize};
 
 const INITIAL_COMMANDS: &str = "
@@ -16,7 +16,7 @@ PRAGMA busy_timeout = 3000;
 ";
 
 thread_local! {
-  static OBJECT_STORE: RefCell<Option<Store>> = RefCell::new(None);
+  static STORE: RefCell<Option<Workspace>> = RefCell::new(None);
 }
 
 /// Initialises the global data store using a backing database file at `path`.
@@ -24,7 +24,7 @@ thread_local! {
 pub fn init(path: &str) {
   let conn = Connection::open(path).unwrap();
   conn.execute_batch(INITIAL_COMMANDS).unwrap();
-  OBJECT_STORE.with(|cell| cell.replace(Some(Store::new(conn))));
+  STORE.with(|cell| cell.replace(Some(Workspace::new("", conn))));
 }
 
 /// Initialises the global data store using a temporary, in-memory database.
@@ -32,12 +32,12 @@ pub fn init(path: &str) {
 pub fn init_in_memory() {
   let conn = Connection::open_in_memory().unwrap();
   conn.execute_batch(INITIAL_COMMANDS).unwrap();
-  OBJECT_STORE.with(|cell| cell.replace(Some(Store::new(conn))));
+  STORE.with(|cell| cell.replace(Some(Workspace::new("", conn))));
 }
 
 /// Generic access to the global data store.
-pub fn access_store_with<R>(f: impl FnOnce(&mut Store) -> R) -> R {
-  OBJECT_STORE.with(|cell| f(cell.borrow_mut().as_mut().unwrap()))
+pub fn access_store_with<R>(f: impl FnOnce(&mut Workspace) -> R) -> R {
+  STORE.with(|cell| f(cell.borrow_mut().as_mut().unwrap()))
 }
 
 /// Basic interface for model types.

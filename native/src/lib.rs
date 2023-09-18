@@ -1,7 +1,6 @@
 pub mod ffi;
 pub mod global;
-pub mod joinable;
-pub mod store;
+pub mod workspace;
 pub use beacons_macros::*;
 
 use bincode::{ErrorKind, Options};

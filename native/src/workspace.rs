@@ -1,20 +1,25 @@
 #![allow(clippy::type_complexity)]
 
+pub mod atom_set;
+pub mod edge_set;
+pub mod metadata;
+
 use rusqlite::{Connection, DropBehavior, Transaction, TransactionBehavior};
 use std::{borrow::Borrow, collections::HashMap};
 
+use self::{atom_set::AtomSet, edge_set::EdgeSet, metadata::WorkspaceMetadata};
 use crate::{
   deserialize,
   ffi::structs::{CAtom, CEdge, CEventData},
-  joinable::{atom_set::AtomSet, edge_set::EdgeSet},
   serialize,
 };
 
 const ATOMS_NAME: &str = "atoms";
 const EDGES_NAME: &str = "edges";
 
-pub struct Store {
+pub struct Workspace {
   conn: Connection,
+  metadata: WorkspaceMetadata,
   atoms: AtomSet,
   edges: EdgeSet,
   events: Vec<CEventData>,
@@ -27,13 +32,14 @@ fn txn(conn: &mut Connection) -> Transaction<'_> {
   res
 }
 
-impl Store {
-  pub fn new(mut conn: Connection) -> Self {
+impl Workspace {
+  pub fn new(prefix: &'static str, mut conn: Connection) -> Self {
     let mut txn = txn(&mut conn);
-    let atoms = AtomSet::new(ATOMS_NAME, &mut txn);
-    let edges = EdgeSet::new(EDGES_NAME, &mut txn);
+    let metadata = WorkspaceMetadata::new(prefix, &mut txn);
+    let atoms = AtomSet::new(prefix, ATOMS_NAME, &mut txn);
+    let edges = EdgeSet::new(prefix, EDGES_NAME, &mut txn);
     std::mem::drop(txn);
-    Self { conn, atoms, edges, events: Vec::new() }
+    Self { conn, metadata, atoms, edges, events: Vec::new() }
   }
 
   pub fn atom(&mut self, id: u128) -> Option<(u128, u64, Box<[u8]>)> {
@@ -110,20 +116,20 @@ impl Store {
 
   pub fn set_atom_ref(&mut self, id: u128, slv: Option<(u128, u64, &[u8])>) -> bool {
     let mut txn = txn(&mut self.conn);
-    let this = self.atoms.this();
+    let this = self.metadata.this();
     let next = self.atoms.next();
     Self::set_atom_raw(&mut txn, &mut self.atoms, &mut self.events, id, this, next, slv)
   }
   pub fn set_atom(&mut self, id: u128, slv: Option<(u128, u64, Box<[u8]>)>) -> bool {
     let mut txn = txn(&mut self.conn);
-    let this = self.atoms.this();
+    let this = self.metadata.this();
     let next = self.atoms.next();
     let slv = slv.as_ref().map(|(src, label, value)| (*src, *label, value.borrow()));
     Self::set_atom_raw(&mut txn, &mut self.atoms, &mut self.events, id, this, next, slv)
   }
   pub fn set_edge(&mut self, id: u128, sld: Option<(u128, u64, u128)>) -> bool {
     let mut txn = txn(&mut self.conn);
-    let this = self.edges.this();
+    let this = self.metadata.this();
     let next = self.edges.next();
     Self::set_edge_raw(&mut txn, &mut self.edges, &mut self.events, id, this, next, sld)
   }
