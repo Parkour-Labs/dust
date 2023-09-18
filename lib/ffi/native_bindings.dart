@@ -46,12 +46,12 @@ class NativeBindings {
   late final get_edge_dst_by_src_label =
       _lookup<NativeFunction<CArrayPairIdId Function(Uint64, Uint64, Uint64)>>('get_edge_dst_by_src_label')
           .asFunction<CArrayPairIdId Function(int srch, int srcl, int label)>(isLeaf: true);
-  late final get_edge_src_dst_by_label =
-      _lookup<NativeFunction<CArrayTripleIdIdId Function(Uint64)>>('get_edge_src_dst_by_label')
-          .asFunction<CArrayTripleIdIdId Function(int label)>(isLeaf: true);
-  late final get_edge_src_by_label_dst =
-      _lookup<NativeFunction<CArrayPairIdId Function(Uint64, Uint64, Uint64)>>('get_edge_src_by_label_dst')
-          .asFunction<CArrayPairIdId Function(int label, int dsth, int dstl)>(isLeaf: true);
+  late final get_edge_src_label_by_dst =
+      _lookup<NativeFunction<CArrayTripleIdIdUint64 Function(Uint64, Uint64)>>('get_edge_src_label_by_dst')
+          .asFunction<CArrayTripleIdIdUint64 Function(int dsth, int dstl)>(isLeaf: true);
+  late final get_edge_src_by_dst_label =
+      _lookup<NativeFunction<CArrayPairIdId Function(Uint64, Uint64, Uint64)>>('get_edge_src_by_dst_label')
+          .asFunction<CArrayPairIdId Function(int dsth, int dstl, int label)>(isLeaf: true);
 
   late final set_atom_none = _lookup<NativeFunction<Void Function(Uint64, Uint64)>>('set_atom_none')
       .asFunction<void Function(int idh, int idl)>(isLeaf: true);
@@ -92,8 +92,9 @@ class NativeBindings {
   late final drop_array_id_u64_id =
       _lookup<NativeFunction<Void Function(CArrayTripleIdUint64Id)>>('drop_array_id_u64_id')
           .asFunction<void Function(CArrayTripleIdUint64Id value)>(isLeaf: true);
-  late final drop_array_id_id_id = _lookup<NativeFunction<Void Function(CArrayTripleIdIdId)>>('drop_array_id_id_id')
-      .asFunction<void Function(CArrayTripleIdIdId value)>(isLeaf: true);
+  late final drop_array_id_id_u64 =
+      _lookup<NativeFunction<Void Function(CArrayTripleIdIdUint64)>>('drop_array_id_id_u64')
+          .asFunction<void Function(CArrayTripleIdIdUint64 value)>(isLeaf: true);
   late final drop_array_u8 = _lookup<NativeFunction<Void Function(CArrayUint8)>>('drop_array_u8')
       .asFunction<void Function(CArrayUint8 value)>(isLeaf: true);
   late final drop_option_array_u8 = _lookup<NativeFunction<Void Function(COptionArrayUint8)>>('drop_option_array_u8')

@@ -3,6 +3,7 @@
 pub mod atom_set;
 pub mod edge_set;
 pub mod metadata;
+pub mod node_set;
 
 use rusqlite::{Connection, DropBehavior, Transaction, TransactionBehavior};
 use std::{borrow::Borrow, collections::HashMap};
@@ -66,11 +67,11 @@ impl Workspace {
   pub fn edge_dst_by_src_label(&mut self, src: u128, label: u64) -> Vec<(u128, u128)> {
     self.edges.dst_by_src_label(&mut txn(&mut self.conn), src, label)
   }
-  pub fn edge_src_dst_by_label(&mut self, label: u64) -> Vec<(u128, (u128, u128))> {
-    self.edges.src_dst_by_label(&mut txn(&mut self.conn), label)
+  pub fn edge_src_label_by_dst(&mut self, dst: u128) -> Vec<(u128, (u128, u64))> {
+    self.edges.src_label_by_dst(&mut txn(&mut self.conn), dst)
   }
-  pub fn edge_src_by_label_dst(&mut self, label: u64, dst: u128) -> Vec<(u128, u128)> {
-    self.edges.src_by_label_dst(&mut txn(&mut self.conn), label, dst)
+  pub fn edge_src_by_dst_label(&mut self, dst: u128, label: u64) -> Vec<(u128, u128)> {
+    self.edges.src_by_dst_label(&mut txn(&mut self.conn), dst, label)
   }
 
   pub fn set_atom_raw(

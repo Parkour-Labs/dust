@@ -186,7 +186,7 @@ impl<T: Model> Backlinks<T> {
   }
   pub fn get(&self) -> Vec<T> {
     let mut res = Vec::new();
-    for (_, src) in access_store_with(|store| store.edge_src_by_label_dst(self.label, self.dst)) {
+    for (_, src) in access_store_with(|store| store.edge_src_by_dst_label(self.dst, self.label)) {
       if let Some(inner) = T::get(src) {
         res.push(inner);
       }

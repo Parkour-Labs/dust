@@ -89,17 +89,18 @@ pub extern "C" fn get_edge_dst_by_src_label(srch: u64, srcl: u64, label: u64) ->
     .into()
 }
 #[no_mangle]
-pub extern "C" fn get_edge_src_dst_by_label(label: u64) -> CArray<CTriple<CId, CId, CId>> {
-  global::access_store_with(|store| store.edge_src_dst_by_label(label))
+pub extern "C" fn get_edge_src_label_by_dst(dsth: u64, dstl: u64) -> CArray<CTriple<CId, CId, u64>> {
+  let dst = CId(dsth, dstl);
+  global::access_store_with(|store| store.edge_src_label_by_dst(dst.into()))
     .into_iter()
-    .map(|(id, (src, dst))| CTriple(id.into(), src.into(), dst.into()))
+    .map(|(id, (src, label))| CTriple(id.into(), src.into(), label))
     .collect::<Box<[_]>>()
     .into()
 }
 #[no_mangle]
-pub extern "C" fn get_edge_src_by_label_dst(label: u64, dsth: u64, dstl: u64) -> CArray<CPair<CId, CId>> {
+pub extern "C" fn get_edge_src_by_dst_label(dsth: u64, dstl: u64, label: u64) -> CArray<CPair<CId, CId>> {
   let dst = CId(dsth, dstl);
-  global::access_store_with(|store| store.edge_src_by_label_dst(label, dst.into()))
+  global::access_store_with(|store| store.edge_src_by_dst_label(dst.into(), label))
     .into_iter()
     .map(|(id, src)| CPair(id.into(), src.into()))
     .collect::<Box<[_]>>()
@@ -178,7 +179,7 @@ pub unsafe extern "C" fn drop_array_id_id_array_u8(value: CArray<CTriple<CId, CI
     elem.2.into_boxed_unchecked();
   }
 }
-/// Drops the return value of [`get_atom_src_by_label_value`], [`get_edge_dst_by_src_label`] and [`get_edge_src_by_label_dst`].
+/// Drops the return value of [`get_atom_src_by_label_value`], [`get_edge_dst_by_src_label`] and [`get_edge_src_by_dst_label`].
 #[no_mangle]
 pub unsafe extern "C" fn drop_array_id_id(value: CArray<CPair<CId, CId>>) {
   value.into_boxed_unchecked();
@@ -188,9 +189,9 @@ pub unsafe extern "C" fn drop_array_id_id(value: CArray<CPair<CId, CId>>) {
 pub unsafe extern "C" fn drop_array_id_u64_id(value: CArray<CTriple<CId, u64, CId>>) {
   value.into_boxed_unchecked();
 }
-/// Drops the return value of [`get_edge_src_dst_by_label`].
+/// Drops the return value of [`get_edge_src_label_by_dst`].
 #[no_mangle]
-pub unsafe extern "C" fn drop_array_id_id_id(value: CArray<CTriple<CId, CId, CId>>) {
+pub unsafe extern "C" fn drop_array_id_id_u64(value: CArray<CTriple<CId, CId, u64>>) {
   value.into_boxed_unchecked();
 }
 /// Drops the return value of [`sync_version`] and [`sync_actions`].

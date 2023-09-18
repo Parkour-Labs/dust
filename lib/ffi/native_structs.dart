@@ -37,10 +37,11 @@ final class CTripleIdUint64Id extends Struct {
   external CId third;
 }
 
-final class CTripleIdIdId extends Struct {
+final class CTripleIdIdUint64 extends Struct {
   external CId first;
   external CId second;
-  external CId third;
+  @Uint64()
+  external int third;
 }
 
 final class COptionAtom extends Struct {
@@ -97,10 +98,10 @@ final class CArrayTripleIdUint64Id extends Struct {
   external Pointer<CTripleIdUint64Id> ptr;
 }
 
-final class CArrayTripleIdIdId extends Struct {
+final class CArrayTripleIdIdUint64 extends Struct {
   @Uint64()
   external int len;
-  external Pointer<CTripleIdIdId> ptr;
+  external Pointer<CTripleIdIdUint64> ptr;
 }
 
 final class CArrayEventData extends Struct {

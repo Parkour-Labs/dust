@@ -17,7 +17,6 @@ export 'store/link.dart';
 export 'store/multilinks.dart';
 export 'store/backlinks.dart';
 export 'store/all_atoms.dart';
-export 'store/all_links.dart';
 
 typedef AtomByIdSubscription = void Function((Id, int, ByteData)? slv);
 typedef AtomBySrcSubscription = (void Function(Id id, int label, ByteData value), void Function(Id id));
@@ -28,8 +27,8 @@ typedef AtomByLabelValueSubscription = (void Function(Id id, Id src), void Funct
 typedef EdgeByIdSubscription = void Function((Id, int, Id)? sld);
 typedef EdgeBySrcSubscription = (void Function(Id id, int label, Id dst), void Function(Id id));
 typedef EdgeBySrcLabelSubscription = (void Function(Id id, Id dst), void Function(Id id));
-typedef EdgeByLabelSubscription = (void Function(Id id, Id src, Id dst), void Function(Id id));
-typedef EdgeByLabelDstSubscription = (void Function(Id id, Id src), void Function(Id id));
+typedef EdgeByDstSubscription = (void Function(Id id, Id src, int label), void Function(Id id));
+typedef EdgeByDstLabelSubscription = (void Function(Id id, Id src), void Function(Id id));
 
 /// The main wrapper class around FFI functions.
 ///
@@ -46,8 +45,8 @@ class Store {
   final edgeById = MultiMap<Id, EdgeByIdSubscription>();
   final edgeBySrc = MultiMap<Id, EdgeBySrcSubscription>();
   final edgeBySrcLabel = MultiMap<(Id, int), EdgeBySrcLabelSubscription>();
-  final edgeByLabel = MultiMap<int, EdgeByLabelSubscription>();
-  final edgeByLabelDst = MultiMap<(int, Id), EdgeByLabelDstSubscription>();
+  final edgeByDst = MultiMap<Id, EdgeByDstSubscription>();
+  final edgeByDstLabel = MultiMap<(Id, int), EdgeByDstLabelSubscription>();
 
   late final _atomByIdFinalizer = Finalizer<(Id, AtomByIdSubscription)>(_unsubscribeAtomById);
   late final _atomBySrcFinalizer = Finalizer<(Id, AtomBySrcSubscription)>(_unsubscribeAtomBySrc);
@@ -58,8 +57,8 @@ class Store {
   late final _edgeByIdFinalizer = Finalizer<(Id, EdgeByIdSubscription)>(_unsubscribeEdgeById);
   late final _edgeBySrcFinalizer = Finalizer<(Id, EdgeBySrcSubscription)>(_unsubscribeEdgeBySrc);
   late final _edgeBySrcLabelFinalizer = Finalizer<((Id, int), EdgeBySrcLabelSubscription)>(_unsubscribeEdgeBySrcLabel);
-  late final _edgeByLabelFinalizer = Finalizer<(int, EdgeByLabelSubscription)>(_unsubscribeEdgeByLabel);
-  late final _edgeByLabelDstFinalizer = Finalizer<((int, Id), EdgeByLabelDstSubscription)>(_unsubscribeEdgeByLabelDst);
+  late final _edgeByDstFinalizer = Finalizer<(Id, EdgeByDstSubscription)>(_unsubscribeEdgeByDst);
+  late final _edgeByDstLabelFinalizer = Finalizer<((Id, int), EdgeByDstLabelSubscription)>(_unsubscribeEdgeByDstLabel);
 
   /// The global [Store] instance.
   static late final Store _instance;
@@ -174,18 +173,18 @@ class Store {
   }
 
   /// Queries the reverse index.
-  void getEdgeSrcDstByLabel(int label, void Function(Id, Id, Id) fn) {
-    final data = bindings.get_edge_src_dst_by_label(label);
+  void getEdgeSrcLabelByDst(Id dst, void Function(Id, Id, int) fn) {
+    final data = bindings.get_edge_src_label_by_dst(dst.high, dst.low);
     for (var i = 0; i < data.len; i++) {
       final item = data.ptr.elementAt(i).ref;
-      fn(Id.fromNative(item.first), Id.fromNative(item.second), Id.fromNative(item.third));
+      fn(Id.fromNative(item.first), Id.fromNative(item.second), item.third);
     }
-    bindings.drop_array_id_id_id(data);
+    bindings.drop_array_id_id_u64(data);
   }
 
   /// Queries the reverse index.
-  void getEdgeSrcByLabelDst(int label, Id dst, void Function(Id, Id) fn) {
-    final data = bindings.get_edge_src_by_label_dst(label, dst.high, dst.low);
+  void getEdgeSrcByDstLabel(Id dst, int label, void Function(Id, Id) fn) {
+    final data = bindings.get_edge_src_by_dst_label(dst.high, dst.low, label);
     for (var i = 0; i < data.len; i++) {
       final item = data.ptr.elementAt(i).ref;
       fn(Id.fromNative(item.first), Id.fromNative(item.second));
@@ -333,23 +332,23 @@ class Store {
   }
 
   /// Subscribes to queries on the reverse index.
-  void subscribeEdgeByLabel(
-      int label, void Function(Id id, Id src, Id dst) insert, void Function(Id id) remove, Object owner) {
-    final key = label;
+  void subscribeEdgeByDst(
+      Id dst, void Function(Id id, Id src, int label) insert, void Function(Id id) remove, Object owner) {
+    final key = dst;
     final value = (insert, remove);
-    edgeByLabel.add(key, value);
-    _edgeByLabelFinalizer.attach(owner, (key, value));
-    getEdgeSrcDstByLabel(label, insert);
+    edgeByDst.add(key, value);
+    _edgeByDstFinalizer.attach(owner, (key, value));
+    getEdgeSrcLabelByDst(dst, insert);
   }
 
   /// Subscribes to queries on the reverse index.
-  void subscribeEdgeByLabelDst(
-      int label, Id dst, void Function(Id id, Id src) insert, void Function(Id id) remove, Object owner) {
-    final key = (label, dst);
+  void subscribeEdgeByDstLabel(
+      Id dst, int label, void Function(Id id, Id src) insert, void Function(Id id) remove, Object owner) {
+    final key = (dst, label);
     final value = (insert, remove);
-    edgeByLabelDst.add(key, value);
-    _edgeByLabelDstFinalizer.attach(owner, (key, value));
-    getEdgeSrcByLabelDst(label, dst, insert);
+    edgeByDstLabel.add(key, value);
+    _edgeByDstLabelFinalizer.attach(owner, (key, value));
+    getEdgeSrcByDstLabel(dst, label, insert);
   }
 
   void _unsubscribeAtomById((Id, AtomByIdSubscription) kv) => atomById.remove(kv.$1, kv.$2);
@@ -361,8 +360,8 @@ class Store {
   void _unsubscribeEdgeById((Id, EdgeByIdSubscription) kv) => edgeById.remove(kv.$1, kv.$2);
   void _unsubscribeEdgeBySrc((Id, EdgeBySrcSubscription) kv) => edgeBySrc.remove(kv.$1, kv.$2);
   void _unsubscribeEdgeBySrcLabel(((Id, int), EdgeBySrcLabelSubscription) kv) => edgeBySrcLabel.remove(kv.$1, kv.$2);
-  void _unsubscribeEdgeByLabel((int, EdgeByLabelSubscription) kv) => edgeByLabel.remove(kv.$1, kv.$2);
-  void _unsubscribeEdgeByLabelDst(((int, Id), EdgeByLabelDstSubscription) kv) => edgeByLabelDst.remove(kv.$1, kv.$2);
+  void _unsubscribeEdgeByDst((Id, EdgeByDstSubscription) kv) => edgeByDst.remove(kv.$1, kv.$2);
+  void _unsubscribeEdgeByDstLabel(((Id, int), EdgeByDstLabelSubscription) kv) => edgeByDstLabel.remove(kv.$1, kv.$2);
 
   /// Processes all events and invoke relevant observers.
   void pollEvents() {
@@ -403,8 +402,8 @@ class Store {
             final dst = Id.fromNative(prev.some.dst);
             for (final (_, remove) in edgeBySrc[src]) remove(id);
             for (final (_, remove) in edgeBySrcLabel[(src, label)]) remove(id);
-            for (final (_, remove) in edgeByLabel[label]) remove(id);
-            for (final (_, remove) in edgeByLabelDst[(label, dst)]) remove(id);
+            for (final (_, remove) in edgeByDst[dst]) remove(id);
+            for (final (_, remove) in edgeByDstLabel[(dst, label)]) remove(id);
           }
           if (curr.tag != 0) {
             final src = Id.fromNative(curr.some.src);
@@ -413,8 +412,8 @@ class Store {
             for (final update in edgeById[id]) update((src, label, dst));
             for (final (insert, _) in edgeBySrc[src]) insert(id, label, dst);
             for (final (insert, _) in edgeBySrcLabel[(src, label)]) insert(id, dst);
-            for (final (insert, _) in edgeByLabel[label]) insert(id, src, dst);
-            for (final (insert, _) in edgeByLabelDst[(label, dst)]) insert(id, src);
+            for (final (insert, _) in edgeByDst[dst]) insert(id, src, label);
+            for (final (insert, _) in edgeByDstLabel[(dst, label)]) insert(id, src);
           } else {
             for (final update in edgeById[id]) update(null);
           }

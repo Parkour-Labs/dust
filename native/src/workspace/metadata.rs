@@ -23,6 +23,7 @@ pub trait WorkspaceMetadataStore {
 }
 
 impl WorkspaceMetadata {
+  /// Creates or loads metadata.
   pub fn new(prefix: &'static str, store: &mut impl WorkspaceMetadataStore) -> Self {
     store.init_version(prefix);
     store.init_this(prefix);
@@ -42,10 +43,12 @@ impl WorkspaceMetadata {
     Self { prefix, this }
   }
 
+  /// Returns the name of the workspace.
   pub fn prefix(&self) -> &'static str {
     self.prefix
   }
 
+  /// Returns this client's ID.
   pub fn this(&self) -> u64 {
     self.this
   }
@@ -142,7 +145,7 @@ impl StructureMetadata {
     Self { prefix, name, buckets }
   }
 
-  /// Returns the prefix of the structure.
+  /// Returns the name of the workspace.
   pub fn prefix(&self) -> &'static str {
     self.prefix
   }

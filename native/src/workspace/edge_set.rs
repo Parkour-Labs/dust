@@ -24,8 +24,8 @@ pub trait EdgeSetStore: StructureMetadataStore {
   fn set(&mut self, prefix: &str, name: &str, id: u128, bucket: u64, clock: u64, sld: Option<(u128, u64, u128)>);
   fn label_dst_by_src(&mut self, prefix: &str, name: &str, src: u128) -> Vec<(u128, (u64, u128))>;
   fn dst_by_src_label(&mut self, prefix: &str, name: &str, src: u128, label: u64) -> Vec<(u128, u128)>;
-  fn src_dst_by_label(&mut self, prefix: &str, name: &str, label: u64) -> Vec<(u128, (u128, u128))>;
-  fn src_by_label_dst(&mut self, prefix: &str, name: &str, label: u64, dst: u128) -> Vec<(u128, u128)>;
+  fn src_label_by_dst(&mut self, prefix: &str, name: &str, dst: u128) -> Vec<(u128, (u128, u64))>;
+  fn src_by_dst_label(&mut self, prefix: &str, name: &str, dst: u128, label: u64) -> Vec<(u128, u128)>;
   fn item_by_bucket_clock_range(&mut self, prefix: &str, name: &str, bucket: u64, lower: Option<u64>) -> Vec<Item>;
 }
 
@@ -70,12 +70,12 @@ impl EdgeSet {
     store.dst_by_src_label(self.prefix(), self.name(), src, label)
   }
 
-  pub fn src_dst_by_label(&mut self, store: &mut impl EdgeSetStore, label: u64) -> Vec<(u128, (u128, u128))> {
-    store.src_dst_by_label(self.prefix(), self.name(), label)
+  pub fn src_label_by_dst(&mut self, store: &mut impl EdgeSetStore, dst: u128) -> Vec<(u128, (u128, u64))> {
+    store.src_label_by_dst(self.prefix(), self.name(), dst)
   }
 
-  pub fn src_by_label_dst(&mut self, store: &mut impl EdgeSetStore, label: u64, dst: u128) -> Vec<(u128, u128)> {
-    store.src_by_label_dst(self.prefix(), self.name(), label, dst)
+  pub fn src_by_dst_label(&mut self, store: &mut impl EdgeSetStore, dst: u128, label: u64) -> Vec<(u128, u128)> {
+    store.src_by_dst_label(self.prefix(), self.name(), dst, label)
   }
 
   /// Returns all actions strictly later than given clock values (sorted by clock value).
@@ -139,11 +139,11 @@ fn read_row_id_dst(row: &Row<'_>) -> (u128, u128) {
   (u128::from_be_bytes(id), u128::from_be_bytes(dst))
 }
 
-fn read_row_id_src_dst(row: &Row<'_>) -> (u128, (u128, u128)) {
+fn read_row_id_src_label(row: &Row<'_>) -> (u128, (u128, u64)) {
   let id = row.get(0).unwrap();
   let src = row.get(1).unwrap();
-  let dst = row.get(2).unwrap();
-  (u128::from_be_bytes(id), (u128::from_be_bytes(src), u128::from_be_bytes(dst)))
+  let label = row.get(2).unwrap();
+  (u128::from_be_bytes(id), (u128::from_be_bytes(src), u64::from_be_bytes(label)))
 }
 
 fn read_row_id_src(row: &Row<'_>) -> (u128, u128) {
@@ -185,7 +185,7 @@ impl<'a> EdgeSetStore for Transaction<'a> {
         ) STRICT, WITHOUT ROWID;
 
         CREATE INDEX IF NOT EXISTS \"{prefix}.{name}.data.idx_src_label\" ON \"{prefix}.{name}.data\" (src, label);
-        CREATE INDEX IF NOT EXISTS \"{prefix}.{name}.data.idx_label_dst\" ON \"{prefix}.{name}.data\" (label, dst);
+        CREATE INDEX IF NOT EXISTS \"{prefix}.{name}.data.idx_dst_label\" ON \"{prefix}.{name}.data\" (dst, label);
         CREATE INDEX IF NOT EXISTS \"{prefix}.{name}.data.idx_bucket_clock\" ON \"{prefix}.{name}.data\" (bucket, clock);
         "
       ))
@@ -238,27 +238,27 @@ impl<'a> EdgeSetStore for Transaction<'a> {
       .collect()
   }
 
-  fn src_dst_by_label(&mut self, prefix: &str, name: &str, label: u64) -> Vec<(u128, (u128, u128))> {
+  fn src_label_by_dst(&mut self, prefix: &str, name: &str, dst: u128) -> Vec<(u128, (u128, u64))> {
     self
       .prepare_cached(&format!(
-        "SELECT id, src, dst FROM \"{prefix}.{name}.data\" INDEXED BY \"{prefix}.{name}.data.idx_label_dst\"
-        WHERE label = ?"
+        "SELECT id, src, label FROM \"{prefix}.{name}.data\" INDEXED BY \"{prefix}.{name}.data.idx_dst_label\"
+        WHERE dst = ?"
       ))
       .unwrap()
-      .query_map((label.to_be_bytes(),), |row| Ok(read_row_id_src_dst(row)))
+      .query_map((dst.to_be_bytes(),), |row| Ok(read_row_id_src_label(row)))
       .unwrap()
       .map(Result::unwrap)
       .collect()
   }
 
-  fn src_by_label_dst(&mut self, prefix: &str, name: &str, label: u64, dst: u128) -> Vec<(u128, u128)> {
+  fn src_by_dst_label(&mut self, prefix: &str, name: &str, dst: u128, label: u64) -> Vec<(u128, u128)> {
     self
       .prepare_cached(&format!(
-        "SELECT id, src FROM \"{prefix}.{name}.data\" INDEXED BY \"{prefix}.{name}.data.idx_label_dst\"
-        WHERE label = ? AND dst = ?"
+        "SELECT id, src FROM \"{prefix}.{name}.data\" INDEXED BY \"{prefix}.{name}.data.idx_dst_label\"
+        WHERE dst = ? AND label = ?"
       ))
       .unwrap()
-      .query_map((label.to_be_bytes(), dst.to_be_bytes()), |row| Ok(read_row_id_src(row)))
+      .query_map((dst.to_be_bytes(), label.to_be_bytes()), |row| Ok(read_row_id_src(row)))
       .unwrap()
       .map(Result::unwrap)
       .collect()
