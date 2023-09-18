@@ -56,7 +56,7 @@ class _AsObservable<T> implements Observable<T> {
   }
 
   @override
-  T get([Observer? o]) {
+  T get(Observer? o) {
     if (o != null) connect(o);
     return _listenable.value;
   }

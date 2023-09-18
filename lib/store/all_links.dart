@@ -13,7 +13,7 @@ class AllLinkDestinations<T> with ObservableMixin<Iterable<T>> implements Observ
   }
 
   @override
-  List<T> get([Observer? o]) {
+  List<T> get(Observer? o) {
     if (o != null) connect(o);
     final res = <T>[];
     for (final dst in _dsts.values) {
@@ -46,7 +46,7 @@ class AllLinkSources<T> with ObservableMixin<Iterable<T>> implements ObservableS
   }
 
   @override
-  List<T> get([Observer? o]) {
+  List<T> get(Observer? o) {
     if (o != null) connect(o);
     final res = <T>[];
     for (final src in _srcs.values) {

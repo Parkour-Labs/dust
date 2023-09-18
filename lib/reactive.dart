@@ -5,9 +5,16 @@ export 'reactive/widgets.dart';
 /// A notifiable object.
 abstract interface class Observer {
   /// Registers a dependency.
+  ///
+  /// This function is useful for implementing the interface, but not commonly
+  /// called from outside.
   void depend(Observable o);
 
-  /// Visits this observer.
+  /// Visits this observer, letting it register additional post-visit callbacks
+  /// in a given list.
+  ///
+  /// This function is useful for implementing the interface, but not commonly
+  /// called from outside.
   void visit(List<void Function()> posts);
 }
 
@@ -24,11 +31,25 @@ extension ObserverExtension on Observer {
 
 /// An observable value.
 abstract interface class Observable<T> {
-  /// Two-way connects with observer [o].
+  /// Two-way onnects with observer [o].
+  ///
+  /// This function is useful for implementing the interface, but not commonly
+  /// called from outside.
   void connect(Observer o);
 
-  /// Retrieves value, optionally two-way connecting with observer [o].
-  T get([Observer? o]);
+  /// Retrieves value, optionally connecting with observer [o].
+  ///
+  /// This is the common part of [watch] and [peek], and is more composable
+  /// sometimes.
+  T get(Observer? o);
+}
+
+extension ObservableExtension<T> on Observable<T> {
+  /// Retrieves value and connects with observer [o].
+  T watch(Observer o) => get(o);
+
+  /// Retrieves value only once.
+  T peek() => get(null);
 }
 
 /// An observable mutable value.
@@ -72,7 +93,7 @@ abstract interface class ObservableMutMap<S, T> extends ObservableMap<S, T> {
   void remove(S key);
 }
 
-/// The "default implementation" of [Observer].
+/// The "default" partial implementation of [Observer].
 abstract mixin class ObserverMixin implements Observer {
   final List<Observable> _in = [];
 
@@ -82,7 +103,7 @@ abstract mixin class ObserverMixin implements Observer {
   }
 }
 
-/// The "default implementation" of [Observable].
+/// The "default" partial implementation of [Observable].
 abstract mixin class ObservableMixin<T> implements Observable<T> {
   final List<WeakReference<Observer>> _out = [];
 
@@ -102,7 +123,7 @@ abstract mixin class ObservableMixin<T> implements Observable<T> {
   }
 }
 
-extension ObservableExtension<T> on ObservableMixin<T> {
+extension ObservableMixinExtension<T> on ObservableMixin<T> {
   /// Notifies all observers.
   void notifyAll() {
     final posts = <void Function()>[];
@@ -113,13 +134,14 @@ extension ObservableExtension<T> on ObservableMixin<T> {
   }
 }
 
+/// A simple independent value that is [ObservableMut].
 class Active<T> with ObservableMixin<T> implements ObservableMut<T> {
   T _value;
 
   Active(this._value);
 
   @override
-  T get([Observer? o]) {
+  T get(Observer? o) {
     if (o != null) connect(o);
     return _value;
   }
@@ -131,6 +153,7 @@ class Active<T> with ObservableMixin<T> implements ObservableMut<T> {
   }
 }
 
+/// A value computed and cached from other [Observable]s.
 class Reactive<T> with ObservableMixin<T>, ObserverMixin implements Observable<T>, Observer {
   T Function(Observer o) _recompute;
   bool _dirty = false;
@@ -149,7 +172,7 @@ class Reactive<T> with ObservableMixin<T>, ObserverMixin implements Observable<T
   }
 
   @override
-  T get([Observer? o]) {
+  T get(Observer? o) {
     if (_dirty) {
       _dirty = false;
       _value = _recompute(this);
@@ -164,6 +187,7 @@ class Reactive<T> with ObservableMixin<T>, ObserverMixin implements Observable<T
   }
 }
 
+/// Executes a function whenever a given [Observable] is notified.
 class Trigger<T> with ObserverMixin implements Observer {
   final Observable<T> _observable;
   final void Function(T value) _callback;
@@ -185,6 +209,10 @@ class Trigger<T> with ObserverMixin implements Observer {
   }
 }
 
+/// Executes a function whenever a given [Observable] is notified.
+///
+/// This variant also remembers the previous value, so the function can test
+/// if the value has actually changed or not.
 class Comparer<T> with ObserverMixin implements Observer {
   final Observable<T> _observable;
   final void Function(T? prev, T curr) _callback;

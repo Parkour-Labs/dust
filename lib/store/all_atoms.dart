@@ -16,7 +16,7 @@ class AllAtomValues<T> with ObservableMixin<Iterable<T>> implements ObservableSe
   }
 
   @override
-  List<T> get([Observer? o]) {
+  List<T> get(Observer? o) {
     if (o != null) connect(o);
     return _values.values.toList();
   }
@@ -44,7 +44,7 @@ class AllAtomOwners<T> with ObservableMixin<Iterable<T>> implements ObservableSe
   }
 
   @override
-  List<T> get([Observer? o]) {
+  List<T> get(Observer? o) {
     if (o != null) connect(o);
     final res = <T>[];
     for (final src in _srcs.values) {

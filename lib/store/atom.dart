@@ -17,7 +17,7 @@ class AtomOption<T> with ObservableMixin<T?> implements ObservableMut<T?> {
   }
 
   @override
-  T? get([Observer? o]) {
+  T? get(Observer? o) {
     if (o != null) connect(o);
     return _value;
   }
@@ -49,7 +49,7 @@ class Atom<T> with ObservableMixin<T> implements ObservableMut<T> {
   bool get exists => _value != null;
 
   @override
-  T get([Observer? o]) {
+  T get(Observer? o) {
     if (o != null) connect(o);
     final value = this._value;
     if (value == null) throw AlreadyDeletedException();
@@ -83,7 +83,7 @@ class AtomDefault<T> with ObservableMixin<T> implements ObservableMut<T> {
   int get label => _inner.label;
 
   @override
-  T get([Observer? o]) => _inner.get(o) ?? _defaultValue;
+  T get(Observer? o) => _inner.get(o) ?? _defaultValue;
 
   @override
   void set(T? value) => _inner.set(value);

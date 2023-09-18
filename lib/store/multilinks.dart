@@ -14,7 +14,7 @@ class Multilinks<T> with ObservableMixin<Iterable<T>> implements ObservableMutSe
   }
 
   @override
-  List<T> get([Observer? o]) {
+  List<T> get(Observer? o) {
     if (o != null) connect(o);
     final res = <T>[];
     for (final dst in _dsts.values) {

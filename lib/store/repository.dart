@@ -10,7 +10,7 @@ class RepositoryEntry<T> extends ObservableMixin<T?> implements Observable<T?> {
   RepositoryEntry(this._parent, this.model);
 
   @override
-  T? get([Observer? o]) {
+  T? get(Observer? o) {
     if (o != null) connect(o);
     return _parent.exists(model) ? model : null;
   }

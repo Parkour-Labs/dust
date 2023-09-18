@@ -14,7 +14,7 @@ class LinkOption<T> with ObservableMixin<T?> implements ObservableMut<T?> {
   }
 
   @override
-  T? get([Observer? o]) {
+  T? get(Observer? o) {
     if (o != null) connect(o);
     final dst = this._dst;
     return (dst == null) ? null : _repository.get(dst).get(o);
@@ -47,7 +47,7 @@ class Link<T> with ObservableMixin<T> implements ObservableMut<T> {
   bool get exists => _dst != null;
 
   @override
-  T get([Observer? o]) {
+  T get(Observer? o) {
     if (o != null) connect(o);
     final dst = this._dst;
     if (dst == null) throw AlreadyDeletedException();
