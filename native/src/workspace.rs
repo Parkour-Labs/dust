@@ -22,12 +22,29 @@ pub const NODES_NAME: &str = "nodes";
 pub const ATOMS_NAME: &str = "atoms";
 pub const EDGES_NAME: &str = "edges";
 
+#[derive(Debug, Clone, Default)]
 pub struct Constraints {
   sticky_nodes: BTreeSet<u64>,
   sticky_atoms: BTreeSet<u64>,
   sticky_edges: BTreeSet<u64>,
 }
 
+impl Constraints {
+  pub fn new() -> Self {
+    Default::default()
+  }
+  pub fn add_sticky_node(&mut self, label: u64) {
+    self.sticky_nodes.insert(label);
+  }
+  pub fn add_sticky_atom(&mut self, label: u64) {
+    self.sticky_atoms.insert(label);
+  }
+  pub fn add_sticky_edge(&mut self, label: u64) {
+    self.sticky_edges.insert(label);
+  }
+}
+
+#[derive(Debug)]
 pub struct Workspace {
   metadata: WorkspaceMetadata,
   constraints: Constraints,
@@ -318,7 +335,7 @@ impl Workspace {
         if !self.nodes.exists(txn, dst) {
           self.set_edge(txn, id, None); // `curr` exists, `dst` node does not exist (2)
           if self.constraints.sticky_edges.contains(&label) {
-            nodes.insert(src); // `prev` is sticky, `curr` is removed (3)
+            nodes.insert(src); // `curr` is sticky, `curr` is removed (?)
           }
         }
       }
@@ -337,7 +354,7 @@ impl Workspace {
       for (edge, (src, label)) in self.edge_src_label_by_dst(txn, id) {
         self.set_edge(txn, edge, None);
         if self.constraints.sticky_edges.contains(&label) {
-          nodes.insert(src); // `prev` is sticky, `curr` is removed (3)
+          nodes.insert(src); // `curr` is sticky, `curr` is removed (?)
         }
       }
     }
@@ -414,6 +431,295 @@ impl Workspace {
         (EDGES_NAME, serialize(&edges_actions).unwrap()),
       ]);
       Some(serialize(&all).unwrap().into())
+    }
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use core::panic;
+
+  use super::*;
+  use rand::{seq::SliceRandom, Rng};
+  use rusqlite::Connection;
+
+  #[test]
+  fn barrier_simple() {
+    let mut conn = Connection::open_in_memory().unwrap();
+    let mut rng = rand::thread_rng();
+    let mut txn = conn.transaction().unwrap();
+    let mut constraints = Constraints::new();
+    constraints.add_sticky_node(100);
+    constraints.add_sticky_atom(200);
+    constraints.add_sticky_edge(300);
+    let mut ws = Workspace::new("", constraints, &mut txn);
+
+    let node0 = rng.gen();
+    let node1 = rng.gen();
+    let node2 = rng.gen();
+    let node3 = rng.gen();
+    ws.set_node(&mut txn, node0, Some(0));
+    ws.set_node(&mut txn, node1, Some(100));
+    ws.set_node(&mut txn, node2, Some(0));
+    ws.set_node(&mut txn, node3, Some(100));
+    ws.set_edge(&mut txn, rng.gen(), Some((node0, 2, node0)));
+    ws.set_edge(&mut txn, rng.gen(), Some((node0, 3, node1)));
+    ws.set_edge(&mut txn, rng.gen(), Some((node1, 2, node1)));
+    ws.set_edge(&mut txn, rng.gen(), Some((node1, 3, node0)));
+    ws.set_edge(&mut txn, rng.gen(), Some((node1, 2, 2333))); // Invalid
+    ws.set_edge(&mut txn, rng.gen(), Some((2333, 2, node1))); // Invalid
+    ws.barrier(&mut txn);
+    assert_eq!(ws.node(&mut txn, node0), Some(0));
+    assert_eq!(ws.node(&mut txn, node1), Some(100));
+    assert_eq!(ws.edge_label_dst_by_src(&mut txn, node0).len(), 2);
+    assert_eq!(ws.edge_src_label_by_dst(&mut txn, node0).len(), 2);
+    assert_eq!(ws.edge_label_dst_by_src(&mut txn, node1).len(), 2);
+    assert_eq!(ws.edge_src_label_by_dst(&mut txn, node1).len(), 2);
+
+    ws.set_node(&mut txn, node0, Some(2333));
+    ws.set_node(&mut txn, node1, Some(2333)); // Invalid
+    ws.set_edge(&mut txn, rng.gen(), Some((node0, 3, node1))); // Invalid
+    ws.set_edge(&mut txn, rng.gen(), Some((node1, 3, node0))); // Invalid
+    ws.barrier(&mut txn);
+    assert_eq!(ws.node(&mut txn, node0), Some(2333));
+    assert_eq!(ws.node(&mut txn, node1), None);
+    assert_eq!(ws.edge_label_dst_by_src(&mut txn, node0).len(), 1);
+    assert_eq!(ws.edge_src_label_by_dst(&mut txn, node0).len(), 1);
+    assert_eq!(ws.edge_label_dst_by_src(&mut txn, node1).len(), 0);
+    assert_eq!(ws.edge_src_label_by_dst(&mut txn, node1).len(), 0);
+
+    let atom0 = rng.gen();
+    let atom1 = rng.gen();
+    let atom2 = rng.gen();
+    ws.set_atom(&mut txn, atom0, Some((node0, 1, vec![1, 2, 3, 4].into())));
+    ws.set_atom(&mut txn, atom1, Some((node0, 200, vec![].into()))); // Overwritten
+    ws.set_atom(&mut txn, atom1, Some((node0, 0, vec![].into()))); // Overwritten
+    ws.set_atom(&mut txn, atom1, Some((node0, 200, vec![5, 6, 7].into())));
+    ws.set_atom(&mut txn, atom2, Some((node2, 2, vec![].into())));
+    ws.barrier(&mut txn);
+    assert!(ws.atom(&mut txn, atom0).is_some());
+    assert!(ws.atom(&mut txn, atom1).is_some());
+    assert!(ws.atom(&mut txn, atom2).is_some());
+
+    ws.set_atom(&mut txn, atom0, Some((node2, 1, vec![].into())));
+    ws.set_atom(&mut txn, atom1, Some((node2, 200, vec![].into()))); // Invalid, delete `node0`
+    ws.set_atom(&mut txn, atom2, Some((node0, 2, vec![].into()))); // Invalid, `node0` deleted
+    ws.barrier(&mut txn);
+    assert!(ws.node(&mut txn, node0).is_none());
+    assert!(ws.atom(&mut txn, atom0).is_some());
+    assert!(ws.atom(&mut txn, atom1).is_some());
+    assert!(ws.atom(&mut txn, atom2).is_none());
+
+    let edge0 = rng.gen();
+    let edge1 = rng.gen();
+    let edge2 = rng.gen();
+    let edge3 = rng.gen();
+    ws.set_edge(&mut txn, edge0, Some((node3, 1, node0))); // Invalid
+    ws.set_edge(&mut txn, edge1, Some((node3, 2, node1))); // Invalid
+    ws.set_edge(&mut txn, edge2, Some((node3, 300, node2)));
+    ws.set_edge(&mut txn, edge3, Some((node3, 300, node3)));
+    ws.barrier(&mut txn);
+    assert!(ws.node(&mut txn, node2).is_some());
+    assert!(ws.node(&mut txn, node3).is_some());
+    assert!(ws.edge(&mut txn, edge0).is_none());
+    assert!(ws.edge(&mut txn, edge1).is_none());
+    assert!(ws.edge(&mut txn, edge2).is_some());
+    assert!(ws.edge(&mut txn, edge3).is_some());
+
+    ws.set_edge(&mut txn, rng.gen(), Some((node2, 300, node0))); // Invalid, delete `node2` (?) and `node3`
+    ws.barrier(&mut txn);
+    assert!(ws.node(&mut txn, node2).is_none());
+    assert!(ws.node(&mut txn, node3).is_none());
+
+    const N: usize = 2333;
+    let nodes: Vec<u128> = (0..N + 1).map(|_| rng.gen()).collect();
+    let edges: Vec<u128> = (0..N).map(|_| rng.gen()).collect();
+    let atom = rng.gen();
+    for i in 0..N {
+      ws.set_node(&mut txn, nodes[i], Some(0));
+      ws.set_edge(&mut txn, edges[i], Some((nodes[i], 300, nodes[i + rng.gen_range(1..=(N - i))])));
+    }
+    ws.set_node(&mut txn, nodes[N], Some(0));
+    ws.set_atom(&mut txn, atom, Some((nodes[N], 200, vec![].into())));
+    ws.barrier(&mut txn);
+    for i in 0..N {
+      assert!(ws.node(&mut txn, nodes[i]).is_some());
+      assert!(ws.edge(&mut txn, edges[i]).is_some());
+    }
+    ws.set_atom(&mut txn, atom, Some((nodes[N], 2333, vec![].into()))); // Invalid, delete `nodes` and `edges`
+    ws.barrier(&mut txn);
+    for i in 0..N {
+      assert!(ws.node(&mut txn, nodes[i]).is_none());
+      assert!(ws.edge(&mut txn, edges[i]).is_none());
+    }
+  }
+
+  #[test]
+  fn barrier_random() {
+    const K: u64 = 20;
+    let mut constraints = Constraints::new();
+    for i in 0..K {
+      constraints.add_sticky_node(i);
+      constraints.add_sticky_atom(i);
+      constraints.add_sticky_edge(i);
+    }
+
+    for round in 0..100 {
+      let mut conn = Connection::open_in_memory().unwrap();
+      let mut rng = rand::thread_rng();
+      let mut txn = conn.transaction().unwrap();
+      let mut ws = Workspace::new("", constraints.clone(), &mut txn);
+
+      let mut nodes = vec![];
+      let mut atoms = vec![];
+      let mut edges = vec![];
+
+      // Generate nodes.
+      for _ in 0..300 {
+        let node = rng.gen();
+        let label = rng.gen_range(0..K * 2);
+        ws.set_node(&mut txn, node, Some(label));
+        nodes.push((node, vec![], vec![]));
+      }
+
+      // Generate atoms from nodes.
+      for _ in 0..1000 {
+        let atom = rng.gen();
+        let i = rng.gen_range(0..nodes.len());
+        let label = rng.gen_range(0..K * 2);
+        ws.set_atom(&mut txn, atom, Some((nodes[i].0, label, vec![].into())));
+        if label < K {
+          nodes[i].1.push((atom, label));
+        }
+        atoms.push(atom);
+      }
+
+      // Generate edges between nodes.
+      for _ in 0..1000 {
+        let edge = rng.gen();
+        let i = rng.gen_range(0..nodes.len());
+        let j = rng.gen_range(0..nodes.len());
+        let label = rng.gen_range(0..K * 2);
+        ws.set_edge(&mut txn, edge, Some((nodes[i].0, label, nodes[j].0)));
+        if label < K {
+          nodes[i].2.push((edge, label));
+        }
+        edges.push(edge);
+      }
+
+      // Done.
+      ws.barrier(&mut txn);
+
+      // Generate operations.
+      for _ in 0..round {
+        match rng.gen_range(0..3) {
+          0 => {
+            // Randomly mutate node.
+            let mut node = nodes.choose(&mut rng).unwrap().0;
+            if rng.gen_ratio(1, 16) {
+              node = rng.gen();
+            }
+            let mut value = ws.node(&mut txn, node);
+            if rng.gen_ratio(1, 16) {
+              value = None;
+            }
+            if let Some(inner) = &mut value {
+              if rng.gen_ratio(1, 2) {
+                *inner = rng.gen_range(0..K * 2);
+              }
+            }
+            ws.set_node(&mut txn, node, value);
+          }
+          1 => {
+            // Randomly mutate atom.
+            let mut atom = *atoms.choose(&mut rng).unwrap();
+            if rng.gen_ratio(1, 16) {
+              atom = rng.gen();
+            }
+            let mut value = ws.atom(&mut txn, atom);
+            if rng.gen_ratio(1, 16) {
+              value = None;
+            }
+            if let Some(inner) = &mut value {
+              if rng.gen_ratio(1, 4) {
+                inner.0 = nodes.choose(&mut rng).unwrap().0;
+              }
+              if rng.gen_ratio(1, 16) {
+                inner.0 = rng.gen();
+              }
+              if rng.gen_ratio(1, 4) {
+                inner.1 = rng.gen_range(0..K * 2);
+              }
+              if rng.gen_ratio(1, 16) {
+                inner.1 = rng.gen();
+              }
+            }
+            ws.set_atom(&mut txn, atom, value);
+          }
+          2 => {
+            // Randomly mutate edge.
+            let mut edge = *edges.choose(&mut rng).unwrap();
+            if rng.gen_ratio(1, 16) {
+              edge = rng.gen();
+            }
+            let mut value = ws.edge(&mut txn, edge);
+            if rng.gen_ratio(1, 16) {
+              value = None;
+            }
+            if let Some(inner) = &mut value {
+              if rng.gen_ratio(1, 4) {
+                inner.0 = nodes.choose(&mut rng).unwrap().0;
+              }
+              if rng.gen_ratio(1, 16) {
+                inner.0 = rng.gen();
+              }
+              if rng.gen_ratio(1, 4) {
+                inner.1 = rng.gen_range(0..K * 2);
+              }
+              if rng.gen_ratio(1, 4) {
+                inner.2 = nodes.choose(&mut rng).unwrap().0;
+              }
+              if rng.gen_ratio(1, 16) {
+                inner.2 = rng.gen();
+              }
+            }
+            ws.set_edge(&mut txn, edge, value);
+          }
+          _ => panic!(),
+        }
+      }
+
+      // Done.
+      ws.barrier(&mut txn);
+
+      // Check invariants.
+      // (1)
+      for atom in atoms {
+        if let Some((src, _, _)) = ws.atom(&mut txn, atom) {
+          assert!(ws.node(&mut txn, src).is_some());
+        }
+      }
+      // (2)
+      for edge in edges {
+        if let Some((src, _, dst)) = ws.edge(&mut txn, edge) {
+          assert!(ws.node(&mut txn, src).is_some());
+          assert!(ws.node(&mut txn, dst).is_some());
+        }
+      }
+      // (3)
+      let mut count = 0;
+      for (node, ratoms, redges) in nodes {
+        if ws.node(&mut txn, node).is_some() {
+          for (ratom, label) in ratoms {
+            assert_eq!(ws.atom(&mut txn, ratom).map(|(src, label, _)| (src, label)), Some((node, label)));
+          }
+          for (redge, label) in redges {
+            assert_eq!(ws.edge(&mut txn, redge).map(|(src, label, _)| (src, label)), Some((node, label)));
+          }
+          count += 1;
+        }
+      }
+      println!("{round} operations: {count} remaining");
     }
   }
 }
