@@ -1,3 +1,4 @@
+/*
 use rand::Rng;
 use rusqlite::Connection;
 use serde::{de::DeserializeOwned, ser::Serialize};
@@ -462,3 +463,4 @@ mod tests {
     something_else.delete();
   }
 }
+*/

@@ -2,6 +2,7 @@
 
 pub mod structs;
 
+/*
 use rand::Rng;
 use std::ffi::CStr;
 
@@ -148,7 +149,7 @@ pub unsafe extern "C" fn sync_join(len: u64, ptr: *mut u8) -> COption<CArray<u8>
 }
 #[no_mangle]
 pub extern "C" fn poll_events() -> CArray<CEventData> {
-  global::access_store_with(|store| store.poll_events()).into()
+  global::access_store_with(|store| store.barrier()).into()
 }
 
 /// Drops the return value of [`get_atom`].
@@ -288,3 +289,4 @@ pub extern "C" fn test_array_event_data_big(entries: u64, size: u64) -> CArray<C
   }
   CArray::from(vec)
 }
+*/

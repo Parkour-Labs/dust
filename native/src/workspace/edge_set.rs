@@ -2,7 +2,7 @@
 
 use rusqlite::{OptionalExtension, Result, Row, Transaction};
 use std::{
-  collections::HashMap,
+  collections::BTreeMap,
   time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -48,7 +48,7 @@ impl EdgeSet {
   }
 
   /// Returns the current clock values for each bucket.
-  pub fn buckets(&self) -> &HashMap<u64, u64> {
+  pub fn buckets(&self) -> &BTreeMap<u64, u64> {
     self.version.buckets()
   }
 
@@ -80,7 +80,7 @@ impl EdgeSet {
 
   /// Returns all actions strictly later than given clock values (sorted by clock value).
   /// Absent entries are assumed to be `None`.
-  pub fn actions(&mut self, store: &mut impl EdgeSetStore, version: HashMap<u64, u64>) -> Vec<Item> {
+  pub fn actions(&mut self, store: &mut impl EdgeSetStore, version: BTreeMap<u64, u64>) -> Vec<Item> {
     let mut res = Vec::new();
     for &bucket in self.buckets().keys() {
       let lower = version.get(&bucket).copied();

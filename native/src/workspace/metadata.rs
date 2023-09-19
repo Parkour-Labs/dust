@@ -1,6 +1,6 @@
 use rand::Rng;
 use rusqlite::{OptionalExtension, Transaction};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 /// Base schema version.
 pub const CURRENT_VERSION: u64 = 1;
@@ -127,13 +127,13 @@ impl<'a> WorkspaceMetadataStore for Transaction<'a> {
 pub struct StructureMetadata {
   prefix: &'static str,
   name: &'static str,
-  buckets: HashMap<u64, u64>,
+  buckets: BTreeMap<u64, u64>,
 }
 
 /// Database interface for [`StructureMetadata`].
 pub trait StructureMetadataStore {
   fn init_buckets(&mut self, prefix: &str, name: &str);
-  fn get_buckets(&mut self, prefix: &str, name: &str) -> HashMap<u64, u64>;
+  fn get_buckets(&mut self, prefix: &str, name: &str) -> BTreeMap<u64, u64>;
   fn set_bucket(&mut self, prefix: &str, name: &str, bucket: u64, clock: u64);
 }
 
@@ -156,7 +156,7 @@ impl StructureMetadata {
   }
 
   /// Returns the current clock values values for each bucket.
-  pub fn buckets(&self) -> &HashMap<u64, u64> {
+  pub fn buckets(&self) -> &BTreeMap<u64, u64> {
     &self.buckets
   }
 
@@ -192,7 +192,7 @@ impl<'a> StructureMetadataStore for Transaction<'a> {
       .unwrap();
   }
 
-  fn get_buckets(&mut self, prefix: &str, name: &str) -> HashMap<u64, u64> {
+  fn get_buckets(&mut self, prefix: &str, name: &str) -> BTreeMap<u64, u64> {
     self
       .prepare_cached(&format!("SELECT bucket, clock FROM \"{prefix}.{name}.buckets\""))
       .unwrap()
@@ -264,10 +264,10 @@ mod tests {
     let mut structure = StructureMetadata::new("workspace", "name", &mut txn);
     assert_eq!(structure.prefix(), "workspace");
     assert_eq!(structure.name(), "name");
-    assert_eq!(structure.buckets(), &HashMap::from([(1, 4u64), (2, 3u64)]));
+    assert_eq!(structure.buckets(), &BTreeMap::from([(1, 4u64), (2, 3u64)]));
 
     structure.update(&mut txn, 3, 3u64);
-    assert_eq!(structure.buckets(), &HashMap::from([(1, 4u64), (2, 3u64), (3, 3u64)]));
+    assert_eq!(structure.buckets(), &BTreeMap::from([(1, 4u64), (2, 3u64), (3, 3u64)]));
 
     let structure = StructureMetadata::new("workspace", "another_name", &mut txn);
     assert_eq!(structure.prefix(), "workspace");

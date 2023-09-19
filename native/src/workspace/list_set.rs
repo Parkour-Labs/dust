@@ -5,8 +5,8 @@
 #[derive(Debug, Clone)]
 pub struct ListSet<T: Ord + Clone> {
   version: Version<u64>,
-  nodes: HashMap<(u64, u64), Option<Item<T>>>, // All loaded nodes.
-  roots: HashSet<(u64, u64)>,                  // All loaded roots.
+  nodes: BTreeMap<(u64, u64), Option<Item<T>>>, // All loaded nodes.
+  roots: BTreeSet<(u64, u64)>,                  // All loaded roots.
 }
 
 /// Item type for YATA sequence sets.

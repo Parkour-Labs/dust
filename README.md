@@ -6,7 +6,7 @@
 
 [![desktop](https://github.com/Parkour-Labs/beacons/actions/workflows/desktop.yml/badge.svg)](https://github.com/Parkour-Labs/beacons/actions/workflows/desktop.yml)
 
-State management core framework.
+State management all-in-one: reactivity, persistence and synchronisation.
 
 (Development in progress; currently for internal use only.)
 

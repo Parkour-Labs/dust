@@ -28,6 +28,11 @@ pub struct CArray<T> {
 }
 
 #[repr(C)]
+pub struct CNode {
+  pub label: u64,
+}
+
+#[repr(C)]
 pub struct CAtom {
   pub src: CId,
   pub label: u64,
@@ -44,6 +49,7 @@ pub struct CEdge {
 
 #[repr(C, u8)]
 pub enum CEventData {
+  Node { id: CId, prev: COption<CNode>, curr: COption<CNode> },
   Atom { id: CId, prev: COption<CAtom>, curr: COption<CAtom> },
   Edge { id: CId, prev: COption<CEdge>, curr: COption<CEdge> },
 }
@@ -112,5 +118,14 @@ impl<T> CArray<T> {
 
   pub unsafe fn into_boxed_unchecked(self) -> Box<[T]> {
     unsafe { Box::from_raw(std::slice::from_raw_parts_mut(self.ptr, self.len as usize)) }
+  }
+}
+
+impl<T> COption<T> {
+  pub fn as_option(&self) -> Option<&T> {
+    match self {
+      COption::Some(inner) => Some(inner),
+      COption::None => None,
+    }
   }
 }
