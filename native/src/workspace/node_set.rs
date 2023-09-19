@@ -2,7 +2,7 @@
 
 use rusqlite::{OptionalExtension, Result, Row, Transaction};
 use std::{
-  collections::HashMap,
+  collections::BTreeMap,
   time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -45,7 +45,7 @@ impl NodeSet {
   }
 
   /// Returns the current clock values for each bucket.
-  pub fn buckets(&self) -> &HashMap<u64, u64> {
+  pub fn buckets(&self) -> &BTreeMap<u64, u64> {
     self.version.buckets()
   }
 
@@ -53,6 +53,10 @@ impl NodeSet {
   pub fn next(&self) -> u64 {
     let measured = SystemTime::now().duration_since(UNIX_EPOCH).ok().and_then(|d| u64::try_from(d.as_nanos()).ok());
     self.version.next().max(measured.unwrap_or(0))
+  }
+
+  pub fn exists(&mut self, store: &mut impl NodeSetStore, id: u128) -> bool {
+    store.get(self.prefix(), self.name(), id).and_then(|(_, _, _, label)| label).is_some()
   }
 
   pub fn get(&mut self, store: &mut impl NodeSetStore, id: u128) -> Option<Item> {
@@ -65,7 +69,7 @@ impl NodeSet {
 
   /// Returns all actions strictly later than given clock values (sorted by clock value).
   /// Absent entries are assumed to be `None`.
-  pub fn actions(&mut self, store: &mut impl NodeSetStore, version: HashMap<u64, u64>) -> Vec<Item> {
+  pub fn actions(&mut self, store: &mut impl NodeSetStore, version: BTreeMap<u64, u64>) -> Vec<Item> {
     let mut res = Vec::new();
     for &bucket in self.buckets().keys() {
       let lower = version.get(&bucket).copied();

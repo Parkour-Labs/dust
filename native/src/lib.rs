@@ -19,12 +19,12 @@ pub fn deserialize<'a, T: Deserialize<'a>>(bytes: &'a [u8]) -> Result<T, Box<Err
 
 /*
 /// Multimap insert.
-fn insert<K: Eq + Hash, V: Eq>(map: &mut HashMap<K, Vec<V>>, key: K, value: V) {
+fn insert<K: Eq + Hash, V: Eq>(map: &mut BTreeMap<K, Vec<V>>, key: K, value: V) {
   map.entry(key).or_default().push(value);
 }
 
 /// Multimap remove.
-fn remove<K: Eq + Hash, V: Eq>(map: &mut HashMap<K, Vec<V>>, key: K, value: &V) {
+fn remove<K: Eq + Hash, V: Eq>(map: &mut BTreeMap<K, Vec<V>>, key: K, value: &V) {
   if let Entry::Occupied(mut entry) = map.entry(key) {
     if let Some(index) = entry.get().iter().position(|x| x == value) {
       entry.get_mut().remove(index);
@@ -66,7 +66,7 @@ mod tests {
   /*
   #[test]
   fn multimap_simple() {
-    let mut map = HashMap::<u64, Vec<u64>>::new();
+    let mut map = BTreeMap::<u64, Vec<u64>>::new();
 
     insert(&mut map, 0, 233);
     insert(&mut map, 1, 233);
