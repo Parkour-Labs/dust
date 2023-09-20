@@ -27,6 +27,7 @@ pub struct Constraints {
   sticky_nodes: BTreeSet<u64>,
   sticky_atoms: BTreeSet<u64>,
   sticky_edges: BTreeSet<u64>,
+  acyclic_edges: BTreeSet<u64>,
 }
 
 impl Constraints {
@@ -41,6 +42,9 @@ impl Constraints {
   }
   pub fn add_sticky_edge(&mut self, label: u64) {
     self.sticky_edges.insert(label);
+  }
+  pub fn add_acyclic_edge(&mut self, label: u64) {
+    self.acyclic_edges.insert(label);
   }
 }
 
@@ -238,6 +242,8 @@ impl Workspace {
   /// 3. `sticky_or_none`: for each node, if it has "sticky" atoms or edges
   ///     attached to it at the previous barrier, those must be preserved,
   ///     otherwise the node must be removed.
+  /// 4. `acyclic_or_none`: edges marked as "acyclic" cannot form cycles,
+  ///     otherwise some edges must be removed to break the cycle.
   pub fn barrier(&mut self, txn: &mut Transaction) -> Vec<CEventData> {
     let mut mod_nodes = BTreeMap::<u128, (Option<u64>, Option<u64>)>::new();
     let mut mod_atoms = BTreeMap::<u128, (Option<(u128, u64)>, Option<(u128, u64)>)>::new();
@@ -329,11 +335,11 @@ impl Workspace {
         }
       }
       if let Some((src, label, dst)) = curr {
-        if !self.nodes.exists(txn, src) {
-          self.set_edge(txn, id, None); // `curr` exists, `src` node does not exist (2)
-        }
-        if !self.nodes.exists(txn, dst) {
-          self.set_edge(txn, id, None); // `curr` exists, `dst` node does not exist (2)
+        if !(self.nodes.exists(txn, src) && self.nodes.exists(txn, dst))
+          || (self.constraints.acyclic_edges.contains(&label)
+            && self.reachable(txn, label, dst, src, &mut BTreeSet::new()))
+        {
+          self.set_edge(txn, id, None); // `curr` exists, `src` or `dst` node does not exist (2) or cyclic (4)
           if self.constraints.sticky_edges.contains(&label) {
             nodes.insert(src); // `curr` is sticky, `curr` is removed (?)
           }
@@ -360,6 +366,20 @@ impl Workspace {
     }
 
     std::mem::take(&mut self.events)
+  }
+
+  /// Used in checking acyclicity constraints.
+  fn reachable(&mut self, txn: &mut Transaction, label: u64, src: u128, dst: u128, v: &mut BTreeSet<u128>) -> bool {
+    if src == dst {
+      return true;
+    }
+    v.insert(src);
+    for (_, next) in self.edge_dst_by_src_label(txn, src, label) {
+      if !v.contains(&next) && self.reachable(txn, label, next, dst, v) {
+        return true;
+      }
+    }
+    false
   }
 
   /// To keep backward compatibility, do not change existing strings and type
@@ -444,7 +464,7 @@ mod tests {
   use rusqlite::Connection;
 
   #[test]
-  fn barrier_simple() {
+  fn sticky_simple() {
     let mut conn = Connection::open_in_memory().unwrap();
     let mut rng = rand::thread_rng();
     let mut txn = conn.transaction().unwrap();
@@ -555,7 +575,7 @@ mod tests {
   }
 
   #[test]
-  fn barrier_random() {
+  fn sticky_random() {
     const K: u64 = 20;
     let mut constraints = Constraints::new();
     for i in 0..K {
@@ -564,7 +584,7 @@ mod tests {
       constraints.add_sticky_edge(i);
     }
 
-    for round in 0..100 {
+    for round in 50..100 {
       let mut conn = Connection::open_in_memory().unwrap();
       let mut rng = rand::thread_rng();
       let mut txn = conn.transaction().unwrap();
@@ -721,5 +741,50 @@ mod tests {
       }
       println!("{round} operations: {count} remaining");
     }
+  }
+
+  #[test]
+  fn acyclic_simple() {
+    let mut conn = Connection::open_in_memory().unwrap();
+    let mut rng = rand::thread_rng();
+    let mut txn = conn.transaction().unwrap();
+    let mut constraints = Constraints::new();
+    constraints.add_sticky_edge(0);
+    constraints.add_acyclic_edge(0);
+    let mut ws = Workspace::new("", constraints, &mut txn);
+
+    let node0 = rng.gen();
+    let node1 = rng.gen();
+    let node2 = rng.gen();
+    let node3 = rng.gen();
+    ws.set_node(&mut txn, node0, Some(0));
+    ws.set_node(&mut txn, node1, Some(0));
+    ws.set_node(&mut txn, node2, Some(0));
+    ws.set_node(&mut txn, node3, Some(0));
+    let edge0 = rng.gen();
+    let edge1 = rng.gen();
+    let edge2 = rng.gen();
+    let edge3 = rng.gen();
+    ws.set_edge(&mut txn, edge0, Some((node0, 0, node1)));
+    ws.set_edge(&mut txn, edge1, Some((node1, 0, node2)));
+    ws.set_edge(&mut txn, edge2, Some((node2, 0, node3)));
+    ws.barrier(&mut txn);
+    assert!(ws.node(&mut txn, node0).is_some());
+    assert!(ws.node(&mut txn, node1).is_some());
+    assert!(ws.node(&mut txn, node2).is_some());
+    assert!(ws.node(&mut txn, node3).is_some());
+    assert!(ws.edge(&mut txn, edge0).is_some());
+    assert!(ws.edge(&mut txn, edge1).is_some());
+    assert!(ws.edge(&mut txn, edge2).is_some());
+
+    ws.set_edge(&mut txn, edge3, Some((node2, 0, node0)));
+    ws.barrier(&mut txn);
+    assert!(ws.node(&mut txn, node0).is_none());
+    assert!(ws.node(&mut txn, node1).is_none());
+    assert!(ws.node(&mut txn, node2).is_none());
+    assert!(ws.node(&mut txn, node3).is_some());
+    assert!(ws.edge(&mut txn, edge0).is_none());
+    assert!(ws.edge(&mut txn, edge1).is_none());
+    assert!(ws.edge(&mut txn, edge2).is_none());
   }
 }

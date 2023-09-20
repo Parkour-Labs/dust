@@ -1,4 +1,3 @@
-/*
 use rand::Rng;
 use rusqlite::Connection;
 use serde::{de::DeserializeOwned, ser::Serialize};
@@ -16,8 +15,22 @@ PRAGMA cache_size = -20000;
 PRAGMA busy_timeout = 3000;
 ";
 
+/// Temporary code.
+struct Store {
+  conn: Connection,
+  ws: Workspace,
+}
+
+/*
+impl Store {
+  pub fn new(conn: Connection) -> Self {
+
+    let ws = Workspace::new("", constraints, )
+  }
+}
+
 thread_local! {
-  static STORE: RefCell<Option<Workspace>> = RefCell::new(None);
+  static STORE: RefCell<Option<Store>> = RefCell::new(None);
 }
 
 /// Initialises the global data store using a backing database file at `path`.
@@ -25,7 +38,7 @@ thread_local! {
 pub fn init(path: &str) {
   let conn = Connection::open(path).unwrap();
   conn.execute_batch(INITIAL_COMMANDS).unwrap();
-  STORE.with(|cell| cell.replace(Some(Workspace::new("", conn))));
+  STORE.with(|cell| cell.replace(Some(Store { conn, ws: Workspace::new("", ) })));
 }
 
 /// Initialises the global data store using a temporary, in-memory database.
