@@ -147,10 +147,10 @@ impl<T> From<Result<T, String>> for CResult<T> {
 
 impl<T> CArray<T> {
   pub unsafe fn as_ref(&self) -> &'static [T] {
-    unsafe { std::slice::from_raw_parts(self.1, self.0 as usize) }
+    std::slice::from_raw_parts(self.1, self.0 as usize)
   }
 
   pub unsafe fn into_boxed(self) -> Box<[T]> {
-    unsafe { Box::from_raw(std::slice::from_raw_parts_mut(self.1, self.0 as usize)) }
+    Box::from_raw(std::slice::from_raw_parts_mut(self.1, self.0 as usize))
   }
 }

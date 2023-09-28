@@ -46,7 +46,15 @@ class Something {
   @Transient()
   int someNonPersistentField = 233;
 
-  Something._(this.id, this.atomOne, this.atomTwo, this.linkOne, this.linkTwo, this.linkThree, this.backlink);
+  Something._(
+    this.id, {
+    required this.atomOne,
+    required this.atomTwo,
+    required this.linkOne,
+    required this.linkTwo,
+    required this.linkThree,
+    required this.backlink,
+  });
 
   factory Something.create({
     required String atomOne,
@@ -54,7 +62,12 @@ class Something {
     required Trivial linkOne,
     Trivial? linkTwo,
   }) =>
-      const $SomethingRepository().create(atomOne, atomTwo, linkOne, linkTwo);
+      const $SomethingRepository().create(
+        atomOne: atomOne,
+        atomTwo: atomTwo,
+        linkOne: linkOne,
+        linkTwo: linkTwo,
+      );
 
   void delete() => const $SomethingRepository().delete(this);
 }
@@ -66,7 +79,10 @@ void main() async {
 
   // Initialisation.
   final dir = await getTemporaryDirectory();
-  Store.initialize('${dir.path}/data.sqlite3');
+  Store.open('${dir.path}/data.sqlite3', [
+    const $TrivialRepository(),
+    const $SomethingRepository(),
+  ]);
 
   test('native_param_passing', () {
     final bindings = getNativeBindings();
@@ -127,9 +143,9 @@ void main() async {
     final arrayEventData = bindings.test_array_event_data();
     assert(arrayEventData.len == 2);
     final first = arrayEventData.ptr.elementAt(0).ref;
-    assert(first.tag == 0);
+    assert(first.tag == 1);
     {
-      final atom = first.union.atom;
+      final atom = first.body.atom;
       assert(Id.fromNative(atom.id) == const Id(0, 1));
       assert(atom.prev.tag == 1 && atom.curr.tag == 1);
       final prev = atom.prev.some, curr = atom.curr.some;
@@ -143,9 +159,9 @@ void main() async {
           listEquals(curr.value.ptr.asTypedList(2), [4, 34]));
     }
     final second = arrayEventData.ptr.elementAt(1).ref;
-    assert(second.tag == 1);
+    assert(second.tag == 2);
     {
-      final edge = second.union.edge;
+      final edge = second.body.edge;
       assert(Id.fromNative(edge.id) == const Id(1, 0));
       assert(edge.prev.tag == 1 && edge.curr.tag == 1);
       final prev = edge.prev.some, curr = edge.curr.some;
@@ -168,7 +184,7 @@ void main() async {
   });
   */
 
-  test('object_store', () {
+  test('object_store_no_barrier', () {
     final store = Store.instance;
     final id0 = store.randomId();
     final id1 = store.randomId();
@@ -235,6 +251,7 @@ void main() async {
     something.delete();
     assert(const $SomethingRepository().get(something.id).get(null) == null);
     Store.instance.setAtom(somethingElse.atomOne.id, null);
+    Store.instance.barrier();
     assert(const $SomethingRepository().get(somethingElse.id).get(null) == null);
   });
 }

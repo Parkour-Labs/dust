@@ -35,6 +35,7 @@ const kBacklinkAnnotation = TypeChecker.fromRuntime(Backlink);
 const kSerializableAnnotation = TypeChecker.fromRuntime(Serializable);
 const kDefaultAnnotation = TypeChecker.fromRuntime(Default);
 const kTransientAnnotation = TypeChecker.fromRuntime(Transient);
+const kAcyclicAnnotation = TypeChecker.fromRuntime(Acyclic);
 const kGlobalAnnotation = TypeChecker.fromRuntime(Global);
 
 /// All supported field types.
@@ -61,17 +62,20 @@ final class AtomDefault extends FieldType {
 
 final class Link extends FieldType {
   final InterfaceType type;
-  Link(this.type);
+  final bool acyclic;
+  Link(this.type, this.acyclic);
 }
 
 final class LinkOption extends FieldType {
   final InterfaceType type;
-  LinkOption(this.type);
+  final bool acyclic;
+  LinkOption(this.type, this.acyclic);
 }
 
 final class Multilinks extends FieldType {
   final InterfaceType type;
-  Multilinks(this.type);
+  final bool acyclic;
+  Multilinks(this.type, this.acyclic);
 }
 
 final class Backlinks extends FieldType {
@@ -128,23 +132,26 @@ FieldType convertType(DartType rawType, FieldElement elem) {
   if (type.element.name == 'Link') {
     if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
     final inner = resolve(type.typeArguments.single, elem);
-    return Link(inner);
+    final annot = kAcyclicAnnotation.annotationsOfExact(elem).firstOrNull;
+    return Link(inner, annot != null);
   }
   if (type.element.name == 'LinkOption') {
     if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
     final inner = resolve(type.typeArguments.single, elem);
-    return LinkOption(inner);
+    final annot = kAcyclicAnnotation.annotationsOfExact(elem).firstOrNull;
+    return LinkOption(inner, annot != null);
   }
   if (type.element.name == 'Multilinks') {
     if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
     final inner = resolve(type.typeArguments.single, elem);
-    return Multilinks(inner);
+    final annot = kAcyclicAnnotation.annotationsOfExact(elem).firstOrNull;
+    return Multilinks(inner, annot != null);
   }
   if (type.element.name == 'Backlinks') {
     if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
     final inner = resolve(type.typeArguments.single, elem);
-    final annots = kBacklinkAnnotation.annotationsOfExact(elem);
-    final value = annots.firstOrNull?.getField('name')?.toStringValue();
+    final annot = kBacklinkAnnotation.annotationsOfExact(elem).firstOrNull;
+    final value = annot?.getField('name')?.toStringValue();
     if (value == null) fail('Backlinks must be annotated with `@Backlink(\'fieldName\')`.', elem);
     return Backlinks(inner, value);
   }
@@ -194,8 +201,8 @@ String repository(String name) {
 }
 
 /// Returns the corresponding label constant name.
-String label(String type, String field) {
-  return '\$${type}Repository.${field}Label';
+String label(String type, [String? field]) {
+  return '\$${type}Repository.${field ?? ''}Label';
 }
 
 /// Returns the corresponding serializer constant name.
@@ -206,11 +213,11 @@ String serializer(String type, String field) {
 /// Creates the label constants for the [struct].
 String emitLabelDecls(Struct struct) {
   var res = '';
-  // final value = fnv64Hash(struct.name);
-  // res += 'static const int Label = $value;';
+  final value = fnv64Hash(struct.name);
+  res += 'static const int Label = $value;';
   for (final field in struct.fields) {
     if (field.type is! Backlinks) {
-      final value = fnv64Hash('${struct.name}.${field.name}'); // TODO: convert to snake case before hashing?
+      final value = fnv64Hash('${struct.name}.${field.name}');
       res += 'static const int ${field.name}Label = $value;';
     }
   }
@@ -235,29 +242,51 @@ String emitSerializerDecls(Struct struct) {
   return res;
 }
 
+/// Creates the function that initialises the repository and returns the schema.
+String emitInitFunction(Struct struct) {
+  var stickyNodes = <String>[];
+  var stickyAtoms = <String>[];
+  var stickyEdges = <String>[];
+  var acyclicEdges = <String>[];
+
+  stickyNodes.add(label(struct.name));
+  for (final field in struct.fields) {
+    final lab = label(struct.name, field.name);
+    switch (field.type) {
+      case Atom():
+        stickyAtoms.add(lab);
+      case AtomOption():
+        break;
+      case AtomDefault():
+        break;
+      case Link(:final acyclic):
+        stickyEdges.add(lab);
+        if (acyclic) acyclicEdges.add(lab);
+      case LinkOption(:final acyclic):
+        if (acyclic) acyclicEdges.add(lab);
+      case Multilinks(:final acyclic):
+        if (acyclic) acyclicEdges.add(lab);
+      case Backlinks():
+        break;
+    }
+  }
+
+  return '''
+    Schema init() {
+      \$init = true;
+      return const Schema(
+        stickyNodes: [${stickyNodes.join(', ')}],
+        stickyAtoms: [${stickyAtoms.join(', ')}],
+        stickyEdges: [${stickyEdges.join(', ')}],
+        acyclicEdges: [${acyclicEdges.join(', ')}],
+      );
+    }
+  ''';
+}
+
 /// Creates the function that obtains the ID of a [struct].
 String emitIdFunction(Struct struct) {
   return 'Id id(${struct.name} \$model) => \$model.id;';
-}
-
-/// Creates the function that checks if a [struct] completely exists.
-String emitExistsFunction(Struct struct) {
-  var clauses = '';
-  for (final field in struct.fields) {
-    final name = field.name;
-    clauses += switch (field.type) {
-      Atom() => '\$model.$name.exists &&',
-      AtomOption() => '',
-      AtomDefault() => '',
-      Link() => '\$model.$name.exists &&',
-      LinkOption() => '',
-      Multilinks() => '',
-      Backlinks() => '',
-    };
-  }
-  return '''
-    bool exists(${struct.name} \$model) => $clauses true;
-  ''';
 }
 
 String emitCreateFunctionParams(Struct struct) {
@@ -265,14 +294,15 @@ String emitCreateFunctionParams(Struct struct) {
   for (final field in struct.fields) {
     final name = field.name;
     res += switch (field.type) {
-      Atom(type: final inner) => '$inner $name,',
+      Atom(type: final inner) => 'required $inner $name,',
       AtomOption(type: final inner) || AtomDefault(type: final inner) => '$inner? $name,',
-      Link(type: final inner) => '$inner $name,',
+      Link(type: final inner) => 'required $inner $name,',
       LinkOption(type: final inner) => '$inner? $name,',
       Multilinks() => '',
       Backlinks() => '',
     };
   }
+  if (res.isNotEmpty) res = '{$res}';
   return res;
 }
 
@@ -281,10 +311,10 @@ String emitCreateFunctionArgs(Struct struct) {
   for (final field in struct.fields) {
     final name = field.name;
     res += switch (field.type) {
-      Atom() => '$name,',
-      AtomOption() || AtomDefault() => '$name,',
-      Link() => '$name,',
-      LinkOption() => '$name,',
+      Atom() => '$name: $name,',
+      AtomOption() || AtomDefault() => '$name: $name,',
+      Link() => '$name: $name,',
+      LinkOption() => '$name: $name,',
       Multilinks() => '',
       Backlinks() => '',
     };
@@ -324,24 +354,24 @@ String emitCreateFunctionBody(Struct struct) {
 /// Creates the functions that create new [struct]s.
 String emitCreateFunctions(Struct struct) {
   return '''
-    void overwrite(Id \$id, ${emitCreateFunctionParams(struct)}) {
+    void \$write(Id \$id, ${emitCreateFunctionParams(struct)}) {
+      assert(\$init, 'Repository should be registered in `Store.open`.');
       final \$store = Store.instance;
+      \$store.setNode(\$id, ${label(struct.name)});
       ${emitCreateFunctionBody(struct)}
+      \$store.barrier();
     }
 
     ${struct.name} create(${emitCreateFunctionParams(struct)}) {
       final \$id = Store.instance.randomId();
-      final \$entry = get(\$id);
-      overwrite(\$id, ${emitCreateFunctionArgs(struct)});
-      return \$entry.model;
+      final \$node = get(\$id);
+      \$write(\$id, ${emitCreateFunctionArgs(struct)});
+      return \$node.get(null)!;
     }
 
-    ${struct.name} init(Id \$id, ${emitCreateFunctionParams(struct)}) {
-      final \$entry = get(\$id);
-      if (!exists(\$entry.model)) {
-        overwrite(\$id, ${emitCreateFunctionArgs(struct)});
-      }
-      return \$entry.model;
+    NodeAuto<${struct.name}> auto(Id \$id, ${emitCreateFunctionParams(struct)}) {
+      final \$node = get(\$id);
+      return NodeAuto(\$node, () => \$write(\$id, ${emitCreateFunctionArgs(struct)}),);
     }
   ''';
 }
@@ -349,36 +379,22 @@ String emitCreateFunctions(Struct struct) {
 String emitGetFunctionCtorArgs(Struct struct) {
   var res = '';
   for (final field in struct.fields) {
-    final lab = label(struct.name, field.name);
-    res += switch (field.type) {
-      Atom(type: final inner) => 'Atom<$inner>(\$id ^ $lab, \$id, $lab, ${serializer(struct.name, field.name)},),',
-      AtomOption(type: final inner) =>
-        'AtomOption<$inner>(\$id ^ $lab, \$id, $lab, ${serializer(struct.name, field.name)},),',
-      AtomDefault(type: final inner, :final defaultValue) =>
-        'AtomDefault<$inner>(\$id ^ $lab, \$id, $lab, ${serializer(struct.name, field.name)}, $defaultValue,),',
-      Link(type: final inner) => 'Link<$inner>(\$id ^ $lab, \$id, $lab, const ${repository(inner.element.name)}(),),',
-      LinkOption(type: final inner) =>
-        'LinkOption<$inner>(\$id ^ $lab, \$id, $lab, const ${repository(inner.element.name)}(),),',
-      Multilinks(type: final inner) => 'Multilinks<$inner>(\$id, $lab, const ${repository(inner.element.name)}(),),',
-      Backlinks(type: final inner, field: final field) =>
-        'Backlinks<$inner>(\$id, ${label(inner.element.name, field)}, const ${repository(inner.element.name)}(),),',
-    };
-  }
-  return res;
-}
-
-String emitGetFunctionParentAssignments(Struct struct) {
-  var res = '';
-  for (final field in struct.fields) {
     final name = field.name;
+    final lab = label(struct.name, name);
     res += switch (field.type) {
-      Atom() => '''
-        \$model.$name.parent = \$entry;
-      ''',
-      Link() => '''
-        \$model.$name.parent = \$entry;
-      ''',
-      _ => '',
+      Atom(type: final inner) => '$name: Atom<$inner>(\$id ^ $lab, \$id, $lab, ${serializer(struct.name, name)},),',
+      AtomOption(type: final inner) =>
+        '$name: AtomOption<$inner>(\$id ^ $lab, \$id, $lab, ${serializer(struct.name, name)},),',
+      AtomDefault(type: final inner, :final defaultValue) =>
+        '$name: AtomDefault<$inner>(\$id ^ $lab, \$id, $lab, ${serializer(struct.name, name)}, $defaultValue,),',
+      Link(type: final inner) =>
+        '$name: Link<$inner>(\$id ^ $lab, \$id, $lab, const ${repository(inner.element.name)}(),),',
+      LinkOption(type: final inner) =>
+        '$name: LinkOption<$inner>(\$id ^ $lab, \$id, $lab, const ${repository(inner.element.name)}(),),',
+      Multilinks(type: final inner) =>
+        '$name: Multilinks<$inner>(\$id, $lab, const ${repository(inner.element.name)}(),),',
+      Backlinks(type: final inner, field: final field) =>
+        '$name: Backlinks<$inner>(\$id, ${label(inner.element.name, field)}, const ${repository(inner.element.name)}(),),',
     };
   }
   return res;
@@ -387,15 +403,12 @@ String emitGetFunctionParentAssignments(Struct struct) {
 /// Creates the function that obtains a [struct] by ID.
 String emitGetFunction(Struct struct) {
   return '''
-    RepositoryEntry<${struct.name}> get(Id \$id) {
-      final \$existing = entries[\$id]?.target;
+    NodeOption<${struct.name}> get(Id \$id) {
+      final \$existing = \$entries[\$id]?.target;
       if (\$existing != null) return \$existing;
-
       final \$model = ${struct.name}._(\$id, ${emitGetFunctionCtorArgs(struct)});
-      final \$entry = RepositoryEntry(this, \$model);
-      ${emitGetFunctionParentAssignments(struct)}
-
-      entries[\$id] = WeakReference(\$entry);
+      final \$entry = NodeOption(\$id, ${label(struct.name)}, \$model);
+      \$entries[\$id] = WeakReference(\$entry);
       return \$entry;
     }
   ''';
@@ -405,12 +418,20 @@ String emitGetFunction(Struct struct) {
 String emitDeleteFunction(Struct struct) {
   return '''
     void delete(${struct.name} \$model) {
+      assert(\$init, 'Repository should be registered in `Store.open`.');
       final \$id = \$model.id;
       final \$store = Store.instance;
-      \$store.getAtomLabelValueBySrc(\$id, (\$atom, \$label, \$value) => \$store.setAtom(\$atom, null));
-      \$store.getEdgeLabelDstBySrc(\$id, (\$atom, \$label, \$dst) => \$store.setAtom(\$atom, null));
-      entries.remove(\$id);
+      \$entries.remove(\$id);
+      \$store.setNode(\$id, null);
+      \$store.barrier();
     }
+  ''';
+}
+
+/// Creates the function that queries all objects.
+String emitAllFunction(Struct struct) {
+  return '''
+    NodesByLabel<${struct.name}> all() => NodesByLabel(${label(struct.name)}, const ${repository(struct.name)}());
   ''';
 }
 
@@ -453,13 +474,15 @@ class ModelRepositoryGenerator extends GeneratorForAnnotation<Model> {
 
         ${emitSerializerDecls(struct)}
 
-        static final Map<Id, WeakReference<RepositoryEntry<${struct.name}>>> entries = {};
+        static final Map<Id, WeakReference<NodeOption<${struct.name}>>> \$entries = {};
+
+        static bool \$init = false;
+
+        @override
+        ${emitInitFunction(struct)}
 
         @override
         ${emitIdFunction(struct)}
-
-        @override
-        ${emitExistsFunction(struct)}
 
         ${emitCreateFunctions(struct)}
 
@@ -468,6 +491,8 @@ class ModelRepositoryGenerator extends GeneratorForAnnotation<Model> {
 
         @override
         ${emitDeleteFunction(struct)}
+
+        ${emitAllFunction(struct)}
       }
 
       ${emitGlobalIds(struct, element)}

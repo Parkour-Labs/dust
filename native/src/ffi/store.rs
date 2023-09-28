@@ -3,7 +3,7 @@ use rand::Rng;
 use super::*;
 
 #[no_mangle]
-pub unsafe extern "C" fn random_id() -> CId {
+pub extern "C" fn random_id() -> CId {
   rand::thread_rng().gen::<u128>().into()
 }
 

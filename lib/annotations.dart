@@ -14,6 +14,10 @@ class Default<T> {
   const Default(this.defaultValue);
 }
 
+class Acyclic {
+  const Acyclic();
+}
+
 class Backlink {
   final String name;
   const Backlink(this.name);

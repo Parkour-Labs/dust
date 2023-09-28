@@ -16,8 +16,8 @@ use crate::{
 };
 
 thread_local! {
-  pub static CONSTRAINTS: RefCell<Constraints> = RefCell::new(Constraints::new());
-  pub static STORE: RefCell<Option<Store>> = RefCell::new(None);
+  static CONSTRAINTS: RefCell<Constraints> = RefCell::new(Constraints::new());
+  static STORE: RefCell<Option<Store>> = RefCell::new(None);
 }
 
 pub fn convert_result<T>(f: impl FnOnce() -> Result<T, StoreError>) -> CResult<T> {
@@ -78,7 +78,7 @@ pub unsafe extern "C" fn open(len: u64, ptr: *mut u8) -> CResult<CUnit> {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn commit() -> CResult<CUnit> {
+pub extern "C" fn commit() -> CResult<CUnit> {
   convert_result(|| {
     STORE.with(|cell| {
       cell.borrow_mut().as_mut().ok_or(StoreError::Uninitialised)?.commit()?;
@@ -88,7 +88,7 @@ pub unsafe extern "C" fn commit() -> CResult<CUnit> {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn close() -> CResult<CUnit> {
+pub extern "C" fn close() -> CResult<CUnit> {
   convert_result(|| {
     STORE.with(|cell| {
       cell.take().ok_or(StoreError::Uninitialised)?.close()?;
