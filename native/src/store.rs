@@ -1,59 +1,42 @@
-use rand::Rng;
 use rusqlite::Connection;
-use serde::{de::DeserializeOwned, ser::Serialize};
-use std::{cell::RefCell, marker::PhantomData};
 
-use crate::workspace::Workspace;
-use crate::{deserialize, serialize};
+use crate::workspace::{Constraints, Workspace};
+use crate::{StoreError, Transactor};
 
-const INITIAL_COMMANDS: &str = "
-PRAGMA auto_vacuum = INCREMENTAL;
-PRAGMA journal_mode = WAL;
-PRAGMA wal_autocheckpoint = 8000;
-PRAGMA synchronous = NORMAL;
-PRAGMA cache_size = -20000;
-PRAGMA busy_timeout = 3000;
-";
-
-/// Temporary code.
-struct Store {
-  conn: Connection,
-  ws: Workspace,
+pub struct Store {
+  txr: Option<Transactor>,
+  workspace: Workspace,
 }
 
-/*
 impl Store {
-  pub fn new(conn: Connection) -> Self {
+  pub fn new(conn: Connection, constraints: Constraints) -> Result<Self, StoreError> {
+    let mut txr = conn.try_into()?;
+    let workspace = Workspace::new("", constraints, &mut txr);
+    Ok(Self { txr: Some(txr), workspace })
+  }
 
-    let ws = Workspace::new("", constraints, )
+  pub fn as_mut(&mut self) -> Result<(&mut Transactor, &mut Workspace), StoreError> {
+    let txr = self.txr.as_mut().ok_or(StoreError::Disconnected)?;
+    Ok((txr, &mut self.workspace))
+  }
+
+  pub fn commit(&mut self) -> Result<(), StoreError> {
+    let txr = self.txr.take().ok_or(StoreError::Disconnected)?;
+    let conn: Connection = txr.try_into()?;
+    let txr: Transactor = conn.try_into()?;
+    self.txr = Some(txr);
+    Ok(())
+  }
+
+  pub fn close(mut self) -> Result<(), StoreError> {
+    let txr = self.txr.take().ok_or(StoreError::Disconnected)?;
+    let conn: Connection = txr.try_into()?;
+    conn.close().map_err(|(_, err)| err)?;
+    Ok(())
   }
 }
 
-thread_local! {
-  static STORE: RefCell<Option<Store>> = RefCell::new(None);
-}
-
-/// Initialises the global data store using a backing database file at `path`.
-/// Must be called once before any data access occurs.
-pub fn init(path: &str) {
-  let conn = Connection::open(path).unwrap();
-  conn.execute_batch(INITIAL_COMMANDS).unwrap();
-  STORE.with(|cell| cell.replace(Some(Store { conn, ws: Workspace::new("", ) })));
-}
-
-/// Initialises the global data store using a temporary, in-memory database.
-/// For testing purpose only.
-pub fn init_in_memory() {
-  let conn = Connection::open_in_memory().unwrap();
-  conn.execute_batch(INITIAL_COMMANDS).unwrap();
-  STORE.with(|cell| cell.replace(Some(Workspace::new("", conn))));
-}
-
-/// Generic access to the global data store.
-pub fn access_store_with<R>(f: impl FnOnce(&mut Workspace) -> R) -> R {
-  STORE.with(|cell| f(cell.borrow_mut().as_mut().unwrap()))
-}
-
+/*
 /// Basic interface for model types.
 pub trait Model: Sized {
   fn id(&self) -> u128;

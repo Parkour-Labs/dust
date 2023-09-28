@@ -1,11 +1,28 @@
 pub mod ffi;
-pub mod global;
+pub mod store;
 pub mod workspace;
-pub use beacons_macros::*;
 
 use bincode::{ErrorKind, Options};
+use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
-use std::num::Wrapping;
+use std::{
+  num::Wrapping,
+  ops::{Deref, DerefMut},
+};
+use thiserror::Error;
+
+/// The common error type.
+#[derive(Error, Debug)]
+pub enum StoreError {
+  #[error("sqlite error")]
+  Sqlite(#[from] rusqlite::Error),
+  #[error("string is not valid UTF8")]
+  InvalidUtf8,
+  #[error("data store not initialised")]
+  Uninitialised,
+  #[error("data store disconnected due to previous error")]
+  Disconnected,
+}
 
 /// A wrapper around `bincode`.
 pub fn serialize<T: Serialize>(value: &T) -> Result<Vec<u8>, Box<ErrorKind>> {
@@ -15,6 +32,40 @@ pub fn serialize<T: Serialize>(value: &T) -> Result<Vec<u8>, Box<ErrorKind>> {
 /// A wrapper around `bincode`.
 pub fn deserialize<'a, T: Deserialize<'a>>(bytes: &'a [u8]) -> Result<T, Box<ErrorKind>> {
   bincode::options().reject_trailing_bytes().with_fixint_encoding().with_big_endian().deserialize(bytes)
+}
+
+/// A wrapper around `rusqlite`.
+pub struct Transactor {
+  conn: Connection,
+}
+
+impl Deref for Transactor {
+  type Target = Connection;
+  fn deref(&self) -> &Self::Target {
+    &self.conn
+  }
+}
+
+impl DerefMut for Transactor {
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    &mut self.conn
+  }
+}
+
+impl TryFrom<Connection> for Transactor {
+  type Error = rusqlite::Error;
+  fn try_from(value: Connection) -> rusqlite::Result<Self> {
+    value.execute_batch("BEGIN IMMEDIATE")?;
+    Ok(Self { conn: value })
+  }
+}
+
+impl TryFrom<Transactor> for Connection {
+  type Error = rusqlite::Error;
+  fn try_from(value: Transactor) -> rusqlite::Result<Self> {
+    value.conn.execute_batch("COMMIT")?;
+    Ok(value.conn)
+  }
 }
 
 /*
@@ -37,7 +88,7 @@ fn remove<K: Eq + Hash, V: Eq>(map: &mut BTreeMap<K, Vec<V>>, key: K, value: &V)
 */
 
 /// Hashes the string `s` to a value of desired.
-fn fnv64_hash(s: impl AsRef<str>) -> u64 {
+pub fn fnv64_hash(s: impl AsRef<str>) -> u64 {
   const PRIME: Wrapping<u64> = Wrapping(1099511628211);
   const BASIS: Wrapping<u64> = Wrapping(14695981039346656037);
   let mut res = BASIS;

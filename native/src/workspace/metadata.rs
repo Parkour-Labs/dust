@@ -1,6 +1,11 @@
 use rand::Rng;
-use rusqlite::{OptionalExtension, Transaction};
-use std::collections::BTreeMap;
+use rusqlite::OptionalExtension;
+use std::{
+  collections::BTreeMap,
+  time::{SystemTime, UNIX_EPOCH},
+};
+
+use crate::Transactor;
 
 /// Base schema version.
 pub const CURRENT_VERSION: u64 = 1;
@@ -13,27 +18,27 @@ pub struct WorkspaceMetadata {
 }
 
 /// Database interface for [`WorkspaceMetadata`].
-pub trait WorkspaceMetadataStore {
+pub trait WorkspaceMetadataTransactor {
   fn init_version(&mut self, prefix: &str);
   fn init_this(&mut self, prefix: &str);
-  fn get_version(&mut self, prefix: &str) -> Option<u64>;
-  fn get_this(&mut self, prefix: &str) -> Option<u64>;
+  fn get_version(&self, prefix: &str) -> Option<u64>;
+  fn get_this(&self, prefix: &str) -> Option<u64>;
   fn put_version(&mut self, prefix: &str, version: u64);
   fn put_this(&mut self, prefix: &str, this: u64);
 }
 
 impl WorkspaceMetadata {
   /// Creates or loads metadata.
-  pub fn new(prefix: &'static str, store: &mut impl WorkspaceMetadataStore) -> Self {
-    store.init_version(prefix);
-    store.init_this(prefix);
-    let version = store.get_version(prefix).unwrap_or_else(|| {
-      store.put_version(prefix, CURRENT_VERSION);
+  pub fn new(prefix: &'static str, txr: &mut impl WorkspaceMetadataTransactor) -> Self {
+    txr.init_version(prefix);
+    txr.init_this(prefix);
+    let version = txr.get_version(prefix).unwrap_or_else(|| {
+      txr.put_version(prefix, CURRENT_VERSION);
       CURRENT_VERSION
     });
-    let this = store.get_this(prefix).unwrap_or_else(|| {
+    let this = txr.get_this(prefix).unwrap_or_else(|| {
       let random = rand::thread_rng().gen();
-      store.put_this(prefix, random);
+      txr.put_this(prefix, random);
       random
     });
     if version != CURRENT_VERSION {
@@ -54,7 +59,7 @@ impl WorkspaceMetadata {
   }
 }
 
-impl<'a> WorkspaceMetadataStore for Transaction<'a> {
+impl WorkspaceMetadataTransactor for Transactor {
   fn init_version(&mut self, prefix: &str) {
     self
       .execute_batch(&format!(
@@ -81,7 +86,7 @@ impl<'a> WorkspaceMetadataStore for Transaction<'a> {
       .unwrap();
   }
 
-  fn get_version(&mut self, prefix: &str) -> Option<u64> {
+  fn get_version(&self, prefix: &str) -> Option<u64> {
     self
       .prepare_cached(&format!("SELECT version FROM \"{prefix}.version\""))
       .unwrap()
@@ -93,7 +98,7 @@ impl<'a> WorkspaceMetadataStore for Transaction<'a> {
       .unwrap()
   }
 
-  fn get_this(&mut self, prefix: &str) -> Option<u64> {
+  fn get_this(&self, prefix: &str) -> Option<u64> {
     self
       .prepare_cached(&format!("SELECT this FROM \"{prefix}.this\""))
       .unwrap()
@@ -127,22 +132,26 @@ impl<'a> WorkspaceMetadataStore for Transaction<'a> {
 pub struct StructureMetadata {
   prefix: &'static str,
   name: &'static str,
-  buckets: BTreeMap<u64, u64>,
+  buckets: BTreeMap<u64, u64>, // Saved, exhaustive
+  mods: BTreeMap<u64, u64>,    // Pending, exhaustive
+  next: u64,
 }
 
 /// Database interface for [`StructureMetadata`].
-pub trait StructureMetadataStore {
+pub trait StructureMetadataTransactor {
   fn init_buckets(&mut self, prefix: &str, name: &str);
-  fn get_buckets(&mut self, prefix: &str, name: &str) -> BTreeMap<u64, u64>;
+  fn get_buckets(&self, prefix: &str, name: &str) -> BTreeMap<u64, u64>;
   fn set_bucket(&mut self, prefix: &str, name: &str, bucket: u64, clock: u64);
 }
 
 impl StructureMetadata {
   /// Creates or loads metadata.
-  pub fn new(prefix: &'static str, name: &'static str, store: &mut impl StructureMetadataStore) -> Self {
-    store.init_buckets(prefix, name);
-    let buckets = store.get_buckets(prefix, name);
-    Self { prefix, name, buckets }
+  pub fn new(prefix: &'static str, name: &'static str, txr: &mut impl StructureMetadataTransactor) -> Self {
+    txr.init_buckets(prefix, name);
+    let buckets = txr.get_buckets(prefix, name);
+    let mods = BTreeMap::new();
+    let next = buckets.values().fold(0, |acc, &clock| acc.max(clock + 1));
+    Self { prefix, name, buckets, mods, next }
   }
 
   /// Returns the name of the workspace.
@@ -155,29 +164,50 @@ impl StructureMetadata {
     self.name
   }
 
-  /// Returns the current clock values values for each bucket.
-  pub fn buckets(&self) -> &BTreeMap<u64, u64> {
-    &self.buckets
+  /// Returns the current clock value for given bucket.
+  pub fn get(&self, bucket: u64) -> Option<u64> {
+    let mut res = self.buckets.get(&bucket).copied();
+    if let Some(&value) = self.mods.get(&bucket) {
+      let _ = res.insert(value);
+    }
+    res
+  }
+
+  /// Returns the current clock values for each bucket.
+  pub fn buckets(&self) -> BTreeMap<u64, u64> {
+    let mut res = self.buckets.clone();
+    for (&key, &value) in &self.mods {
+      let _ = res.insert(key, value);
+    }
+    res
   }
 
   /// Returns the largest clock value across all buckets plus one.
   pub fn next(&self) -> u64 {
-    self.buckets.values().fold(0, |acc, &clock| acc.max(clock + 1))
+    let measured = SystemTime::now().duration_since(UNIX_EPOCH).ok().and_then(|d| u64::try_from(d.as_nanos()).ok());
+    self.next.max(measured.unwrap_or(0))
   }
 
   /// Updates clock for one bucket.
-  pub fn update(&mut self, store: &mut impl StructureMetadataStore, bucket: u64, clock: u64) -> bool {
-    if self.buckets.get(&bucket) < Some(&clock) {
-      store.set_bucket(self.prefix, self.name, bucket, clock);
-      self.buckets.insert(bucket, clock);
-      true
-    } else {
-      false
+  pub fn update(&mut self, bucket: u64, clock: u64) -> bool {
+    if self.get(bucket) < Some(clock) {
+      self.mods.insert(bucket, clock);
+      self.next = self.next.max(clock + 1);
+      return true;
+    }
+    false
+  }
+
+  /// Saves all pending modifications.
+  pub fn save(&mut self, txr: &mut impl StructureMetadataTransactor) {
+    for (key, value) in std::mem::take(&mut self.mods) {
+      self.buckets.insert(key, value);
+      txr.set_bucket(self.prefix, self.name, key, value);
     }
   }
 }
 
-impl<'a> StructureMetadataStore for Transaction<'a> {
+impl StructureMetadataTransactor for Transactor {
   fn init_buckets(&mut self, prefix: &str, name: &str) {
     self
       .execute_batch(&format!(
@@ -192,7 +222,7 @@ impl<'a> StructureMetadataStore for Transaction<'a> {
       .unwrap();
   }
 
-  fn get_buckets(&mut self, prefix: &str, name: &str) -> BTreeMap<u64, u64> {
+  fn get_buckets(&self, prefix: &str, name: &str) -> BTreeMap<u64, u64> {
     self
       .prepare_cached(&format!("SELECT bucket, clock FROM \"{prefix}.{name}.buckets\""))
       .unwrap()
@@ -222,54 +252,59 @@ mod tests {
 
   #[test]
   fn workspace_metadata_simple() {
-    let mut conn = Connection::open_in_memory().unwrap();
-    let mut txn = conn.transaction().unwrap();
+    let mut txr: Transactor = Connection::open_in_memory().unwrap().try_into().unwrap();
 
-    let workspace = WorkspaceMetadata::new("workspace", &mut txn);
+    let workspace = WorkspaceMetadata::new("workspace", &mut txr);
     assert_eq!(workspace.prefix(), "workspace");
     let this = workspace.this();
 
-    let another_workspace = WorkspaceMetadata::new("another_workspace", &mut txn);
+    let another_workspace = WorkspaceMetadata::new("another_workspace", &mut txr);
     assert_eq!(another_workspace.prefix(), "another_workspace");
     assert_ne!(another_workspace.this(), this);
 
-    let workspace = WorkspaceMetadata::new("workspace", &mut txn);
+    let workspace = WorkspaceMetadata::new("workspace", &mut txr);
     assert_eq!(workspace.prefix(), "workspace");
     assert_eq!(workspace.this(), this);
   }
 
   #[test]
   fn structure_metadata_simple() {
-    let mut conn = Connection::open_in_memory().unwrap();
-    let mut txn = conn.transaction().unwrap();
+    let mut txr: Transactor = Connection::open_in_memory().unwrap().try_into().unwrap();
 
-    let mut structure = StructureMetadata::new("workspace", "name", &mut txn);
+    let mut structure = StructureMetadata::new("workspace", "name", &mut txr);
     assert_eq!(structure.prefix(), "workspace");
     assert_eq!(structure.name(), "name");
     assert_eq!(structure.buckets().len(), 0);
 
-    structure.update(&mut txn, 1, 3u64);
+    structure.update(1, 3u64);
     assert_eq!(structure.buckets().get(&1).unwrap(), &3);
-    structure.update(&mut txn, 1, 2u64);
+    structure.update(1, 2u64);
     assert_eq!(structure.buckets().get(&1).unwrap(), &3);
-    structure.update(&mut txn, 1, 3u64);
+    structure.update(1, 3u64);
     assert_eq!(structure.buckets().get(&1).unwrap(), &3);
-    structure.update(&mut txn, 1, 4u64);
+    structure.update(1, 4u64);
     assert_eq!(structure.buckets().get(&1).unwrap(), &4);
-    structure.update(&mut txn, 2, 3u64);
+    structure.update(2, 3u64);
     assert_eq!(structure.buckets().get(&2).unwrap(), &3);
-    structure.update(&mut txn, 2, 2u64);
+    structure.update(2, 2u64);
     assert_eq!(structure.buckets().get(&2).unwrap(), &3);
 
-    let mut structure = StructureMetadata::new("workspace", "name", &mut txn);
+    structure.save(&mut txr);
+    assert_eq!(structure.buckets().get(&1).unwrap(), &4);
+    assert_eq!(structure.buckets().get(&2).unwrap(), &3);
+
+    let mut structure = StructureMetadata::new("workspace", "name", &mut txr);
     assert_eq!(structure.prefix(), "workspace");
     assert_eq!(structure.name(), "name");
-    assert_eq!(structure.buckets(), &BTreeMap::from([(1, 4u64), (2, 3u64)]));
+    assert_eq!(structure.buckets(), BTreeMap::from([(1, 4u64), (2, 3u64)]));
 
-    structure.update(&mut txn, 3, 3u64);
-    assert_eq!(structure.buckets(), &BTreeMap::from([(1, 4u64), (2, 3u64), (3, 3u64)]));
+    structure.update(3, 3u64);
+    assert_eq!(structure.buckets(), BTreeMap::from([(1, 4u64), (2, 3u64), (3, 3u64)]));
 
-    let structure = StructureMetadata::new("workspace", "another_name", &mut txn);
+    let structure = StructureMetadata::new("workspace", "name", &mut txr);
+    assert_eq!(structure.buckets(), BTreeMap::from([(1, 4u64), (2, 3u64)]));
+
+    let structure = StructureMetadata::new("workspace", "another_name", &mut txr);
     assert_eq!(structure.prefix(), "workspace");
     assert_eq!(structure.name(), "another_name");
     assert_eq!(structure.buckets().len(), 0);

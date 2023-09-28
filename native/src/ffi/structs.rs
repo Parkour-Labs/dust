@@ -1,3 +1,7 @@
+/// See: https://github.com/rust-lang/rust/issues/20660
+#[repr(C)]
+pub struct CUnit(pub u8);
+
 /// `(high, low)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
@@ -22,11 +26,15 @@ pub enum COption<T> {
 }
 
 #[derive(Debug)]
-#[repr(C)]
-pub struct CArray<T> {
-  pub len: u64,
-  pub ptr: *mut T,
+#[repr(C, u8)]
+pub enum CResult<T> {
+  Ok(T),
+  Err(CArray<u8>),
 }
+
+#[derive(Debug)]
+#[repr(C)]
+pub struct CArray<T>(pub u64, pub *mut T);
 
 #[derive(Debug)]
 #[repr(C)]
@@ -58,6 +66,12 @@ pub enum CEventData {
   Edge { id: CId, prev: COption<CEdge>, curr: COption<CEdge> },
 }
 
+impl From<()> for CUnit {
+  fn from(_: ()) -> Self {
+    CUnit(0)
+  }
+}
+
 impl From<u128> for CId {
   fn from(value: u128) -> Self {
     Self((value >> 64) as u64, value as u64)
@@ -67,6 +81,13 @@ impl From<u128> for CId {
 impl From<CId> for u128 {
   fn from(value: CId) -> Self {
     ((value.0 as u128) << 64) ^ (value.1 as u128)
+  }
+}
+
+impl From<u64> for CNode {
+  fn from(l: u64) -> Self {
+    let label = l;
+    Self { label }
   }
 }
 
@@ -96,7 +117,7 @@ impl<T> From<Box<[T]>> for CArray<T> {
     let len = value.len() as u64;
     let ptr = value.as_mut_ptr();
     std::mem::forget(value);
-    Self { len, ptr }
+    Self(len, ptr)
   }
 }
 
@@ -115,21 +136,21 @@ impl<T> From<Option<T>> for COption<T> {
   }
 }
 
-impl<T> CArray<T> {
-  pub unsafe fn as_ref_unchecked(&self) -> &[T] {
-    unsafe { std::slice::from_raw_parts(self.ptr, self.len as usize) }
-  }
-
-  pub unsafe fn into_boxed_unchecked(self) -> Box<[T]> {
-    unsafe { Box::from_raw(std::slice::from_raw_parts_mut(self.ptr, self.len as usize)) }
+impl<T> From<Result<T, String>> for CResult<T> {
+  fn from(value: Result<T, String>) -> Self {
+    match value {
+      Ok(ok) => CResult::Ok(ok),
+      Err(err) => CResult::Err(err.into_bytes().into()),
+    }
   }
 }
 
-impl<T> COption<T> {
-  pub fn as_option(&self) -> Option<&T> {
-    match self {
-      COption::Some(inner) => Some(inner),
-      COption::None => None,
-    }
+impl<T> CArray<T> {
+  pub unsafe fn as_ref(&self) -> &'static [T] {
+    unsafe { std::slice::from_raw_parts(self.1, self.0 as usize) }
+  }
+
+  pub unsafe fn into_boxed(self) -> Box<[T]> {
+    unsafe { Box::from_raw(std::slice::from_raw_parts_mut(self.1, self.0 as usize)) }
   }
 }

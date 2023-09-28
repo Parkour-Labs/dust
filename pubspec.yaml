@@ -17,9 +17,17 @@ dependencies:
   plugin_platform_interface: ^2.0.2
 
 dev_dependencies:
+  ffigen: ^9.0.1
   flutter_lints: ^2.0.0
   flutter_test:
     sdk: flutter
+
+# Requires manual editing after generation.
+ffigen:
+  output: 'generated_bindings.dart'
+  headers:
+    entry-points:
+      - 'native/beacons.h'
 
 flutter:
   plugin:
