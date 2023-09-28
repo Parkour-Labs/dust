@@ -5,6 +5,8 @@ export 'serializer/bool.dart';
 export 'serializer/int.dart';
 export 'serializer/uint.dart';
 export 'serializer/float.dart';
+export 'serializer/enum.dart';
+export 'serializer/record.dart';
 export 'serializer/datetime.dart';
 export 'serializer/uint8list.dart';
 export 'serializer/string.dart';

@@ -30,11 +30,11 @@ class AtomOption<T> with ObservableMixin<T?> implements ObservableMut<T?> {
   @override
   void set(T? value) {
     Store.instance.setAtom<T>(id, (value == null) ? null : (src, label, value, _serializer));
+    Store.instance.barrier();
   }
 }
 
 class Atom<T> with ObservableMixin<T> implements ObservableMut<T> {
-  RepositoryEntry<Object?>? parent;
   final Id id;
   final Id src;
   final int label;
@@ -46,8 +46,6 @@ class Atom<T> with ObservableMixin<T> implements ObservableMut<T> {
     Store.instance.subscribeAtomById(id, (slv) => weak.target?._update(slv), this);
   }
 
-  bool get exists => _value != null;
-
   @override
   T get(Observer? o) {
     if (o != null) connect(o);
@@ -57,21 +55,20 @@ class Atom<T> with ObservableMixin<T> implements ObservableMut<T> {
   }
 
   void _update((Id, int, ByteData)? slv) {
-    final existenceChanged = (_value == null) != (slv == null);
     _value = (slv == null) ? null : _serializer.deserialize(BytesReader(slv.$3));
-    if (existenceChanged) parent?.notifyAll();
     notifyAll();
   }
 
   @override
   void set(T value) {
     Store.instance.setAtom<T>(id, (src, label, value, _serializer));
+    Store.instance.barrier();
   }
 }
 
 /// Just a simple wrapper around [AtomOption], using a default value when there
 /// is no value.
-class AtomDefault<T> with ObservableMixin<T> implements ObservableMut<T> {
+class AtomDefault<T> implements ObservableMut<T> {
   final AtomOption<T> _inner;
   final T _defaultValue;
 
@@ -81,6 +78,9 @@ class AtomDefault<T> with ObservableMixin<T> implements ObservableMut<T> {
   Id get id => _inner.id;
   Id get src => _inner.src;
   int get label => _inner.label;
+
+  @override
+  void connect(Observer o) => _inner.connect(o);
 
   @override
   T get(Observer? o) => _inner.get(o) ?? _defaultValue;

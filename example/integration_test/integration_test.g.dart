@@ -12,65 +12,81 @@ part of 'integration_test.dart';
 class $TrivialRepository implements Repository<Trivial> {
   const $TrivialRepository();
 
-  static final Map<Id, WeakReference<RepositoryEntry<Trivial>>> entries = {};
+  static const int Label = 4898135217045869580;
+
+  static final Map<Id, WeakReference<NodeOption<Trivial>>> $entries = {};
+
+  static bool $init = false;
+
+  @override
+  Schema init() {
+    $init = true;
+    return const Schema(
+      stickyNodes: [$TrivialRepository.Label],
+      stickyAtoms: [],
+      stickyEdges: [],
+      acyclicEdges: [],
+    );
+  }
 
   @override
   Id id(Trivial $model) => $model.id;
 
-  @override
-  bool exists(Trivial $model) => true;
-
-  void overwrite(
+  void $write(
     Id $id,
   ) {
+    assert($init, 'Repository should be registered in `Store.open`.');
     final $store = Store.instance;
+    $store.setNode($id, $TrivialRepository.Label);
+
+    $store.barrier();
   }
 
   Trivial create() {
     final $id = Store.instance.randomId();
-    final $entry = get($id);
-    overwrite(
+    final $node = get($id);
+    $write(
       $id,
     );
-    return $entry.model;
+    return $node.get(null)!;
   }
 
-  Trivial init(
+  NodeAuto<Trivial> auto(
     Id $id,
   ) {
-    final $entry = get($id);
-    if (!exists($entry.model)) {
-      overwrite(
+    final $node = get($id);
+    return NodeAuto(
+      $node,
+      () => $write(
         $id,
-      );
-    }
-    return $entry.model;
+      ),
+    );
   }
 
   @override
-  RepositoryEntry<Trivial> get(Id $id) {
-    final $existing = entries[$id]?.target;
+  NodeOption<Trivial> get(Id $id) {
+    final $existing = $entries[$id]?.target;
     if ($existing != null) return $existing;
-
     final $model = Trivial._(
       $id,
     );
-    final $entry = RepositoryEntry(this, $model);
-
-    entries[$id] = WeakReference($entry);
+    final $entry = NodeOption($id, $TrivialRepository.Label, $model);
+    $entries[$id] = WeakReference($entry);
     return $entry;
   }
 
   @override
   void delete(Trivial $model) {
+    assert($init, 'Repository should be registered in `Store.open`.');
     final $id = $model.id;
     final $store = Store.instance;
-    $store.getAtomLabelValueBySrc(
-        $id, ($atom, $label, $value) => $store.setAtom($atom, null));
-    $store.getEdgeLabelDstBySrc(
-        $id, ($atom, $label, $dst) => $store.setAtom($atom, null));
-    entries.remove($id);
+    $entries.remove($id);
+    $store.setNode($id, null);
+    $store.barrier();
   }
+
+  NodesByLabel<Trivial> all() =>
+      NodesByLabel($TrivialRepository.Label, const $TrivialRepository());
 }
 
 // ignore_for_file: duplicate_ignore, unused_local_variable, non_constant_identifier_names, constant_identifier_names, invalid_use_of_protected_member, unnecessary_cast, prefer_const_constructors, lines_longer_than_80_chars, require_trailing_commas, inference_failure_on_function_invocation, unnecessary_parenthesis, unnecessary_raw_strings, unnecessary_null_checks, join_return_with_assignment, prefer_final_locals, avoid_js_rounded_ints, avoid_positional_boolean_parameters, always_specify_types
@@ -79,6 +95,7 @@ class $TrivialRepository implements Repository<Trivial> {
 class $SomethingRepository implements Repository<Something> {
   const $SomethingRepository();
 
+  static const int Label = 1732646218406506219;
   static const int atomOneLabel = 2942696526831304012;
   static const int atomTwoLabel = 2947471705831678334;
   static const int linkOneLabel = 5826924555465856377;
@@ -88,23 +105,34 @@ class $SomethingRepository implements Repository<Something> {
   static const atomOneSerializer = StringSerializer();
   static const atomTwoSerializer = StringSerializer();
 
-  static final Map<Id, WeakReference<RepositoryEntry<Something>>> entries = {};
+  static final Map<Id, WeakReference<NodeOption<Something>>> $entries = {};
+
+  static bool $init = false;
+
+  @override
+  Schema init() {
+    $init = true;
+    return const Schema(
+      stickyNodes: [$SomethingRepository.Label],
+      stickyAtoms: [$SomethingRepository.atomOneLabel],
+      stickyEdges: [$SomethingRepository.linkOneLabel],
+      acyclicEdges: [],
+    );
+  }
 
   @override
   Id id(Something $model) => $model.id;
 
-  @override
-  bool exists(Something $model) =>
-      $model.atomOne.exists && $model.linkOne.exists && true;
-
-  void overwrite(
-    Id $id,
-    String atomOne,
+  void $write(
+    Id $id, {
+    required String atomOne,
     String? atomTwo,
-    Trivial linkOne,
+    required Trivial linkOne,
     Trivial? linkTwo,
-  ) {
+  }) {
+    assert($init, 'Repository should be registered in `Store.open`.');
     final $store = Store.instance;
+    $store.setNode($id, $SomethingRepository.Label);
     $store.setAtom(
       $id ^ $SomethingRepository.atomOneLabel,
       (
@@ -143,104 +171,104 @@ class $SomethingRepository implements Repository<Something> {
         ),
       );
     }
+
+    $store.barrier();
   }
 
-  Something create(
-    String atomOne,
+  Something create({
+    required String atomOne,
     String? atomTwo,
-    Trivial linkOne,
+    required Trivial linkOne,
     Trivial? linkTwo,
-  ) {
+  }) {
     final $id = Store.instance.randomId();
-    final $entry = get($id);
-    overwrite(
+    final $node = get($id);
+    $write(
       $id,
-      atomOne,
-      atomTwo,
-      linkOne,
-      linkTwo,
+      atomOne: atomOne,
+      atomTwo: atomTwo,
+      linkOne: linkOne,
+      linkTwo: linkTwo,
     );
-    return $entry.model;
+    return $node.get(null)!;
   }
 
-  Something init(
-    Id $id,
-    String atomOne,
+  NodeAuto<Something> auto(
+    Id $id, {
+    required String atomOne,
     String? atomTwo,
-    Trivial linkOne,
+    required Trivial linkOne,
     Trivial? linkTwo,
-  ) {
-    final $entry = get($id);
-    if (!exists($entry.model)) {
-      overwrite(
+  }) {
+    final $node = get($id);
+    return NodeAuto(
+      $node,
+      () => $write(
         $id,
-        atomOne,
-        atomTwo,
-        linkOne,
-        linkTwo,
-      );
-    }
-    return $entry.model;
+        atomOne: atomOne,
+        atomTwo: atomTwo,
+        linkOne: linkOne,
+        linkTwo: linkTwo,
+      ),
+    );
   }
 
   @override
-  RepositoryEntry<Something> get(Id $id) {
-    final $existing = entries[$id]?.target;
+  NodeOption<Something> get(Id $id) {
+    final $existing = $entries[$id]?.target;
     if ($existing != null) return $existing;
-
     final $model = Something._(
       $id,
-      Atom<String>(
+      atomOne: Atom<String>(
         $id ^ $SomethingRepository.atomOneLabel,
         $id,
         $SomethingRepository.atomOneLabel,
         $SomethingRepository.atomOneSerializer,
       ),
-      AtomOption<String>(
+      atomTwo: AtomOption<String>(
         $id ^ $SomethingRepository.atomTwoLabel,
         $id,
         $SomethingRepository.atomTwoLabel,
         $SomethingRepository.atomTwoSerializer,
       ),
-      Link<Trivial>(
+      linkOne: Link<Trivial>(
         $id ^ $SomethingRepository.linkOneLabel,
         $id,
         $SomethingRepository.linkOneLabel,
         const $TrivialRepository(),
       ),
-      LinkOption<Trivial>(
+      linkTwo: LinkOption<Trivial>(
         $id ^ $SomethingRepository.linkTwoLabel,
         $id,
         $SomethingRepository.linkTwoLabel,
         const $TrivialRepository(),
       ),
-      Multilinks<Something>(
+      linkThree: Multilinks<Something>(
         $id,
         $SomethingRepository.linkThreeLabel,
         const $SomethingRepository(),
       ),
-      Backlinks<Something>(
+      backlink: Backlinks<Something>(
         $id,
         $SomethingRepository.linkThreeLabel,
         const $SomethingRepository(),
       ),
     );
-    final $entry = RepositoryEntry(this, $model);
-    $model.atomOne.parent = $entry;
-    $model.linkOne.parent = $entry;
-
-    entries[$id] = WeakReference($entry);
+    final $entry = NodeOption($id, $SomethingRepository.Label, $model);
+    $entries[$id] = WeakReference($entry);
     return $entry;
   }
 
   @override
   void delete(Something $model) {
+    assert($init, 'Repository should be registered in `Store.open`.');
     final $id = $model.id;
     final $store = Store.instance;
-    $store.getAtomLabelValueBySrc(
-        $id, ($atom, $label, $value) => $store.setAtom($atom, null));
-    $store.getEdgeLabelDstBySrc(
-        $id, ($atom, $label, $dst) => $store.setAtom($atom, null));
-    entries.remove($id);
+    $entries.remove($id);
+    $store.setNode($id, null);
+    $store.barrier();
   }
+
+  NodesByLabel<Something> all() =>
+      NodesByLabel($SomethingRepository.Label, const $SomethingRepository());
 }

@@ -37,6 +37,7 @@ class Multilinks<T> with ObservableMixin<Iterable<T>> implements ObservableMutSe
   @override
   void insert(T value) {
     Store.instance.setEdge(Store.instance.randomId(), (src, label, _repository.id(value)));
+    Store.instance.barrier();
   }
 
   @override
@@ -44,6 +45,7 @@ class Multilinks<T> with ObservableMixin<Iterable<T>> implements ObservableMutSe
     for (final entry in _dsts.entries) {
       if (entry.value == _repository.id(value)) {
         Store.instance.setEdge(entry.key, null);
+        Store.instance.barrier();
         break;
       }
     }

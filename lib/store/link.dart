@@ -28,11 +28,11 @@ class LinkOption<T> with ObservableMixin<T?> implements ObservableMut<T?> {
   @override
   void set(T? value) {
     Store.instance.setEdge(id, (value == null) ? null : (src, label, _repository.id(value)));
+    Store.instance.barrier();
   }
 }
 
 class Link<T> with ObservableMixin<T> implements ObservableMut<T> {
-  RepositoryEntry<Object?>? parent;
   final Id id;
   final Id src;
   final int label;
@@ -44,27 +44,23 @@ class Link<T> with ObservableMixin<T> implements ObservableMut<T> {
     Store.instance.subscribeEdgeById(id, (sld) => weak.target?._update(sld), this);
   }
 
-  bool get exists => _dst != null;
-
   @override
   T get(Observer? o) {
     if (o != null) connect(o);
     final dst = this._dst;
     if (dst == null) throw AlreadyDeletedException();
-    final res = _repository.get(dst).get(o);
-    if (res == null) throw AlreadyDeletedException();
-    return res;
+    return _repository.get(dst).get(o)!;
+    // This should never be `null`, and is guaranteed by stickiness constraints.
   }
 
   void _update((Id, int, Id)? sld) {
-    final existenceChanged = (_dst == null) != (sld == null);
     _dst = (sld == null) ? null : sld.$3;
-    if (existenceChanged) parent?.notifyAll();
     notifyAll();
   }
 
   @override
   void set(T value) {
     Store.instance.setEdge(id, (src, label, _repository.id(value)));
+    Store.instance.barrier();
   }
 }

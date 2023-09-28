@@ -9,16 +9,18 @@ import 'ffi/native_structs.dart';
 import 'multimap.dart';
 import 'serializer.dart';
 import 'store/id.dart';
-import 'store/schema.dart';
+import 'store/repository.dart';
 
 export 'store/id.dart';
 export 'store/schema.dart';
 export 'store/repository.dart';
+export 'store/node.dart';
 export 'store/atom.dart';
 export 'store/link.dart';
 export 'store/multilinks.dart';
 export 'store/backlinks.dart';
-export 'store/all_atoms.dart';
+
+class AlreadyDeletedException<T> implements Exception {}
 
 ByteData _view(CArrayUint8 array) => array.ptr.asTypedList(array.len).buffer.asByteData();
 
@@ -67,27 +69,25 @@ class Store {
   late final _edgeByDstFinalizer = Finalizer<(Id, EdgeByDstSubscription)>(_unsubscribeEdgeByDst);
   late final _edgeByDstLabelFinalizer = Finalizer<((Id, int), EdgeByDstLabelSubscription)>(_unsubscribeEdgeByDstLabel);
 
-  /// Private constructor.
-  Store._(this.bindings, String databasePath) {
-    final ptr = databasePath.toNativeUtf8(allocator: malloc);
-    bindings.open(ptr.length, ptr.cast<Uint8>());
-    malloc.free(ptr);
-  }
+  Store._(this.bindings);
 
   /// The global [Store] instance.
   static Store? _instance;
 
   /// Initialises the global [Store] instance.
-  static void open(String databasePath, List<Schema> schemas) {
+  static void open(String databasePath, List<Repository> repositories) {
     final bindings = getNativeBindings();
-    for (final schema in schemas) {
-      schema.initialized = true;
+    for (final repository in repositories) {
+      final schema = repository.init();
       for (final label in schema.stickyNodes) bindings.add_sticky_node(label);
       for (final label in schema.stickyAtoms) bindings.add_sticky_atom(label);
       for (final label in schema.stickyEdges) bindings.add_sticky_edge(label);
       for (final label in schema.acyclicEdges) bindings.add_acyclic_edge(label);
     }
-    _instance = Store._(bindings, databasePath);
+    final ptr = databasePath.toNativeUtf8(allocator: malloc);
+    bindings.open(ptr.length, ptr.cast<Uint8>());
+    malloc.free(ptr);
+    _instance = Store._(bindings);
   }
 
   /// Disconnects the global [Store] instance.
