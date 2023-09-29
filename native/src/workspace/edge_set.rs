@@ -14,11 +14,15 @@ pub struct EdgeSet {
 /// `(bucket, clock, (src, label, dst))`.
 type Item = (u64, u64, Option<(u128, u64, u128)>);
 
+fn item_lt(lhs: &Item, rhs: &Item) -> bool {
+  (lhs.1, lhs.0) < (rhs.1, rhs.0)
+}
+
 /// Database interface for [`EdgeSet`].
 pub trait EdgeSetTransactor: StructureMetadataTransactor {
   fn init(&mut self, prefix: &str, name: &str);
   fn get(&self, prefix: &str, name: &str, id: u128) -> Option<Item>;
-  fn set(&mut self, prefix: &str, name: &str, id: u128, item: &Item);
+  fn set(&mut self, prefix: &str, name: &str, id: u128, item: Item);
   fn id_label_dst_by_src(&self, prefix: &str, name: &str, src: u128) -> BTreeMap<u128, (u64, u128)>;
   fn id_dst_by_src_label(&self, prefix: &str, name: &str, src: u128, label: u64) -> BTreeMap<u128, u128>;
   fn id_src_label_by_dst(&self, prefix: &str, name: &str, dst: u128) -> BTreeMap<u128, (u128, u64)>;
@@ -133,7 +137,7 @@ impl EdgeSet {
     res
   }
 
-  /// Modifies item. Returns previous value if updated.
+  /// Modifies item.
   pub fn set(
     &mut self,
     txr: &impl EdgeSetTransactor,
@@ -143,27 +147,32 @@ impl EdgeSet {
     sld: Option<(u128, u64, u128)>,
   ) -> bool {
     if self.metadata.update(bucket, clock) {
+      let item = (bucket, clock, sld);
       match self.mods.entry(id) {
         Entry::Vacant(entry) => {
           let prev = txr.get(self.metadata.prefix(), self.metadata.name(), id);
-          entry.insert((prev, (bucket, clock, sld)));
+          if prev.is_none() || item_lt(prev.as_ref().unwrap(), &item) {
+            entry.insert((prev, item));
+            return true;
+          }
         }
         Entry::Occupied(mut entry) => {
-          entry.get_mut().1 = (bucket, clock, sld);
+          if item_lt(&entry.get().1, &item) {
+            entry.get_mut().1 = item;
+            return true;
+          }
         }
       }
-      return true;
     }
     false
   }
 
-  /// Saves and returns all pending modifications.
-  pub fn save(&mut self, txr: &mut impl EdgeSetTransactor) -> BTreeMap<u128, (Option<Item>, Item)> {
+  /// Saves all pending modifications.
+  pub fn save(&mut self, txr: &mut impl EdgeSetTransactor) {
     self.metadata.save(txr);
-    for (id, (_, curr)) in &self.mods {
-      txr.set(self.prefix(), self.name(), *id, curr);
+    for (id, (_, curr)) in std::mem::take(&mut self.mods) {
+      txr.set(self.prefix(), self.name(), id, curr);
     }
-    std::mem::take(&mut self.mods)
   }
 }
 
@@ -210,21 +219,13 @@ fn read_row_id_src(row: &Row<'_>) -> (u128, u128) {
   (u128::from_be_bytes(id), u128::from_be_bytes(src))
 }
 
-#[allow(clippy::type_complexity)]
-fn make_row(
-  id: u128,
-  item: &Item,
-) -> ([u8; 16], [u8; 8], [u8; 8], Option<[u8; 16]>, Option<[u8; 8]>, Option<[u8; 16]>) {
+fn make_row(id: u128, item: Item) -> ([u8; 16], [u8; 8], [u8; 8], Option<[u8; 16]>, Option<[u8; 8]>, Option<[u8; 16]>) {
   let (bucket, clock, sld) = item;
-  let sld = sld.as_ref();
-  (
-    id.to_be_bytes(),
-    bucket.to_be_bytes(),
-    clock.to_be_bytes(),
-    sld.map(|(src, _, _)| src.to_be_bytes()),
-    sld.map(|(_, label, _)| label.to_be_bytes()),
-    sld.map(|(_, _, dst)| dst.to_be_bytes()),
-  )
+  let (src, label, dst) = match sld {
+    Some((src, label, dst)) => (Some(src.to_be_bytes()), Some(label.to_be_bytes()), Some(dst.to_be_bytes())),
+    None => (None, None, None),
+  };
+  (id.to_be_bytes(), bucket.to_be_bytes(), clock.to_be_bytes(), src, label, dst)
 }
 
 impl EdgeSetTransactor for Transactor {
@@ -263,7 +264,7 @@ impl EdgeSetTransactor for Transactor {
       .map(|(_, item)| item)
   }
 
-  fn set(&mut self, prefix: &str, name: &str, id: u128, item: &Item) {
+  fn set(&mut self, prefix: &str, name: &str, id: u128, item: Item) {
     self
       .prepare_cached(&format!("REPLACE INTO \"{prefix}.{name}.data\" VALUES (?, ?, ?, ?, ?, ?)"))
       .unwrap()

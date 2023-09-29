@@ -14,11 +14,15 @@ pub struct NodeSet {
 /// `(bucket, clock, label)`.
 type Item = (u64, u64, Option<u64>);
 
+fn item_lt(lhs: &Item, rhs: &Item) -> bool {
+  (lhs.1, lhs.0) < (rhs.1, rhs.0)
+}
+
 /// Database interface for [`NodeSet`].
 pub trait NodeSetTransactor: StructureMetadataTransactor {
   fn init(&mut self, prefix: &str, name: &str);
   fn get(&self, prefix: &str, name: &str, id: u128) -> Option<Item>;
-  fn set(&mut self, prefix: &str, name: &str, id: u128, item: &Item);
+  fn set(&mut self, prefix: &str, name: &str, id: u128, item: Item);
   fn id_by_label(&self, prefix: &str, name: &str, label: u64) -> BTreeMap<u128, ()>;
   fn by_bucket_clock_range(&self, prefix: &str, name: &str, bucket: u64, lower: Option<u64>) -> BTreeMap<u128, Item>;
 }
@@ -104,27 +108,32 @@ impl NodeSet {
   /// Modifies item.
   pub fn set(&mut self, txr: &impl NodeSetTransactor, id: u128, bucket: u64, clock: u64, l: Option<u64>) -> bool {
     if self.metadata.update(bucket, clock) {
+      let item = (bucket, clock, l);
       match self.mods.entry(id) {
         Entry::Vacant(entry) => {
           let prev = txr.get(self.metadata.prefix(), self.metadata.name(), id);
-          entry.insert((prev, (bucket, clock, l)));
+          if prev.is_none() || item_lt(prev.as_ref().unwrap(), &item) {
+            entry.insert((prev, item));
+            return true;
+          }
         }
         Entry::Occupied(mut entry) => {
-          entry.get_mut().1 = (bucket, clock, l);
+          if item_lt(&entry.get().1, &item) {
+            entry.get_mut().1 = item;
+            return true;
+          }
         }
       }
-      return true;
     }
     false
   }
 
-  /// Saves and returns all pending modifications.
-  pub fn save(&mut self, txr: &mut impl NodeSetTransactor) -> BTreeMap<u128, (Option<Item>, Item)> {
+  /// Saves all pending modifications.
+  pub fn save(&mut self, txr: &mut impl NodeSetTransactor) {
     self.metadata.save(txr);
-    for (id, (_, curr)) in &self.mods {
-      txr.set(self.prefix(), self.name(), *id, curr);
+    for (id, (_, curr)) in std::mem::take(&mut self.mods) {
+      txr.set(self.prefix(), self.name(), id, curr);
     }
-    std::mem::take(&mut self.mods)
   }
 }
 
@@ -141,10 +150,9 @@ fn read_row_id(row: &Row<'_>) -> (u128, ()) {
   (u128::from_be_bytes(id), ())
 }
 
-#[allow(clippy::type_complexity)]
-fn make_row(id: u128, item: &Item) -> ([u8; 16], [u8; 8], [u8; 8], Option<[u8; 8]>) {
-  let (bucket, clock, label) = item;
-  (id.to_be_bytes(), bucket.to_be_bytes(), clock.to_be_bytes(), label.map(|label| label.to_be_bytes()))
+fn make_row(id: u128, item: Item) -> ([u8; 16], [u8; 8], [u8; 8], Option<[u8; 8]>) {
+  let (bucket, clock, l) = item;
+  (id.to_be_bytes(), bucket.to_be_bytes(), clock.to_be_bytes(), l.map(|label| label.to_be_bytes()))
 }
 
 impl NodeSetTransactor for Transactor {
@@ -180,7 +188,7 @@ impl NodeSetTransactor for Transactor {
       .map(|(_, item)| item)
   }
 
-  fn set(&mut self, prefix: &str, name: &str, id: u128, item: &Item) {
+  fn set(&mut self, prefix: &str, name: &str, id: u128, item: Item) {
     self
       .prepare_cached(&format!("REPLACE INTO \"{prefix}.{name}.data\" VALUES (?, ?, ?, ?)"))
       .unwrap()

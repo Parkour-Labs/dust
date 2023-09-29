@@ -90,9 +90,7 @@ pub extern "C" fn qinhuai_commit() -> CResult<CUnit> {
 #[no_mangle]
 pub extern "C" fn qinhuai_close() -> CResult<CUnit> {
   convert_result(|| {
-    STORE.with(|cell| {
-      cell.take().ok_or(StoreError::Uninitialised)?.close()?;
-      Ok(CUnit(0))
-    })
+    STORE.with(|cell| cell.take()).ok_or(StoreError::Uninitialised)?.close()?;
+    Ok(CUnit(0))
   })
 }

@@ -129,6 +129,10 @@ impl Workspace {
 
     // The set of nodes which definitely violate (3), or possibly are endpoints of atoms/edges violating (1) (2).
     let mut nodes = BTreeSet::<u128>::new();
+    // The set of atoms which definitely violate (1).
+    let mut atoms = BTreeSet::<u128>::new();
+    // The set of edges which definitely violate (2) or (4).
+    let mut edges = BTreeSet::<u128>::new();
 
     for (id, prev, curr) in self.nodes.mods() {
       if let Some(label) = prev {
@@ -151,7 +155,7 @@ impl Workspace {
       }
       if let Some((src, _, _)) = curr {
         if !self.nodes.exists(txr, src) {
-          self.set_atom(txr, id, None); // `curr` exists, `src` node does not exist (1)
+          atoms.insert(id); // `curr` exists, `src` node does not exist (1)
         }
       }
     }
@@ -169,14 +173,20 @@ impl Workspace {
           || (self.constraints.acyclic_edges.contains(&label)
             && self.reachable(txr, label, dst, src, &mut BTreeSet::new()))
         {
-          self.set_edge(txr, id, None); // `curr` exists, `src` or `dst` node does not exist (2) or cyclic (4)
+          edges.insert(id); // `curr` exists, `src` or `dst` node does not exist (2) or cyclic (4)
           if self.constraints.sticky_edges.contains(&label) {
-            nodes.insert(src); // `curr` is sticky, `curr` is removed (?)
+            nodes.insert(src); // `curr` is sticky, `curr` is removed
           }
         }
       }
     }
 
+    while let Some(id) = atoms.pop_first() {
+      self.set_atom(txr, id, None);
+    }
+    while let Some(id) = edges.pop_first() {
+      self.set_edge(txr, id, None);
+    }
     while let Some(id) = nodes.pop_first() {
       if self.nodes.exists(txr, id) {
         self.set_node(txr, id, None);
@@ -190,33 +200,28 @@ impl Workspace {
       for (edge, (src, label)) in self.edge_id_src_label_by_dst(txr, id) {
         self.set_edge(txr, edge, None);
         if self.constraints.sticky_edges.contains(&label) {
-          nodes.insert(src); // `curr` is sticky, `curr` is removed (?)
+          nodes.insert(src); // `curr` is sticky, `curr` is removed
         }
       }
     }
 
+    // Collect all modifications.
     let mut res = Vec::new();
-    for (id, (prev, curr)) in self.nodes.save(txr) {
-      res.push(CEventData::Node {
-        id: id.into(),
-        prev: prev.and_then(|(_, _, l)| l).map(Into::into).into(),
-        curr: curr.2.map(Into::into).into(),
-      })
+    for (id, prev, curr) in self.nodes.mods() {
+      res.push(CEventData::Node { id: id.into(), prev: prev.map(Into::into).into(), curr: curr.map(Into::into).into() })
     }
-    for (id, (prev, curr)) in self.atoms.save(txr) {
-      res.push(CEventData::Atom {
-        id: id.into(),
-        prev: prev.and_then(|(_, _, l)| l).map(Into::into).into(),
-        curr: curr.2.map(Into::into).into(),
-      })
+    for (id, prev, curr) in self.atoms.mods() {
+      res.push(CEventData::Atom { id: id.into(), prev: prev.map(Into::into).into(), curr: curr.map(Into::into).into() })
     }
-    for (id, (prev, curr)) in self.edges.save(txr) {
-      res.push(CEventData::Edge {
-        id: id.into(),
-        prev: prev.and_then(|(_, _, l)| l).map(Into::into).into(),
-        curr: curr.2.map(Into::into).into(),
-      })
+    for (id, prev, curr) in self.edges.mods() {
+      res.push(CEventData::Edge { id: id.into(), prev: prev.map(Into::into).into(), curr: curr.map(Into::into).into() })
     }
+
+    // Apply and save all modifications.
+    self.nodes.save(txr);
+    self.atoms.save(txr);
+    self.edges.save(txr);
+
     res
   }
 

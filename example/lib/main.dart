@@ -38,8 +38,8 @@ class MyHomePage extends StatelessWidget {
           child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
-          // Text('${fnv64Hash("hello")}'),
-          // Text('${testHash("hello")}'),
+          // Text('${fnv64Hash('hello')}'),
+          // Text('${testHash('hello')}'),
           Text('${testList()}'),
         ],
       )),

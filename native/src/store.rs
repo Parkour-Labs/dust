@@ -28,8 +28,8 @@ impl Store {
     Ok(())
   }
 
-  pub fn close(mut self) -> Result<(), StoreError> {
-    let txr = self.txr.take().ok_or(StoreError::Disconnected)?;
+  pub fn close(self) -> Result<(), StoreError> {
+    let txr = self.txr.ok_or(StoreError::Disconnected)?;
     let conn: Connection = txr.try_into()?;
     conn.close().map_err(|(_, err)| err)?;
     Ok(())

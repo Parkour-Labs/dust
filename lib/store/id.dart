@@ -22,6 +22,6 @@ final class Id {
 
   @override
   String toString() {
-    return "${high.toRadixString(16)}${low.toRadixString(16)}";
+    return '${high.toRadixString(16)}${low.toRadixString(16)}';
   }
 }

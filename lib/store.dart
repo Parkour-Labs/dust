@@ -1,5 +1,6 @@
 // ignore_for_file: curly_braces_in_flow_control_structures
 
+import 'dart:async';
 import 'dart:ffi';
 import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
@@ -42,6 +43,7 @@ typedef EdgeByDstLabelSubscription = (void Function(Id id, Id src), void Functio
 /// Also responsible for subscriptions and reactivity.
 class Store {
   final NativeBindings bindings;
+  Timer? committer;
 
   final nodeById = MultiMap<Id, NodeByIdSubscription>();
   final nodeByLabel = MultiMap<int, NodeByLabelSubscription>();
@@ -92,7 +94,8 @@ class Store {
 
   /// Disconnects the global [Store] instance.
   static void close() {
-    _instance?.bindings.qinhuai_close();
+    instance.committer?.cancel();
+    instance.bindings.qinhuai_close();
     _instance = null;
   }
 
@@ -479,12 +482,8 @@ class Store {
     }
     bindings.qinhuai_drop_array_event_data(data);
 
-    // Temporary: commit after each barrier
-    bindings.qinhuai_commit();
-  }
-
-  /// Saves all modifications.
-  void commit() {
-    bindings.qinhuai_commit();
+    // Debounced commit after each barrier.
+    committer?.cancel();
+    committer = Timer(const Duration(milliseconds: 200), bindings.qinhuai_commit);
   }
 }

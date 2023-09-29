@@ -14,11 +14,15 @@ pub struct AtomSet {
 /// `(bucket, clock, (src, label, value))`.
 type Item = (u64, u64, Option<(u128, u64, Box<[u8]>)>);
 
+fn item_lt(lhs: &Item, rhs: &Item) -> bool {
+  (lhs.1, lhs.0) < (rhs.1, rhs.0)
+}
+
 /// Database interface for [`AtomSet`].
 pub trait AtomSetTransactor: StructureMetadataTransactor {
   fn init(&mut self, prefix: &str, name: &str);
   fn get(&self, prefix: &str, name: &str, id: u128) -> Option<Item>;
-  fn set(&mut self, prefix: &str, name: &str, id: u128, item: &Item);
+  fn set(&mut self, prefix: &str, name: &str, id: u128, item: Item);
   fn id_label_value_by_src(&self, prefix: &str, name: &str, src: u128) -> BTreeMap<u128, (u64, Box<[u8]>)>;
   fn id_value_by_src_label(&self, prefix: &str, name: &str, src: u128, label: u64) -> BTreeMap<u128, Box<[u8]>>;
   fn id_src_value_by_label(&self, prefix: &str, name: &str, label: u64) -> BTreeMap<u128, (u128, Box<[u8]>)>;
@@ -148,27 +152,32 @@ impl AtomSet {
     slv: Option<(u128, u64, Box<[u8]>)>,
   ) -> bool {
     if self.metadata.update(bucket, clock) {
+      let item = (bucket, clock, slv);
       match self.mods.entry(id) {
         Entry::Vacant(entry) => {
           let prev = txr.get(self.metadata.prefix(), self.metadata.name(), id);
-          entry.insert((prev, (bucket, clock, slv)));
+          if prev.is_none() || item_lt(prev.as_ref().unwrap(), &item) {
+            entry.insert((prev, item));
+            return true;
+          }
         }
         Entry::Occupied(mut entry) => {
-          entry.get_mut().1 = (bucket, clock, slv);
+          if item_lt(&entry.get().1, &item) {
+            entry.get_mut().1 = item;
+            return true;
+          }
         }
       }
-      return true;
     }
     false
   }
 
-  /// Saves and returns all pending modifications.
-  pub fn save(&mut self, txr: &mut impl AtomSetTransactor) -> BTreeMap<u128, (Option<Item>, Item)> {
+  /// Saves all pending modifications.
+  pub fn save(&mut self, txr: &mut impl AtomSetTransactor) {
     self.metadata.save(txr);
-    for (id, (_, curr)) in &self.mods {
-      txr.set(self.prefix(), self.name(), *id, curr);
+    for (id, (_, curr)) in std::mem::take(&mut self.mods) {
+      txr.set(self.prefix(), self.name(), id, curr);
     }
-    std::mem::take(&mut self.mods)
   }
 }
 
@@ -215,18 +224,16 @@ fn read_row_id_src(row: &Row<'_>) -> (u128, u128) {
   (u128::from_be_bytes(id), u128::from_be_bytes(src))
 }
 
-#[allow(clippy::type_complexity)]
-fn make_row(id: u128, item: &Item) -> ([u8; 16], [u8; 8], [u8; 8], Option<[u8; 16]>, Option<[u8; 8]>, Option<&[u8]>) {
+fn make_row(
+  id: u128,
+  item: Item,
+) -> ([u8; 16], [u8; 8], [u8; 8], Option<[u8; 16]>, Option<[u8; 8]>, Option<Box<[u8]>>) {
   let (bucket, clock, slv) = item;
-  let slv = slv.as_ref();
-  (
-    id.to_be_bytes(),
-    bucket.to_be_bytes(),
-    clock.to_be_bytes(),
-    slv.map(|(src, _, _)| src.to_be_bytes()),
-    slv.map(|(_, label, _)| label.to_be_bytes()),
-    slv.map(|(_, _, value)| value.as_ref()),
-  )
+  let (src, label, value) = match slv {
+    Some((src, label, value)) => (Some(src.to_be_bytes()), Some(label.to_be_bytes()), Some(value)),
+    None => (None, None, None),
+  };
+  (id.to_be_bytes(), bucket.to_be_bytes(), clock.to_be_bytes(), src, label, value)
 }
 
 impl AtomSetTransactor for Transactor {
@@ -265,7 +272,7 @@ impl AtomSetTransactor for Transactor {
       .map(|(_, item)| item)
   }
 
-  fn set(&mut self, prefix: &str, name: &str, id: u128, item: &Item) {
+  fn set(&mut self, prefix: &str, name: &str, id: u128, item: Item) {
     self
       .prepare_cached(&format!("REPLACE INTO \"{prefix}.{name}.data\" VALUES (?, ?, ?, ?, ?, ?)"))
       .unwrap()

@@ -1,6 +1,7 @@
 import 'dart:ffi';
 
 import 'package:qinhuai/ffi.dart';
+import 'package:qinhuai/reactive.dart';
 import 'package:qinhuai/store.dart';
 import 'package:qinhuai/serializer.dart';
 import 'package:qinhuai/annotations.dart';
@@ -139,7 +140,7 @@ void main() {
       bindings.qinhuai_test_result_unit_err();
       assert(false);
     } on NativeError catch (err) {
-      assert(err.toString() == "message");
+      assert(err.toString() == 'message');
     }
 
     final arrayEventData = bindings.qinhuai_test_array_event_data();
@@ -221,57 +222,57 @@ void main() {
       final trivial = Trivial.create();
       final trivialAgain = Trivial.create();
 
-      final something = Something.create(atomOne: "test", atomTwo: "2333", linkOne: trivial, linkTwo: trivial);
-      final somethingElse = Something.create(atomOne: "test", linkOne: trivial);
+      final something = Something.create(atomOne: 'test', atomTwo: '2333', linkOne: trivial, linkTwo: trivial);
+      final somethingElse = Something.create(atomOne: 'test', linkOne: trivial);
       somethingElse.linkThree.insert(something);
 
-      final somethingCopy = const $SomethingRepository().get(something.id).get(null)!;
-      final somethingElseCopy = const $SomethingRepository().get(somethingElse.id).get(null)!;
+      final somethingCopy = const $SomethingRepository().get(something.id).peek()!;
+      final somethingElseCopy = const $SomethingRepository().get(somethingElse.id).peek()!;
 
-      assert(somethingCopy.atomOne.get(null) == "test");
-      assert(somethingCopy.atomTwo.get(null)! == "2333");
-      assert(somethingCopy.linkOne.get(null).id == trivial.id);
-      assert(somethingCopy.linkTwo.get(null)!.id == trivial.id);
-      assert(somethingCopy.linkThree.get(null).isEmpty);
+      assert(somethingCopy.atomOne.peek() == 'test');
+      assert(somethingCopy.atomTwo.peek()! == '2333');
+      assert(somethingCopy.linkOne.peek().id == trivial.id);
+      assert(somethingCopy.linkTwo.peek()!.id == trivial.id);
+      assert(somethingCopy.linkThree.peek().isEmpty);
 
-      assert(somethingElseCopy.atomOne.get(null) == "test");
-      assert(somethingElseCopy.atomTwo.get(null) == null);
-      assert(somethingElseCopy.linkOne.get(null).id == trivial.id);
-      assert(somethingElseCopy.linkTwo.get(null) == null);
-      assert(somethingElseCopy.linkThree.get(null).length == 1);
-      assert(somethingElseCopy.linkThree.get(null).single.id == something.id);
+      assert(somethingElseCopy.atomOne.peek() == 'test');
+      assert(somethingElseCopy.atomTwo.peek() == null);
+      assert(somethingElseCopy.linkOne.peek().id == trivial.id);
+      assert(somethingElseCopy.linkTwo.peek() == null);
+      assert(somethingElseCopy.linkThree.peek().length == 1);
+      assert(somethingElseCopy.linkThree.peek().single.id == something.id);
 
       somethingCopy.atomTwo.set(null);
-      assert(somethingCopy.atomTwo.get(null) == null);
-      somethingCopy.atomTwo.set("gg");
-      assert(somethingCopy.atomTwo.get(null)! == "gg");
+      assert(somethingCopy.atomTwo.peek() == null);
+      somethingCopy.atomTwo.set('gg');
+      assert(somethingCopy.atomTwo.peek()! == 'gg');
       somethingCopy.linkTwo.set(null);
-      assert(somethingCopy.linkTwo.get(null) == null);
+      assert(somethingCopy.linkTwo.peek() == null);
       somethingCopy.linkTwo.set(trivialAgain);
-      assert(somethingCopy.linkTwo.get(null)!.id == trivialAgain.id);
+      assert(somethingCopy.linkTwo.peek()!.id == trivialAgain.id);
 
-      assert(something.backlink.get(null).length == 1);
+      assert(something.backlink.peek().length == 1);
       something.linkThree.insert(something);
-      assert(something.backlink.get(null).length == 2);
+      assert(something.backlink.peek().length == 2);
       something.linkThree.insert(something);
-      assert(something.backlink.get(null).length == 3);
+      assert(something.backlink.peek().length == 3);
       something.linkThree.remove(something);
-      assert(something.backlink.get(null).length == 2);
+      assert(something.backlink.peek().length == 2);
       somethingElse.linkThree.remove(something);
-      assert(something.backlink.get(null).length == 1);
+      assert(something.backlink.peek().length == 1);
 
       something.delete();
-      assert(const $SomethingRepository().get(something.id).get(null) == null);
+      assert(const $SomethingRepository().get(something.id).peek() == null);
       Store.instance.setAtom(somethingElse.atomOne.id, null);
       Store.instance.barrier();
-      assert(const $SomethingRepository().get(somethingElse.id).get(null) == null);
+      assert(const $SomethingRepository().get(somethingElse.id).peek() == null);
     });
 
     test('object_store_perf', () {
-      final something = Something.create(atomOne: "", linkOne: Trivial.create());
+      final something = Something.create(atomOne: '', linkOne: Trivial.create());
       final stopwatch = Stopwatch()..start();
       for (var i = 0; i < 100000; i++) {
-        something.atomOne.set("value: $i");
+        something.atomOne.set('value: $i');
       }
       debugPrint('Elapsed: ${stopwatch.elapsed}');
     });
