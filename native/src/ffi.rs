@@ -37,27 +37,27 @@ pub fn access_workspace<T>(f: impl FnOnce(&mut Transactor, &mut Workspace) -> Re
 }
 
 #[no_mangle]
-pub extern "C" fn beacons_add_sticky_node(label: u64) {
+pub extern "C" fn qinhuai_add_sticky_node(label: u64) {
   CONSTRAINTS.with(|cell| cell.borrow_mut().add_sticky_node(label));
 }
 
 #[no_mangle]
-pub extern "C" fn beacons_add_sticky_atom(label: u64) {
+pub extern "C" fn qinhuai_add_sticky_atom(label: u64) {
   CONSTRAINTS.with(|cell| cell.borrow_mut().add_sticky_atom(label));
 }
 
 #[no_mangle]
-pub extern "C" fn beacons_add_sticky_edge(label: u64) {
+pub extern "C" fn qinhuai_add_sticky_edge(label: u64) {
   CONSTRAINTS.with(|cell| cell.borrow_mut().add_sticky_edge(label));
 }
 
 #[no_mangle]
-pub extern "C" fn beacons_add_acyclic_edge(label: u64) {
+pub extern "C" fn qinhuai_add_acyclic_edge(label: u64) {
   CONSTRAINTS.with(|cell| cell.borrow_mut().add_acyclic_edge(label));
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn beacons_open(len: u64, ptr: *mut u8) -> CResult<CUnit> {
+pub unsafe extern "C" fn qinhuai_open(len: u64, ptr: *mut u8) -> CResult<CUnit> {
   convert_result(|| {
     let path = CArray(len, ptr).as_ref();
     let conn = Connection::open(std::str::from_utf8(path).map_err(|_| StoreError::InvalidUtf8)?)?;
@@ -78,7 +78,7 @@ pub unsafe extern "C" fn beacons_open(len: u64, ptr: *mut u8) -> CResult<CUnit> 
 }
 
 #[no_mangle]
-pub extern "C" fn beacons_commit() -> CResult<CUnit> {
+pub extern "C" fn qinhuai_commit() -> CResult<CUnit> {
   convert_result(|| {
     STORE.with(|cell| {
       cell.borrow_mut().as_mut().ok_or(StoreError::Uninitialised)?.commit()?;
@@ -88,7 +88,7 @@ pub extern "C" fn beacons_commit() -> CResult<CUnit> {
 }
 
 #[no_mangle]
-pub extern "C" fn beacons_close() -> CResult<CUnit> {
+pub extern "C" fn qinhuai_close() -> CResult<CUnit> {
   convert_result(|| {
     STORE.with(|cell| {
       cell.take().ok_or(StoreError::Uninitialised)?.close()?;

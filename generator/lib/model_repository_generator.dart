@@ -3,7 +3,7 @@ import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:build/build.dart';
 import 'package:source_gen/source_gen.dart';
-import 'package:beacons/annotations.dart';
+import 'package:qinhuai/annotations.dart';
 
 import 'serializable_generator.dart';
 import 'utils.dart';

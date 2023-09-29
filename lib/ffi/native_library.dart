@@ -8,11 +8,11 @@ DynamicLibrary? _nativeLibrary;
 
 DynamicLibrary _loadNativeLibrary() {
   final library = switch (defaultTargetPlatform) {
-    TargetPlatform.android => DynamicLibrary.open('libbeacons.so'),
+    TargetPlatform.android => DynamicLibrary.open('libqinhuai.so'),
     TargetPlatform.iOS => DynamicLibrary.process(),
     TargetPlatform.macOS => DynamicLibrary.process(),
-    TargetPlatform.linux => DynamicLibrary.open('libbeacons.so'),
-    TargetPlatform.windows => DynamicLibrary.open('beacons.dll'),
+    TargetPlatform.linux => DynamicLibrary.open('libqinhuai.so'),
+    TargetPlatform.windows => DynamicLibrary.open('qinhuai.dll'),
     _ => throw UnimplementedError()
   };
   return library;

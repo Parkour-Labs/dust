@@ -1,6 +1,6 @@
 import 'dart:ffi';
 
-import 'package:beacons/ffi.dart';
+import 'package:qinhuai/ffi.dart';
 import 'package:flutter/material.dart';
 
 void main() {
@@ -57,5 +57,5 @@ int testHash(String name) {
 */
 
 List<int> testList() {
-  return getNativeBindings().beacons_test_array_u8().ptr.asTypedList(5).toList();
+  return getNativeBindings().qinhuai_test_array_u8().ptr.asTypedList(5).toList();
 }

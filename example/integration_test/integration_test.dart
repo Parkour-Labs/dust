@@ -1,9 +1,9 @@
 import 'dart:ffi';
 
-import 'package:beacons/ffi.dart';
-import 'package:beacons/store.dart';
-import 'package:beacons/serializer.dart';
-import 'package:beacons/annotations.dart';
+import 'package:qinhuai/ffi.dart';
+import 'package:qinhuai/store.dart';
+import 'package:qinhuai/serializer.dart';
+import 'package:qinhuai/annotations.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path_provider/path_provider.dart';
@@ -74,23 +74,23 @@ class Something {
 
 /// These tests must be run with native binaries bundled alongside.
 /// This can be done with `flutter test integration_test`.
-void main() async {
+void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   test('native_param_passing', () {
     final bindings = getNativeBindings();
 
-    final id = Id.fromNative(bindings.beacons_test_id());
+    final id = Id.fromNative(bindings.qinhuai_test_id());
     assert(id == const Id(233, 666));
 
-    final uid = Id.fromNative(bindings.beacons_test_id_unsigned());
+    final uid = Id.fromNative(bindings.qinhuai_test_id_unsigned());
     assert(uid == const Id(kIntMin + 233, kIntMin + 666));
 
-    final arrayUint8 = bindings.beacons_test_array_u8();
+    final arrayUint8 = bindings.qinhuai_test_array_u8();
     assert(arrayUint8.len == 5 && listEquals(arrayUint8.ptr.asTypedList(5), [1, 2, 3, 233, 234]));
-    bindings.beacons_drop_array_u8(arrayUint8);
+    bindings.qinhuai_drop_array_u8(arrayUint8);
 
-    final arrayIdId = bindings.beacons_test_array_id_id();
+    final arrayIdId = bindings.qinhuai_test_array_id_id();
     assert(arrayIdId.len == 2);
     {
       final first = arrayIdId.ptr.elementAt(0).ref;
@@ -99,9 +99,9 @@ void main() async {
       assert(Id.fromNative(second.first) == const Id(0, 1));
       assert(Id.fromNative(second.second) == const Id(1, 0));
     }
-    bindings.beacons_drop_array_id_id(arrayIdId);
+    bindings.qinhuai_drop_array_id_id(arrayIdId);
 
-    final arrayIdUint64Id = bindings.beacons_test_array_id_u64_id();
+    final arrayIdUint64Id = bindings.qinhuai_test_array_id_u64_id();
     assert(arrayIdUint64Id.len == 2);
     {
       final first = arrayIdUint64Id.ptr.elementAt(0).ref;
@@ -111,38 +111,38 @@ void main() async {
           second.second == 234 &&
           Id.fromNative(second.third) == const Id(1, 0));
     }
-    bindings.beacons_drop_array_id_u64_id(arrayIdUint64Id);
+    bindings.qinhuai_drop_array_id_u64_id(arrayIdUint64Id);
 
-    final atomSome = bindings.beacons_test_option_atom_some();
+    final atomSome = bindings.qinhuai_test_option_atom_some();
     assert(atomSome.tag == 1 &&
         Id.fromNative(atomSome.some.src) == id &&
         atomSome.some.label == kIntMin + 1 &&
         listEquals(atomSome.some.value.ptr.asTypedList(5), [1, 2, 3, 233, 234]));
-    bindings.beacons_drop_option_atom(atomSome);
+    bindings.qinhuai_drop_option_atom(atomSome);
 
-    final atomNone = bindings.beacons_test_option_atom_none();
+    final atomNone = bindings.qinhuai_test_option_atom_none();
     assert(atomNone.tag == 0);
-    bindings.beacons_drop_option_atom(atomSome);
+    bindings.qinhuai_drop_option_atom(atomSome);
 
-    final edgeSome = bindings.beacons_test_option_edge_some();
+    final edgeSome = bindings.qinhuai_test_option_edge_some();
     assert(edgeSome.tag == 1 &&
         Id.fromNative(edgeSome.some.src) == id &&
         edgeSome.some.label == kIntMin + 2 &&
         Id.fromNative(edgeSome.some.dst) == uid);
 
-    final edgeNone = bindings.beacons_test_option_edge_none();
+    final edgeNone = bindings.qinhuai_test_option_edge_none();
     assert(edgeNone.tag == 0);
 
-    final unit = bindings.beacons_test_result_unit_ok();
+    final unit = bindings.qinhuai_test_result_unit_ok();
     assert(unit.dummy == 0);
     try {
-      bindings.beacons_test_result_unit_err();
+      bindings.qinhuai_test_result_unit_err();
       assert(false);
     } on NativeError catch (err) {
       assert(err.toString() == "message");
     }
 
-    final arrayEventData = bindings.beacons_test_array_event_data();
+    final arrayEventData = bindings.qinhuai_test_array_event_data();
     assert(arrayEventData.len == 2);
     final first = arrayEventData.ptr.elementAt(0).ref;
     assert(first.tag == 1);
@@ -170,16 +170,16 @@ void main() async {
       assert(Id.fromNative(prev.src) == id && prev.label == 7 && Id.fromNative(prev.dst) == uid);
       assert(Id.fromNative(curr.src) == uid && curr.label == 8 && Id.fromNative(curr.dst) == id);
     }
-    bindings.beacons_drop_array_event_data(arrayEventData);
+    bindings.qinhuai_drop_array_event_data(arrayEventData);
   });
 
   test('native_dropping', () {
     final bindings = getNativeBindings();
     for (var i = 0; i < 10; i++) {
-      final arrayUint8 = bindings.beacons_test_array_u8_big(32000000); // 32MB
-      bindings.beacons_drop_array_u8(arrayUint8);
-      final arrayEventData = bindings.beacons_test_array_event_data_big(10, 1600000); // 32MB
-      bindings.beacons_drop_array_event_data(arrayEventData);
+      final arrayUint8 = bindings.qinhuai_test_array_u8_big(32000000); // 32MB
+      bindings.qinhuai_drop_array_u8(arrayUint8);
+      final arrayEventData = bindings.qinhuai_test_array_event_data_big(10, 1600000); // 32MB
+      bindings.qinhuai_drop_array_event_data(arrayEventData);
     }
   });
 

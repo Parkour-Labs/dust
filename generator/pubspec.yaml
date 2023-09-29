@@ -1,7 +1,7 @@
-name: beacons_generator
-description: Code generator for the Dart side of beacons.
+name: qinhuai_generator
+description: Code generator for the Dart side of qinhuai.
 version: 1.0.0
-repository: https://github.com/Parkour-Labs/beacons/
+repository: https://github.com/Parkour-Labs/qinhuai/
 publish_to: "none"
 
 environment:
@@ -9,7 +9,7 @@ environment:
 
 dependencies:
   analyzer: ^6.2.0
-  beacons:
+  qinhuai:
     path: ../
   build: ^2.4.1
   build_config: ^1.1.1

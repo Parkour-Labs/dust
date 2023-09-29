@@ -1,4 +1,4 @@
-name: beacons
+name: qinhuai
 description: A new Flutter FFI plugin project.
 version: 0.0.1
 homepage:
@@ -27,7 +27,7 @@ ffigen:
   output: 'generated_bindings.dart'
   headers:
     entry-points:
-      - 'native/beacons.h'
+      - 'native/qinhuai.h'
 
 flutter:
   plugin:

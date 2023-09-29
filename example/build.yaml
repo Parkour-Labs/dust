@@ -10,7 +10,7 @@ targets:
         - test/**
         - integration_test/**
     builders:
-      beacons_generator|model_repository:
+      qinhuai_generator|model_repository:
         generate_for:
           include:
             - test/**

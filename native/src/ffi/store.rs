@@ -3,12 +3,12 @@ use rand::Rng;
 use super::*;
 
 #[no_mangle]
-pub extern "C" fn beacons_random_id() -> CId {
+pub extern "C" fn qinhuai_random_id() -> CId {
   rand::thread_rng().gen::<u128>().into()
 }
 
 #[no_mangle]
-pub extern "C" fn beacons_node(idh: u64, idl: u64) -> CResult<COption<CNode>> {
+pub extern "C" fn qinhuai_node(idh: u64, idl: u64) -> CResult<COption<CNode>> {
   access_workspace(|txr, ws| {
     let id = CId(idh, idl).into();
     Ok(ws.node(txr, id).map(Into::into).into())
@@ -16,14 +16,14 @@ pub extern "C" fn beacons_node(idh: u64, idl: u64) -> CResult<COption<CNode>> {
 }
 
 #[no_mangle]
-pub extern "C" fn beacons_node_id_by_label(label: u64) -> CResult<CArray<CId>> {
+pub extern "C" fn qinhuai_node_id_by_label(label: u64) -> CResult<CArray<CId>> {
   access_workspace(|txr, ws| {
     Ok(ws.node_id_by_label(txr, label).into_keys().map(|id| id.into()).collect::<Box<[_]>>().into())
   })
 }
 
 #[no_mangle]
-pub extern "C" fn beacons_atom(idh: u64, idl: u64) -> CResult<COption<CAtom>> {
+pub extern "C" fn qinhuai_atom(idh: u64, idl: u64) -> CResult<COption<CAtom>> {
   access_workspace(|txr, ws| {
     let id = CId(idh, idl).into();
     Ok(ws.atom(txr, id).map(Into::into).into())
@@ -31,7 +31,7 @@ pub extern "C" fn beacons_atom(idh: u64, idl: u64) -> CResult<COption<CAtom>> {
 }
 
 #[no_mangle]
-pub extern "C" fn beacons_atom_id_label_value_by_src(
+pub extern "C" fn qinhuai_atom_id_label_value_by_src(
   srch: u64,
   srcl: u64,
 ) -> CResult<CArray<CTriple<CId, u64, CArray<u8>>>> {
@@ -48,7 +48,7 @@ pub extern "C" fn beacons_atom_id_label_value_by_src(
 }
 
 #[no_mangle]
-pub extern "C" fn beacons_atom_id_value_by_src_label(
+pub extern "C" fn qinhuai_atom_id_value_by_src_label(
   srch: u64,
   srcl: u64,
   label: u64,
@@ -66,7 +66,7 @@ pub extern "C" fn beacons_atom_id_value_by_src_label(
 }
 
 #[no_mangle]
-pub extern "C" fn beacons_atom_id_src_value_by_label(label: u64) -> CResult<CArray<CTriple<CId, CId, CArray<u8>>>> {
+pub extern "C" fn qinhuai_atom_id_src_value_by_label(label: u64) -> CResult<CArray<CTriple<CId, CId, CArray<u8>>>> {
   access_workspace(|txr, ws| {
     Ok(
       ws.atom_id_src_value_by_label(txr, label)
@@ -79,7 +79,7 @@ pub extern "C" fn beacons_atom_id_src_value_by_label(label: u64) -> CResult<CArr
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn beacons_atom_id_src_by_label_value(
+pub unsafe extern "C" fn qinhuai_atom_id_src_by_label_value(
   label: u64,
   len: u64,
   ptr: *mut u8,
@@ -97,7 +97,7 @@ pub unsafe extern "C" fn beacons_atom_id_src_by_label_value(
 }
 
 #[no_mangle]
-pub extern "C" fn beacons_edge(idh: u64, idl: u64) -> CResult<COption<CEdge>> {
+pub extern "C" fn qinhuai_edge(idh: u64, idl: u64) -> CResult<COption<CEdge>> {
   access_workspace(|txr, ws| {
     let id = CId(idh, idl).into();
     Ok(ws.edge(txr, id).map(Into::into).into())
@@ -105,7 +105,7 @@ pub extern "C" fn beacons_edge(idh: u64, idl: u64) -> CResult<COption<CEdge>> {
 }
 
 #[no_mangle]
-pub extern "C" fn beacons_edge_id_label_dst_by_src(srch: u64, srcl: u64) -> CResult<CArray<CTriple<CId, u64, CId>>> {
+pub extern "C" fn qinhuai_edge_id_label_dst_by_src(srch: u64, srcl: u64) -> CResult<CArray<CTriple<CId, u64, CId>>> {
   access_workspace(|txr, ws| {
     let src = CId(srch, srcl).into();
     Ok(
@@ -119,7 +119,7 @@ pub extern "C" fn beacons_edge_id_label_dst_by_src(srch: u64, srcl: u64) -> CRes
 }
 
 #[no_mangle]
-pub extern "C" fn beacons_edge_id_dst_by_src_label(
+pub extern "C" fn qinhuai_edge_id_dst_by_src_label(
   srch: u64,
   srcl: u64,
   label: u64,
@@ -137,7 +137,7 @@ pub extern "C" fn beacons_edge_id_dst_by_src_label(
 }
 
 #[no_mangle]
-pub extern "C" fn beacons_edge_id_src_label_by_dst(dsth: u64, dstl: u64) -> CResult<CArray<CTriple<CId, CId, u64>>> {
+pub extern "C" fn qinhuai_edge_id_src_label_by_dst(dsth: u64, dstl: u64) -> CResult<CArray<CTriple<CId, CId, u64>>> {
   access_workspace(|txr, ws| {
     let dst = CId(dsth, dstl).into();
     Ok(
@@ -151,7 +151,7 @@ pub extern "C" fn beacons_edge_id_src_label_by_dst(dsth: u64, dstl: u64) -> CRes
 }
 
 #[no_mangle]
-pub extern "C" fn beacons_edge_id_src_by_dst_label(
+pub extern "C" fn qinhuai_edge_id_src_by_dst_label(
   dsth: u64,
   dstl: u64,
   label: u64,
@@ -169,7 +169,7 @@ pub extern "C" fn beacons_edge_id_src_by_dst_label(
 }
 
 #[no_mangle]
-pub extern "C" fn beacons_set_node_none(idh: u64, idl: u64) -> CResult<CUnit> {
+pub extern "C" fn qinhuai_set_node_none(idh: u64, idl: u64) -> CResult<CUnit> {
   access_workspace(|txr, ws| {
     let id = CId(idh, idl).into();
     ws.set_node(txr, id, None);
@@ -178,7 +178,7 @@ pub extern "C" fn beacons_set_node_none(idh: u64, idl: u64) -> CResult<CUnit> {
 }
 
 #[no_mangle]
-pub extern "C" fn beacons_set_node_some(idh: u64, idl: u64, label: u64) -> CResult<CUnit> {
+pub extern "C" fn qinhuai_set_node_some(idh: u64, idl: u64, label: u64) -> CResult<CUnit> {
   access_workspace(|txr, ws| {
     let id = CId(idh, idl).into();
     ws.set_node(txr, id, Some(label));
@@ -187,7 +187,7 @@ pub extern "C" fn beacons_set_node_some(idh: u64, idl: u64, label: u64) -> CResu
 }
 
 #[no_mangle]
-pub extern "C" fn beacons_set_atom_none(idh: u64, idl: u64) -> CResult<CUnit> {
+pub extern "C" fn qinhuai_set_atom_none(idh: u64, idl: u64) -> CResult<CUnit> {
   access_workspace(|txr, ws| {
     let id = CId(idh, idl).into();
     ws.set_atom(txr, id, None);
@@ -196,7 +196,7 @@ pub extern "C" fn beacons_set_atom_none(idh: u64, idl: u64) -> CResult<CUnit> {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn beacons_set_atom_some(
+pub unsafe extern "C" fn qinhuai_set_atom_some(
   idh: u64,
   idl: u64,
   srch: u64,
@@ -215,7 +215,7 @@ pub unsafe extern "C" fn beacons_set_atom_some(
 }
 
 #[no_mangle]
-pub extern "C" fn beacons_set_edge_none(idh: u64, idl: u64) -> CResult<CUnit> {
+pub extern "C" fn qinhuai_set_edge_none(idh: u64, idl: u64) -> CResult<CUnit> {
   access_workspace(|txr, ws| {
     let id = CId(idh, idl).into();
     ws.set_edge(txr, id, None);
@@ -224,7 +224,7 @@ pub extern "C" fn beacons_set_edge_none(idh: u64, idl: u64) -> CResult<CUnit> {
 }
 
 #[no_mangle]
-pub extern "C" fn beacons_set_edge_some(
+pub extern "C" fn qinhuai_set_edge_some(
   idh: u64,
   idl: u64,
   srch: u64,
@@ -243,12 +243,12 @@ pub extern "C" fn beacons_set_edge_some(
 }
 
 #[no_mangle]
-pub extern "C" fn beacons_sync_version() -> CResult<CArray<u8>> {
+pub extern "C" fn qinhuai_sync_version() -> CResult<CArray<u8>> {
   access_workspace(|txr, ws| Ok(ws.sync_version(txr).into()))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn beacons_sync_actions(len: u64, ptr: *mut u8) -> CResult<CArray<u8>> {
+pub unsafe extern "C" fn qinhuai_sync_actions(len: u64, ptr: *mut u8) -> CResult<CArray<u8>> {
   access_workspace(|txr, ws| {
     let version = CArray(len, ptr).as_ref();
     Ok(ws.sync_actions(txr, version).into())
@@ -256,7 +256,7 @@ pub unsafe extern "C" fn beacons_sync_actions(len: u64, ptr: *mut u8) -> CResult
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn beacons_sync_join(len: u64, ptr: *mut u8) -> CResult<CUnit> {
+pub unsafe extern "C" fn qinhuai_sync_join(len: u64, ptr: *mut u8) -> CResult<CUnit> {
   access_workspace(|txr, ws| {
     let actions = CArray(len, ptr).as_ref();
     ws.sync_join(txr, actions);
@@ -265,6 +265,6 @@ pub unsafe extern "C" fn beacons_sync_join(len: u64, ptr: *mut u8) -> CResult<CU
 }
 
 #[no_mangle]
-pub extern "C" fn beacons_barrier() -> CResult<CArray<CEventData>> {
+pub extern "C" fn qinhuai_barrier() -> CResult<CArray<CEventData>> {
   access_workspace(|txr, ws| Ok(ws.barrier(txr).into()))
 }

@@ -79,20 +79,20 @@ class Store {
     final bindings = getNativeBindings();
     for (final repository in repositories) {
       final schema = repository.init();
-      for (final label in schema.stickyNodes) bindings.beacons_add_sticky_node(label);
-      for (final label in schema.stickyAtoms) bindings.beacons_add_sticky_atom(label);
-      for (final label in schema.stickyEdges) bindings.beacons_add_sticky_edge(label);
-      for (final label in schema.acyclicEdges) bindings.beacons_add_acyclic_edge(label);
+      for (final label in schema.stickyNodes) bindings.qinhuai_add_sticky_node(label);
+      for (final label in schema.stickyAtoms) bindings.qinhuai_add_sticky_atom(label);
+      for (final label in schema.stickyEdges) bindings.qinhuai_add_sticky_edge(label);
+      for (final label in schema.acyclicEdges) bindings.qinhuai_add_acyclic_edge(label);
     }
     final ptr = databasePath.toNativeUtf8(allocator: malloc);
-    bindings.beacons_open(ptr.length, ptr.cast<Uint8>());
+    bindings.qinhuai_open(ptr.length, ptr.cast<Uint8>());
     malloc.free(ptr);
     _instance = Store._(bindings);
   }
 
   /// Disconnects the global [Store] instance.
   static void close() {
-    _instance?.bindings.beacons_close();
+    _instance?.bindings.qinhuai_close();
     _instance = null;
   }
 
@@ -101,60 +101,60 @@ class Store {
 
   /// Makes a random 128-bit ID.
   Id randomId() {
-    return Id.fromNative(bindings.beacons_random_id());
+    return Id.fromNative(bindings.qinhuai_random_id());
   }
 
   /// Obtains node value.
   void getNodeById(Id id, void Function(int?) fn) {
-    final data = bindings.beacons_node(id.high, id.low);
+    final data = bindings.qinhuai_node(id.high, id.low);
     fn(data.tag == 0 ? null : data.some.label);
   }
 
   /// Queries the reverse index.
   void getNodeByLabel(int label, void Function(Id) fn) {
-    final data = bindings.beacons_node_id_by_label(label);
+    final data = bindings.qinhuai_node_id_by_label(label);
     for (var i = 0; i < data.len; i++) {
       final elem = data.ptr.elementAt(i).ref;
       fn(Id.fromNative(elem));
     }
-    bindings.beacons_drop_array_id(data);
+    bindings.qinhuai_drop_array_id(data);
   }
 
   /// Obtains atom value.
   void getAtomById(Id id, void Function((Id, int, ByteData)?) fn) {
-    final data = bindings.beacons_atom(id.high, id.low);
+    final data = bindings.qinhuai_atom(id.high, id.low);
     fn(data.tag == 0 ? null : (Id.fromNative(data.some.src), data.some.label, _view(data.some.value)));
-    bindings.beacons_drop_option_atom(data);
+    bindings.qinhuai_drop_option_atom(data);
   }
 
   /// Queries the forward index.
   void getAtomLabelValueBySrc(Id src, void Function(Id, int, ByteData) fn) {
-    final data = bindings.beacons_atom_id_label_value_by_src(src.high, src.low);
+    final data = bindings.qinhuai_atom_id_label_value_by_src(src.high, src.low);
     for (var i = 0; i < data.len; i++) {
       final elem = data.ptr.elementAt(i).ref;
       fn(Id.fromNative(elem.first), elem.second, _view(elem.third));
     }
-    bindings.beacons_drop_array_id_u64_array_u8(data);
+    bindings.qinhuai_drop_array_id_u64_array_u8(data);
   }
 
   /// Queries the forward index.
   void getAtomValueBySrcLabel(Id src, int label, void Function(Id, ByteData) fn) {
-    final data = bindings.beacons_atom_id_value_by_src_label(src.high, src.low, label);
+    final data = bindings.qinhuai_atom_id_value_by_src_label(src.high, src.low, label);
     for (var i = 0; i < data.len; i++) {
       final elem = data.ptr.elementAt(i).ref;
       fn(Id.fromNative(elem.first), _view(elem.second));
     }
-    bindings.beacons_drop_array_id_array_u8(data);
+    bindings.qinhuai_drop_array_id_array_u8(data);
   }
 
   /// Queries the reverse index.
   void getAtomSrcValueByLabel(int label, void Function(Id, Id, ByteData) fn) {
-    final data = bindings.beacons_atom_id_src_value_by_label(label);
+    final data = bindings.qinhuai_atom_id_src_value_by_label(label);
     for (var i = 0; i < data.len; i++) {
       final elem = data.ptr.elementAt(i).ref;
       fn(Id.fromNative(elem.first), Id.fromNative(elem.second), _view(elem.third));
     }
-    bindings.beacons_drop_array_id_id_array_u8(data);
+    bindings.qinhuai_drop_array_id_id_array_u8(data);
   }
 
   /*
@@ -166,64 +166,64 @@ class Store {
 
   /// Obtains edge value.
   void getEdgeById(Id id, void Function((Id, int, Id)?) fn) {
-    final data = bindings.beacons_edge(id.high, id.low);
+    final data = bindings.qinhuai_edge(id.high, id.low);
     fn(data.tag == 0 ? null : (Id.fromNative(data.some.src), data.some.label, Id.fromNative(data.some.dst)));
   }
 
   /// Queries the forward index.
   void getEdgeLabelDstBySrc(Id src, void Function(Id, int, Id) fn) {
-    final data = bindings.beacons_edge_id_label_dst_by_src(src.high, src.low);
+    final data = bindings.qinhuai_edge_id_label_dst_by_src(src.high, src.low);
     for (var i = 0; i < data.len; i++) {
       final elem = data.ptr.elementAt(i).ref;
       fn(Id.fromNative(elem.first), elem.second, Id.fromNative(elem.third));
     }
-    bindings.beacons_drop_array_id_u64_id(data);
+    bindings.qinhuai_drop_array_id_u64_id(data);
   }
 
   /// Queries the forward index.
   void getEdgeDstBySrcLabel(Id src, int label, void Function(Id, Id) fn) {
-    final data = bindings.beacons_edge_id_dst_by_src_label(src.high, src.low, label);
+    final data = bindings.qinhuai_edge_id_dst_by_src_label(src.high, src.low, label);
     for (var i = 0; i < data.len; i++) {
       final item = data.ptr.elementAt(i).ref;
       fn(Id.fromNative(item.first), Id.fromNative(item.second));
     }
-    bindings.beacons_drop_array_id_id(data);
+    bindings.qinhuai_drop_array_id_id(data);
   }
 
   /// Queries the reverse index.
   void getEdgeSrcLabelByDst(Id dst, void Function(Id, Id, int) fn) {
-    final data = bindings.beacons_edge_id_src_label_by_dst(dst.high, dst.low);
+    final data = bindings.qinhuai_edge_id_src_label_by_dst(dst.high, dst.low);
     for (var i = 0; i < data.len; i++) {
       final item = data.ptr.elementAt(i).ref;
       fn(Id.fromNative(item.first), Id.fromNative(item.second), item.third);
     }
-    bindings.beacons_drop_array_id_id_u64(data);
+    bindings.qinhuai_drop_array_id_id_u64(data);
   }
 
   /// Queries the reverse index.
   void getEdgeSrcByDstLabel(Id dst, int label, void Function(Id, Id) fn) {
-    final data = bindings.beacons_edge_id_src_by_dst_label(dst.high, dst.low, label);
+    final data = bindings.qinhuai_edge_id_src_by_dst_label(dst.high, dst.low, label);
     for (var i = 0; i < data.len; i++) {
       final item = data.ptr.elementAt(i).ref;
       fn(Id.fromNative(item.first), Id.fromNative(item.second));
     }
-    bindings.beacons_drop_array_id_id(data);
+    bindings.qinhuai_drop_array_id_id(data);
   }
 
   /// Modifies node value. Requires a [barrier] call to come into effect.
   void setNode(Id id, int? l) {
     if (l == null) {
-      bindings.beacons_set_node_none(id.high, id.low);
+      bindings.qinhuai_set_node_none(id.high, id.low);
     } else {
       final label = l;
-      bindings.beacons_set_node_some(id.high, id.low, label);
+      bindings.qinhuai_set_node_some(id.high, id.low, label);
     }
   }
 
   /// Modifies atom value. Requires a [barrier] call to come into effect.
   void setAtom<T>(Id id, (Id, int, T, Serializer<T>)? slv) {
     if (slv == null) {
-      bindings.beacons_set_atom_none(id.high, id.low);
+      bindings.qinhuai_set_atom_none(id.high, id.low);
     } else {
       final (src, label, value, serializer) = slv;
       final builder = BytesBuilder();
@@ -233,7 +233,7 @@ class Store {
       final len = bytes.length;
       final ptr = malloc.allocate<Uint8>(len);
       for (var i = 0; i < len; i++) ptr.elementAt(i).value = bytes[i];
-      bindings.beacons_set_atom_some(id.high, id.low, src.high, src.low, label, len, ptr);
+      bindings.qinhuai_set_atom_some(id.high, id.low, src.high, src.low, label, len, ptr);
       malloc.free(ptr);
     }
   }
@@ -241,17 +241,17 @@ class Store {
   /// Modifies edge value. Requires a [barrier] call to come into effect.
   void setEdge(Id id, (Id, int, Id)? sld) {
     if (sld == null) {
-      bindings.beacons_set_edge_none(id.high, id.low);
+      bindings.qinhuai_set_edge_none(id.high, id.low);
     } else {
       final (src, label, dst) = sld;
-      bindings.beacons_set_edge_some(id.high, id.low, src.high, src.low, label, dst.high, dst.low);
+      bindings.qinhuai_set_edge_some(id.high, id.low, src.high, src.low, label, dst.high, dst.low);
     }
   }
 
   Uint8List syncVersion() {
-    final data = bindings.beacons_sync_version();
+    final data = bindings.qinhuai_sync_version();
     final res = Uint8List.fromList(data.ptr.asTypedList(data.len)); // Makes copy.
-    bindings.beacons_drop_array_u8(data);
+    bindings.qinhuai_drop_array_u8(data);
     return res;
   }
 
@@ -260,10 +260,10 @@ class Store {
     final len = version.length;
     final ptr = malloc.allocate<Uint8>(len);
     for (var i = 0; i < len; i++) ptr.elementAt(i).value = version[i];
-    final data = bindings.beacons_sync_actions(len, ptr);
+    final data = bindings.qinhuai_sync_actions(len, ptr);
     malloc.free(ptr);
     final res = Uint8List.fromList(data.ptr.asTypedList(data.len)); // Makes copy.
-    bindings.beacons_drop_array_u8(data);
+    bindings.qinhuai_drop_array_u8(data);
     return res;
   }
 
@@ -273,7 +273,7 @@ class Store {
     final len = actions.length;
     final ptr = malloc.allocate<Uint8>(len);
     for (var i = 0; i < len; i++) ptr.elementAt(i).value = actions[i];
-    final _ = bindings.beacons_sync_join(len, ptr);
+    final _ = bindings.qinhuai_sync_join(len, ptr);
     malloc.free(ptr);
   }
 
@@ -406,7 +406,7 @@ class Store {
 
   /// Processes all events and invokes relevant observers.
   void barrier() {
-    final data = bindings.beacons_barrier();
+    final data = bindings.qinhuai_barrier();
     for (var i = 0; i < data.len; i++) {
       final event = data.ptr.elementAt(i).ref;
       switch (event.tag) {
@@ -477,11 +477,11 @@ class Store {
           throw UnimplementedError();
       }
     }
-    bindings.beacons_drop_array_event_data(data);
+    bindings.qinhuai_drop_array_event_data(data);
   }
 
   /// Saves all modifications.
   void commit() {
-    bindings.beacons_commit();
+    bindings.qinhuai_commit();
   }
 }

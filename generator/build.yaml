@@ -4,7 +4,7 @@ builders:
   # Name of the builder.
   model_repository:
     # Library URI containing the builder.
-    import: "package:beacons_generator/builders.dart"
+    import: "package:qinhuai_generator/builders.dart"
     # Name of the function in the above library to call.
     builder_factories: ["modelRepositoryBuilder"]
     # The mapping from the source extension to the generated file extension.

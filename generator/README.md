@@ -1,3 +1,3 @@
-# Flutter beacons generator
+# Flutter qinhuai generator
 
-Code generator for the Dart side of beacons.
+Code generator for the Dart side of qinhuai.

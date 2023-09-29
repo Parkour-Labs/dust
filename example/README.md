@@ -1,6 +1,6 @@
 # Example project
 
-Demonstrates how to use the beacons plugin.
+Demonstrates how to use the qinhuai plugin.
 
 ## Getting Started
 

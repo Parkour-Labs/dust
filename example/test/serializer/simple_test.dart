@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:beacons/serializer.dart';
+import 'package:qinhuai/serializer.dart';
 
 Uint8List serialize<T>(T value, Serializer<T> serializer) {
   final builder = BytesBuilder();

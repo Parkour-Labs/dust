@@ -5,10 +5,10 @@
 cmake_minimum_required(VERSION 3.14)
 
 # Project-level configuration.
-project(beacons)
+project(qinhuai)
 
 # Invoke the build for native code.
-add_custom_target(beacons
+add_custom_target(qinhuai
   ALL
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../native/
   # COMMAND rustup target add x86_64-pc-windows-msvc i686-pc-windows-msvc aarch64-pc-windows-msvc
@@ -19,7 +19,7 @@ add_custom_target(beacons
 )
 
 # List of absolute paths to libraries that should be bundled with the plugin.
-set(beacons_bundled_libraries
-  ${CMAKE_CURRENT_BINARY_DIR}/native/release/beacons.dll
+set(qinhuai_bundled_libraries
+  ${CMAKE_CURRENT_BINARY_DIR}/native/release/qinhuai.dll
   PARENT_SCOPE
 )

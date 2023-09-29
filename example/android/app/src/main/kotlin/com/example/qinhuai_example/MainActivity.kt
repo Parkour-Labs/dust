@@ -1,4 +1,4 @@
-package com.example.beacons_example
+package com.example.qinhuai_example
 
 import io.flutter.embedding.android.FlutterActivity
 
