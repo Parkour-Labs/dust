@@ -35,7 +35,7 @@ const kBacklinkAnnotation = TypeChecker.fromRuntime(Backlink);
 const kSerializableAnnotation = TypeChecker.fromRuntime(Serializable);
 const kDefaultAnnotation = TypeChecker.fromRuntime(Default);
 const kTransientAnnotation = TypeChecker.fromRuntime(Transient);
-const kAcyclicAnnotation = TypeChecker.fromRuntime(Acyclic);
+const kConstraintsAnnotation = TypeChecker.fromRuntime(Constraints);
 const kGlobalAnnotation = TypeChecker.fromRuntime(Global);
 
 /// All supported field types.
@@ -50,32 +50,36 @@ final class Atom extends FieldType {
 final class AtomOption extends FieldType {
   final InterfaceType type;
   final String serializer;
-  AtomOption(this.type, this.serializer);
+  final bool sticky;
+  AtomOption(this.type, this.serializer, {required this.sticky});
 }
 
 final class AtomDefault extends FieldType {
   final InterfaceType type;
   final String serializer;
   final String defaultValue;
-  AtomDefault(this.type, this.serializer, this.defaultValue);
+  final bool sticky;
+  AtomDefault(this.type, this.serializer, this.defaultValue, {required this.sticky});
 }
 
 final class Link extends FieldType {
   final InterfaceType type;
   final bool acyclic;
-  Link(this.type, this.acyclic);
+  Link(this.type, {required this.acyclic});
 }
 
 final class LinkOption extends FieldType {
   final InterfaceType type;
+  final bool sticky;
   final bool acyclic;
-  LinkOption(this.type, this.acyclic);
+  LinkOption(this.type, {required this.sticky, required this.acyclic});
 }
 
 final class Multilinks extends FieldType {
   final InterfaceType type;
+  final bool sticky;
   final bool acyclic;
-  Multilinks(this.type, this.acyclic);
+  Multilinks(this.type, {required this.sticky, required this.acyclic});
 }
 
 final class Backlinks extends FieldType {
@@ -101,6 +105,10 @@ final class Struct {
 /// Converts [DartType] to [FieldType].
 FieldType convertType(DartType rawType, FieldElement elem) {
   final type = resolve(rawType, elem);
+  final constraints = kConstraintsAnnotation.annotationsOfExact(elem).firstOrNull;
+  var sticky = constraints?.getField('sticky')?.toBoolValue();
+  var acyclic = constraints?.getField('acyclic')?.toBoolValue();
+
   if (type.element.name == 'Atom' || type.element.name == 'AtomOption' || type.element.name == 'AtomDefault') {
     if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
     final inner = resolve(type.typeArguments.single, elem);
@@ -114,39 +122,34 @@ FieldType convertType(DartType rawType, FieldElement elem) {
       );
     }
     if (type.element.name == 'Atom') {
+      if (sticky != null) fail('Sticky constraint is already implied here.', elem);
+      if (acyclic != null) fail('Acyclic constraint cannot be applied here.', elem);
       return Atom(inner, serializer);
     } else if (type.element.name == 'AtomOption') {
-      return AtomOption(inner, serializer);
-    } else {
+      if (acyclic != null) fail('Acyclic constraint cannot be applied here.', elem);
+      return AtomOption(inner, serializer, sticky: sticky == true);
+    } else if (type.element.name == 'AtomDefault') {
       final value = kDefaultAnnotation.annotationsOfExact(elem).firstOrNull?.getField('defaultValue');
       final defaultValue = (value != null) ? construct(value, elem) : null;
-      if (defaultValue == null) {
-        fail(
-          'Please specify a default value using `@Default(defaultValue)`. ',
-          elem,
-        );
-      }
-      return AtomDefault(inner, serializer, defaultValue);
+      if (defaultValue == null) fail('Please specify a default value using `@Default(defaultValue)`. ', elem);
+      if (acyclic != null) fail('Acyclic constraint cannot be applied here.', elem);
+      return AtomDefault(inner, serializer, defaultValue, sticky: sticky == true);
     }
   }
-  if (type.element.name == 'Link') {
+
+  if (type.element.name == 'Link' || type.element.name == 'LinkOption' || type.element.name == 'Multilinks') {
     if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
     final inner = resolve(type.typeArguments.single, elem);
-    final annot = kAcyclicAnnotation.annotationsOfExact(elem).firstOrNull;
-    return Link(inner, annot != null);
+    if (type.element.name == 'Link') {
+      if (sticky != null) fail('Sticky constraint is already implied here.', elem);
+      return Link(inner, acyclic: acyclic == true);
+    } else if (type.element.name == 'LinkOption') {
+      return LinkOption(inner, sticky: sticky == true, acyclic: acyclic == true);
+    } else if (type.element.name == 'Multilinks') {
+      return Multilinks(inner, sticky: sticky == true, acyclic: acyclic == true);
+    }
   }
-  if (type.element.name == 'LinkOption') {
-    if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
-    final inner = resolve(type.typeArguments.single, elem);
-    final annot = kAcyclicAnnotation.annotationsOfExact(elem).firstOrNull;
-    return LinkOption(inner, annot != null);
-  }
-  if (type.element.name == 'Multilinks') {
-    if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
-    final inner = resolve(type.typeArguments.single, elem);
-    final annot = kAcyclicAnnotation.annotationsOfExact(elem).firstOrNull;
-    return Multilinks(inner, annot != null);
-  }
+
   if (type.element.name == 'Backlinks') {
     if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
     final inner = resolve(type.typeArguments.single, elem);
@@ -155,6 +158,7 @@ FieldType convertType(DartType rawType, FieldElement elem) {
     if (value == null) fail('Backlinks must be annotated with `@Backlink(\'fieldName\')`.', elem);
     return Backlinks(inner, value);
   }
+
   fail(
     'Unsupported field type `$type` (must be one of: `Atom`, `AtomOption`, `AtomDefault`, `Link`, `LinkOption`, `Multilinks` or `Backlinks`).',
     elem,
@@ -255,16 +259,18 @@ String emitInitFunction(Struct struct) {
     switch (field.type) {
       case Atom():
         stickyAtoms.add(lab);
-      case AtomOption():
-        break;
-      case AtomDefault():
-        break;
+      case AtomOption(:final sticky):
+        if (sticky) stickyAtoms.add(lab);
+      case AtomDefault(:final sticky):
+        if (sticky) stickyAtoms.add(lab);
       case Link(:final acyclic):
         stickyEdges.add(lab);
         if (acyclic) acyclicEdges.add(lab);
-      case LinkOption(:final acyclic):
+      case LinkOption(:final sticky, :final acyclic):
+        if (sticky) stickyEdges.add(lab);
         if (acyclic) acyclicEdges.add(lab);
-      case Multilinks(:final acyclic):
+      case Multilinks(:final sticky, :final acyclic):
+        if (sticky) stickyEdges.add(lab);
         if (acyclic) acyclicEdges.add(lab);
       case Backlinks():
         break;
