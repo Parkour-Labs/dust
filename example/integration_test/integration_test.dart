@@ -77,27 +77,20 @@ class Something {
 void main() async {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  // Initialisation.
-  final dir = await getTemporaryDirectory();
-  Store.open('${dir.path}/data.sqlite3', [
-    const $TrivialRepository(),
-    const $SomethingRepository(),
-  ]);
-
   test('native_param_passing', () {
     final bindings = getNativeBindings();
 
-    final id = Id.fromNative(bindings.test_id());
+    final id = Id.fromNative(bindings.beacons_test_id());
     assert(id == const Id(233, 666));
 
-    final uid = Id.fromNative(bindings.test_id_unsigned());
+    final uid = Id.fromNative(bindings.beacons_test_id_unsigned());
     assert(uid == const Id(kIntMin + 233, kIntMin + 666));
 
-    final arrayUint8 = bindings.test_array_u8();
+    final arrayUint8 = bindings.beacons_test_array_u8();
     assert(arrayUint8.len == 5 && listEquals(arrayUint8.ptr.asTypedList(5), [1, 2, 3, 233, 234]));
-    bindings.drop_array_u8(arrayUint8);
+    bindings.beacons_drop_array_u8(arrayUint8);
 
-    final arrayIdId = bindings.test_array_id_id();
+    final arrayIdId = bindings.beacons_test_array_id_id();
     assert(arrayIdId.len == 2);
     {
       final first = arrayIdId.ptr.elementAt(0).ref;
@@ -106,9 +99,9 @@ void main() async {
       assert(Id.fromNative(second.first) == const Id(0, 1));
       assert(Id.fromNative(second.second) == const Id(1, 0));
     }
-    bindings.drop_array_id_id(arrayIdId);
+    bindings.beacons_drop_array_id_id(arrayIdId);
 
-    final arrayIdUint64Id = bindings.test_array_id_u64_id();
+    final arrayIdUint64Id = bindings.beacons_test_array_id_u64_id();
     assert(arrayIdUint64Id.len == 2);
     {
       final first = arrayIdUint64Id.ptr.elementAt(0).ref;
@@ -118,29 +111,38 @@ void main() async {
           second.second == 234 &&
           Id.fromNative(second.third) == const Id(1, 0));
     }
-    bindings.drop_array_id_u64_id(arrayIdUint64Id);
+    bindings.beacons_drop_array_id_u64_id(arrayIdUint64Id);
 
-    final atomSome = bindings.test_option_atom_some();
+    final atomSome = bindings.beacons_test_option_atom_some();
     assert(atomSome.tag == 1 &&
         Id.fromNative(atomSome.some.src) == id &&
         atomSome.some.label == kIntMin + 1 &&
         listEquals(atomSome.some.value.ptr.asTypedList(5), [1, 2, 3, 233, 234]));
-    bindings.drop_option_atom(atomSome);
+    bindings.beacons_drop_option_atom(atomSome);
 
-    final atomNone = bindings.test_option_atom_none();
+    final atomNone = bindings.beacons_test_option_atom_none();
     assert(atomNone.tag == 0);
-    bindings.drop_option_atom(atomSome);
+    bindings.beacons_drop_option_atom(atomSome);
 
-    final edgeSome = bindings.test_option_edge_some();
+    final edgeSome = bindings.beacons_test_option_edge_some();
     assert(edgeSome.tag == 1 &&
         Id.fromNative(edgeSome.some.src) == id &&
         edgeSome.some.label == kIntMin + 2 &&
         Id.fromNative(edgeSome.some.dst) == uid);
 
-    final edgeNone = bindings.test_option_edge_none();
+    final edgeNone = bindings.beacons_test_option_edge_none();
     assert(edgeNone.tag == 0);
 
-    final arrayEventData = bindings.test_array_event_data();
+    final unit = bindings.beacons_test_result_unit_ok();
+    assert(unit.dummy == 0);
+    try {
+      bindings.beacons_test_result_unit_err();
+      assert(false);
+    } on NativeError catch (err) {
+      assert(err.toString() == "message");
+    }
+
+    final arrayEventData = bindings.beacons_test_array_event_data();
     assert(arrayEventData.len == 2);
     final first = arrayEventData.ptr.elementAt(0).ref;
     assert(first.tag == 1);
@@ -168,90 +170,110 @@ void main() async {
       assert(Id.fromNative(prev.src) == id && prev.label == 7 && Id.fromNative(prev.dst) == uid);
       assert(Id.fromNative(curr.src) == uid && curr.label == 8 && Id.fromNative(curr.dst) == id);
     }
-    bindings.drop_array_event_data(arrayEventData);
+    bindings.beacons_drop_array_event_data(arrayEventData);
   });
 
-  /*
   test('native_dropping', () {
     final bindings = getNativeBindings();
-
     for (var i = 0; i < 10; i++) {
-      final arrayUint8 = bindings.test_array_u8_big(32000000); // 32MB
-      bindings.drop_array_u8(arrayUint8);
-      final arrayEventData = bindings.test_array_event_data_big(10, 1600000); // 32MB
-      bindings.drop_array_event_data(arrayEventData);
+      final arrayUint8 = bindings.beacons_test_array_u8_big(32000000); // 32MB
+      bindings.beacons_drop_array_u8(arrayUint8);
+      final arrayEventData = bindings.beacons_test_array_event_data_big(10, 1600000); // 32MB
+      bindings.beacons_drop_array_event_data(arrayEventData);
     }
   });
-  */
 
-  test('object_store_no_barrier', () {
-    final store = Store.instance;
-    final id0 = store.randomId();
-    final id1 = store.randomId();
-    store.setAtom(id0, (id0, 233, 666, const Int64Serializer()));
-    store.setAtom(id1, (id1, 2333, 6666, const Int64Serializer()));
-    store.setEdge(store.randomId(), (id0, 23333, id1));
-    store.getAtomById(id0, (slv) {
-      final (src, label, value) = slv!;
-      assert(src == id0 && label == 233 && const Int64Serializer().deserialize(BytesReader(value)) == 666);
+  group('object_store', () {
+    setUpAll(() async {
+      final dir = await getTemporaryDirectory();
+      Store.open('${dir.path}/data.sqlite3', [
+        const $TrivialRepository(),
+        const $SomethingRepository(),
+      ]);
     });
-    store.getAtomById(id1, (slv) {
-      final (src, label, value) = slv!;
-      assert(src == id1 && label == 2333 && const Int64Serializer().deserialize(BytesReader(value)) == 6666);
+
+    tearDownAll(() {
+      Store.close();
     });
-    final edges = <(int, Id)>[];
-    store.getEdgeLabelDstBySrc(id0, (id, label, dst) => edges.add((label, dst)));
-    assert(edges.length == 1);
-    assert(edges.single == (23333, id1));
-  });
 
-  test('object_store_wrapper', () {
-    final trivial = Trivial.create();
-    final trivialAgain = Trivial.create();
+    test('object_store_no_barrier', () {
+      final store = Store.instance;
+      final id0 = store.randomId();
+      final id1 = store.randomId();
+      store.setAtom(id0, (id0, 233, 666, const Int64Serializer()));
+      store.setAtom(id1, (id1, 2333, 6666, const Int64Serializer()));
+      store.setEdge(store.randomId(), (id0, 23333, id1));
+      store.getAtomById(id0, (slv) {
+        final (src, label, value) = slv!;
+        assert(src == id0 && label == 233 && const Int64Serializer().deserialize(BytesReader(value)) == 666);
+      });
+      store.getAtomById(id1, (slv) {
+        final (src, label, value) = slv!;
+        assert(src == id1 && label == 2333 && const Int64Serializer().deserialize(BytesReader(value)) == 6666);
+      });
+      final edges = <(int, Id)>[];
+      store.getEdgeLabelDstBySrc(id0, (id, label, dst) => edges.add((label, dst)));
+      assert(edges.length == 1);
+      assert(edges.single == (23333, id1));
+    });
 
-    final something = Something.create(atomOne: "test", atomTwo: "2333", linkOne: trivial, linkTwo: trivial);
-    final somethingElse = Something.create(atomOne: "test", linkOne: trivial);
-    somethingElse.linkThree.insert(something);
+    test('object_store_wrapper', () {
+      final trivial = Trivial.create();
+      final trivialAgain = Trivial.create();
 
-    final somethingCopy = const $SomethingRepository().get(something.id).get(null)!;
-    final somethingElseCopy = const $SomethingRepository().get(somethingElse.id).get(null)!;
+      final something = Something.create(atomOne: "test", atomTwo: "2333", linkOne: trivial, linkTwo: trivial);
+      final somethingElse = Something.create(atomOne: "test", linkOne: trivial);
+      somethingElse.linkThree.insert(something);
 
-    assert(somethingCopy.atomOne.get(null) == "test");
-    assert(somethingCopy.atomTwo.get(null)! == "2333");
-    assert(somethingCopy.linkOne.get(null).id == trivial.id);
-    assert(somethingCopy.linkTwo.get(null)!.id == trivial.id);
-    assert(somethingCopy.linkThree.get(null).isEmpty);
+      final somethingCopy = const $SomethingRepository().get(something.id).get(null)!;
+      final somethingElseCopy = const $SomethingRepository().get(somethingElse.id).get(null)!;
 
-    assert(somethingElseCopy.atomOne.get(null) == "test");
-    assert(somethingElseCopy.atomTwo.get(null) == null);
-    assert(somethingElseCopy.linkOne.get(null).id == trivial.id);
-    assert(somethingElseCopy.linkTwo.get(null) == null);
-    assert(somethingElseCopy.linkThree.get(null).length == 1);
-    assert(somethingElseCopy.linkThree.get(null).single.id == something.id);
+      assert(somethingCopy.atomOne.get(null) == "test");
+      assert(somethingCopy.atomTwo.get(null)! == "2333");
+      assert(somethingCopy.linkOne.get(null).id == trivial.id);
+      assert(somethingCopy.linkTwo.get(null)!.id == trivial.id);
+      assert(somethingCopy.linkThree.get(null).isEmpty);
 
-    somethingCopy.atomTwo.set(null);
-    assert(somethingCopy.atomTwo.get(null) == null);
-    somethingCopy.atomTwo.set("gg");
-    assert(somethingCopy.atomTwo.get(null)! == "gg");
-    somethingCopy.linkTwo.set(null);
-    assert(somethingCopy.linkTwo.get(null) == null);
-    somethingCopy.linkTwo.set(trivialAgain);
-    assert(somethingCopy.linkTwo.get(null)!.id == trivialAgain.id);
+      assert(somethingElseCopy.atomOne.get(null) == "test");
+      assert(somethingElseCopy.atomTwo.get(null) == null);
+      assert(somethingElseCopy.linkOne.get(null).id == trivial.id);
+      assert(somethingElseCopy.linkTwo.get(null) == null);
+      assert(somethingElseCopy.linkThree.get(null).length == 1);
+      assert(somethingElseCopy.linkThree.get(null).single.id == something.id);
 
-    assert(something.backlink.get(null).length == 1);
-    something.linkThree.insert(something);
-    assert(something.backlink.get(null).length == 2);
-    something.linkThree.insert(something);
-    assert(something.backlink.get(null).length == 3);
-    something.linkThree.remove(something);
-    assert(something.backlink.get(null).length == 2);
-    somethingElse.linkThree.remove(something);
-    assert(something.backlink.get(null).length == 1);
+      somethingCopy.atomTwo.set(null);
+      assert(somethingCopy.atomTwo.get(null) == null);
+      somethingCopy.atomTwo.set("gg");
+      assert(somethingCopy.atomTwo.get(null)! == "gg");
+      somethingCopy.linkTwo.set(null);
+      assert(somethingCopy.linkTwo.get(null) == null);
+      somethingCopy.linkTwo.set(trivialAgain);
+      assert(somethingCopy.linkTwo.get(null)!.id == trivialAgain.id);
 
-    something.delete();
-    assert(const $SomethingRepository().get(something.id).get(null) == null);
-    Store.instance.setAtom(somethingElse.atomOne.id, null);
-    Store.instance.barrier();
-    assert(const $SomethingRepository().get(somethingElse.id).get(null) == null);
+      assert(something.backlink.get(null).length == 1);
+      something.linkThree.insert(something);
+      assert(something.backlink.get(null).length == 2);
+      something.linkThree.insert(something);
+      assert(something.backlink.get(null).length == 3);
+      something.linkThree.remove(something);
+      assert(something.backlink.get(null).length == 2);
+      somethingElse.linkThree.remove(something);
+      assert(something.backlink.get(null).length == 1);
+
+      something.delete();
+      assert(const $SomethingRepository().get(something.id).get(null) == null);
+      Store.instance.setAtom(somethingElse.atomOne.id, null);
+      Store.instance.barrier();
+      assert(const $SomethingRepository().get(somethingElse.id).get(null) == null);
+    });
+
+    test('object_store_perf', () {
+      final something = Something.create(atomOne: "", linkOne: Trivial.create());
+      final stopwatch = Stopwatch()..start();
+      for (var i = 0; i < 100000; i++) {
+        something.atomOne.set("value: $i");
+      }
+      debugPrint('Elapsed: ${stopwatch.elapsed}');
+    });
   });
 }

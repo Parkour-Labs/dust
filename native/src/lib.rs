@@ -14,7 +14,7 @@ use thiserror::Error;
 /// The common error type.
 #[derive(Error, Debug)]
 pub enum StoreError {
-  #[error("sqlite error")]
+  #[error("sqlite error: {0}")]
   Sqlite(#[from] rusqlite::Error),
   #[error("string is not valid UTF8")]
   InvalidUtf8,
