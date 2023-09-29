@@ -1,7 +1,7 @@
 import '../reactive.dart';
 import '../store.dart';
 
-class Backlinks<T> with ObservableMixin<Iterable<T>> implements ObservableSet<T> {
+class Backlinks<T> with ObservableMixin<List<T>> implements ObservableSet<T> {
   final Id dst;
   final int label;
   final Repository<T> _repository;

@@ -1,7 +1,7 @@
 import '../reactive.dart';
 import '../store.dart';
 
-class Multilinks<T> with ObservableMixin<Iterable<T>> implements ObservableMutSet<T> {
+class Multilinks<T> with ObservableMixin<List<T>> implements ObservableMutSet<T> {
   final Id src;
   final int label;
   final Repository<T> _repository;

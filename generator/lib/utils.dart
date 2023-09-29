@@ -32,6 +32,9 @@ InterfaceType resolve(DartType type, Element elem) {
   }
 }
 
+const kRecordChecker = TypeChecker.fromRuntime(Record);
+const kEnumChecker = TypeChecker.fromRuntime(Enum);
+
 /// Prints code for generating the given constant value.
 String construct(DartObject? value, Element elem) {
   String recursive(DartObject? value) {
@@ -59,16 +62,14 @@ String construct(DartObject? value, Element elem) {
       return '{${reader.mapValue.entries.map((e) => '${recursive(e.key)}: ${recursive(e.value)}').join(', ')}}';
     } else if (rawType != null) {
       final type = resolve(rawType, elem);
-      if (type.isDartCoreRecord) {
-        final revivable = reader.revive();
+      final revivable = reader.revive();
+      if (reader.instanceOf(kRecordChecker)) {
         final positional = revivable.positionalArguments.map(recursive).join(', ');
         return '($positional)';
-      } else if (type.isDartCoreEnum) {
-        final revivable = reader.revive();
+      } else if (reader.instanceOf(kEnumChecker)) {
         final accessor = revivable.accessor;
         return accessor;
       } else {
-        final revivable = reader.revive();
         final name = type.element.name;
         final dot = (revivable.accessor != '') ? '.' : '';
         final accessor = revivable.accessor;

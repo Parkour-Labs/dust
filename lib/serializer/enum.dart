@@ -4,7 +4,7 @@ import '../serializer.dart';
 
 class EnumSerializer<T extends Enum> implements Serializer<T> {
   final List<T> values;
-  const EnumSerializer(this.values) : assert(values.length <= 256);
+  const EnumSerializer(this.values);
 
   @override
   void serialize(T object, BytesBuilder builder) => const Uint8Serializer().serialize(object.index, builder);

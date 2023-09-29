@@ -438,17 +438,24 @@ String emitAllFunction(Struct struct) {
 /// Generate deterministic ID for global object constructors.
 String emitGlobalIds(Struct struct, ClassElement elem) {
   var res = '';
+
+  void generateFor(String name) {
+    final high = fnv64Hash(struct.name);
+    final low = fnv64Hash(name);
+    res += '''
+      // Type `${struct.name}`, name `$name`
+      const Id \$${name}Id = Id($high, $low);
+    ''';
+  }
+
   for (final ctor in elem.constructors) {
-    if (ctor.isFactory) {
-      if (kGlobalAnnotation.annotationsOfExact(ctor).isNotEmpty) {
-        final high = fnv64Hash(struct.name);
-        final low = fnv64Hash(ctor.name);
-        res += '''
-        // Type `${struct.name}`, name `${ctor.name}`
-        const Id \$${ctor.name}Id = Id($high, $low);
-      ''';
-      }
-    }
+    if (ctor.isFactory && kGlobalAnnotation.annotationsOfExact(ctor).isNotEmpty) generateFor(ctor.name);
+  }
+  for (final method in elem.methods) {
+    if (method.isStatic && kGlobalAnnotation.annotationsOfExact(method).isNotEmpty) generateFor(method.name);
+  }
+  for (final acc in elem.accessors) {
+    if (acc.isStatic && kGlobalAnnotation.annotationsOfExact(acc).isNotEmpty) generateFor(acc.name);
   }
   return res;
 }

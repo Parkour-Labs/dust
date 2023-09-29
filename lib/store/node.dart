@@ -25,7 +25,7 @@ class NodeOption<T> extends ObservableMixin<T?> implements Observable<T?> {
 }
 
 /// Just a simple wrapper around [NodeOption], calling an initialiser function
-/// when there is no node present.
+/// to create the model when there is no such node present.
 class NodeAuto<T> implements Observable<T> {
   final NodeOption _inner;
   final void Function() _callback;
@@ -44,7 +44,7 @@ class NodeAuto<T> implements Observable<T> {
   }
 }
 
-class NodesByLabel<T> with ObservableMixin<Iterable<T>> implements ObservableSet<T> {
+class NodesByLabel<T> with ObservableMixin<List<T>> implements ObservableSet<T> {
   final int label;
   final Repository<T> _repository;
   final Set<Id> _ids = {};

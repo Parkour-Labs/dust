@@ -478,6 +478,9 @@ class Store {
       }
     }
     bindings.qinhuai_drop_array_event_data(data);
+
+    // Temporary: commit after each barrier
+    bindings.qinhuai_commit();
   }
 
   /// Saves all modifications.

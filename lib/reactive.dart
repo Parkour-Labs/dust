@@ -60,7 +60,7 @@ abstract interface class ObservableMut<T> extends Observable<T> {
 }
 
 /// An observable list.
-abstract interface class ObservableList<T> extends Observable<Iterable<T>> {
+abstract interface class ObservableList<T> extends Observable<List<T>> {
   // int length(Observer? o);
   T? element(int index, Observer? o);
 }
@@ -73,7 +73,7 @@ abstract interface class ObservableMutList<T> extends ObservableList<T> {
 }
 
 /// An observable set or multiset.
-abstract interface class ObservableSet<T> extends Observable<Iterable<T>> {
+abstract interface class ObservableSet<T> extends Observable<List<T>> {
   // int length(Observer? o);
 }
 
@@ -84,7 +84,7 @@ abstract interface class ObservableMutSet<T> extends ObservableSet<T> {
 }
 
 /// An observable map.
-abstract interface class ObservableMap<S, T> extends Observable<Iterable<(S, T)>> {
+abstract interface class ObservableMap<S, T> extends Observable<List<(S, T)>> {
   // int length(Observer? o);
   T? element(S key, Observer? o);
 }
