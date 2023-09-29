@@ -57,5 +57,5 @@ int testHash(String name) {
 */
 
 List<int> testList() {
-  return getNativeBindings().test_array_u8().ptr.asTypedList(5).toList();
+  return getNativeBindings().beacons_test_array_u8().ptr.asTypedList(5).toList();
 }
