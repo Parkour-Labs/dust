@@ -16,7 +16,7 @@ export 'serializer/string.dart';
 export 'serializer/uint.dart';
 export 'serializer/uint8list.dart';
 
-const _kEndian = Endian.little;
+const _kEndian = Endian.big;
 
 abstract interface class Serializer<T> {
   void serialize(T object, BytesBuilder builder);
