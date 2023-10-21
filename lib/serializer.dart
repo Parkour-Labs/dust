@@ -53,6 +53,27 @@ abstract interface class Serializer<T> {
   /// Reads the bytes from the `BytesReader` [reader] and deserializes to the
   /// object of type [T].
   T deserialize(BytesReader reader);
+
+  /// Creates a [Serializer] from the given [serializeFn] and [deserializeFn].
+  const factory Serializer(
+    void Function(T, BytesBuilder) serializeFn,
+    T Function(BytesReader) deserializeFn,
+  ) = _Serializer;
+}
+
+class _Serializer<T> implements Serializer<T> {
+  final void Function(T, BytesBuilder) serializeFn;
+
+  final T Function(BytesReader) deserializeFn;
+
+  const _Serializer(this.serializeFn, this.deserializeFn);
+
+  @override
+  T deserialize(BytesReader reader) => deserializeFn(reader);
+
+  @override
+  void serialize(T object, BytesBuilder builder) =>
+      serializeFn(object, builder);
 }
 
 /// A [VersionedSerializer] is a serializer that can serialize and deserialize
@@ -100,6 +121,10 @@ abstract interface class Serializer<T> {
 abstract base class VersionedSerializer<T> implements Serializer<T> {
   const VersionedSerializer();
 
+  const factory VersionedSerializer.fromSerializers(
+    List<Serializer<T>> serializers,
+  ) = _VersionedSerializer;
+
   /// The list of all serializers that this serializer uses. The last element
   /// represents the latest version of the serializer.
   List<Serializer<T>> get serializers;
@@ -139,6 +164,13 @@ abstract base class VersionedSerializer<T> implements Serializer<T> {
     final version = reader.readUint8();
     return serializers[version].deserialize(reader);
   }
+}
+
+final class _VersionedSerializer<T> extends VersionedSerializer<T> {
+  @override
+  final List<Serializer<T>> serializers;
+
+  const _VersionedSerializer(this.serializers);
 }
 
 /// An [ExtensibleSerializer] is a serializer that can serialize and deserialize
@@ -194,6 +226,12 @@ abstract base class VersionedSerializer<T> implements Serializer<T> {
 abstract base class ExtensibleSerializer<T> implements Serializer<T> {
   const ExtensibleSerializer();
 
+  const factory ExtensibleSerializer.fromSerializers({
+    required List<Serializer<dynamic>> fieldSerializers,
+    required List<dynamic> Function(T) getFieldsFn,
+    required T Function(List<dynamic>) createObjectFn,
+  }) = _ExtensibleSerializer;
+
   List<Serializer<dynamic>> get fieldSerializers;
 
   /// Maps an object to the list of data of its fields. The ordering of the
@@ -228,6 +266,27 @@ abstract base class ExtensibleSerializer<T> implements Serializer<T> {
     }
     return createObject(fields);
   }
+}
+
+final class _ExtensibleSerializer<T> extends ExtensibleSerializer<T> {
+  @override
+  final List<Serializer<dynamic>> fieldSerializers;
+
+  final List<dynamic> Function(T) getFieldsFn;
+
+  final T Function(List<dynamic>) createObjectFn;
+
+  const _ExtensibleSerializer({
+    required this.fieldSerializers,
+    required this.getFieldsFn,
+    required this.createObjectFn,
+  });
+
+  @override
+  T createObject(List fields) => createObjectFn(fields);
+
+  @override
+  List getFields(T object) => getFieldsFn(object);
 }
 
 class BytesReader {
