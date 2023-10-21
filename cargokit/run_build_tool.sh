@@ -14,8 +14,8 @@ cd "$CARGOKIT_TOOL_TEMP_DIR"
 
 BUILD_TOOL_PKG_DIR="$BASEDIR/build_tool"
 # check if ~/Developer/flutter/bin/ exists
-if [[ -d "/usr/local/flutter/bin/" ]]; then
-  FLUTTER_ROOT="$HOME/Developer/flutter"
+if [[ -d "/usr/local/flutter/" ]]; then
+  FLUTTER_ROOT="/usr/local/flutter/"
 fi
 
 
