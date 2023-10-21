@@ -167,7 +167,7 @@ FieldType convertType(DartType rawType, FieldElement elem) {
 
 /// Converts [FieldElement] to [Field].
 Field? convertField(FieldElement elem) {
-  if (elem.isStatic || kTransientAnnotation.annotationsOfExact(elem).isNotEmpty) return null;
+  if (elem.isSynthetic || elem.isStatic || kTransientAnnotation.annotationsOfExact(elem).isNotEmpty) return null;
   if (!elem.isFinal) fail('Field must be marked as final.', elem);
   if (elem.isLate) fail('Field must not be marked as late.', elem);
   final name = elem.name;

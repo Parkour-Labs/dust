@@ -5,8 +5,7 @@ import 'dart:ffi';
 import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
 
-import 'ffi/native_bindings.dart';
-import 'ffi/native_structs.dart';
+import 'ffi.dart';
 import 'multimap.dart';
 import 'serializer.dart';
 import 'store/id.dart';
@@ -78,7 +77,7 @@ class Store {
 
   /// Initialises the global [Store] instance.
   static void open(String databasePath, List<Repository> repositories) {
-    final bindings = getNativeBindings();
+    final bindings = Ffi.bindings;
     for (final repository in repositories) {
       final schema = repository.init();
       for (final label in schema.stickyNodes) bindings.qinhuai_add_sticky_node(label);

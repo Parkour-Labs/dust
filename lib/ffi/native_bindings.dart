@@ -4,12 +4,6 @@ import 'dart:ffi';
 import 'dart:convert';
 
 import 'native_structs.dart';
-import 'native_library.dart';
-
-/// Load and get the native function bindings.
-NativeBindings getNativeBindings() => _nativeBindings ??= NativeBindings(getNativeLibrary());
-
-NativeBindings? _nativeBindings;
 
 /// Error thrown by native code.
 class NativeError implements Exception {

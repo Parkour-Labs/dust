@@ -79,7 +79,7 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   test('native_param_passing', () {
-    final bindings = getNativeBindings();
+    final bindings = Ffi.bindings;
 
     final id = Id.fromNative(bindings.qinhuai_test_id());
     assert(id == const Id(233, 666));
@@ -175,7 +175,7 @@ void main() {
   });
 
   test('native_dropping', () {
-    final bindings = getNativeBindings();
+    final bindings = Ffi.bindings;
     for (var i = 0; i < 10; i++) {
       final arrayUint8 = bindings.qinhuai_test_array_u8_big(32000000); // 32MB
       bindings.qinhuai_drop_array_u8(arrayUint8);

@@ -57,5 +57,5 @@ int testHash(String name) {
 */
 
 List<int> testList() {
-  return getNativeBindings().qinhuai_test_array_u8().ptr.asTypedList(5).toList();
+  return Ffi.bindings.qinhuai_test_array_u8().ptr.asTypedList(5).toList();
 }
