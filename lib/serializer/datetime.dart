@@ -7,9 +7,9 @@ class DateTimeSerializer implements Serializer<DateTime> {
 
   @override
   DateTime deserialize(BytesReader reader) =>
-      DateTime.fromMicrosecondsSinceEpoch(const IntSerializer().deserialize(reader));
+      DateTime.fromMicrosecondsSinceEpoch(reader.readInt64());
 
   @override
   void serialize(DateTime object, BytesBuilder builder) =>
-      const IntSerializer().serialize(object.microsecondsSinceEpoch, builder);
+      builder.writeInt64(object.microsecondsSinceEpoch);
 }

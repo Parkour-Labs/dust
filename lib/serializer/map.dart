@@ -9,7 +9,7 @@ class MapSerializer<T, U> implements Serializer<Map<T, U>> {
 
   @override
   void serialize(Map<T, U> object, BytesBuilder builder) {
-    const Uint64Serializer().serialize(object.length, builder);
+    builder.writeUint64(object.length);
     for (final elem in object.entries) {
       t.serialize(elem.key, builder);
       u.serialize(elem.value, builder);
@@ -18,7 +18,7 @@ class MapSerializer<T, U> implements Serializer<Map<T, U>> {
 
   @override
   Map<T, U> deserialize(BytesReader reader) {
-    final length = const Uint64Serializer().deserialize(reader);
+    final length = reader.readUint64();
     final res = <T, U>{};
     for (var i = 0; i < length; i++) {
       final key = t.deserialize(reader);

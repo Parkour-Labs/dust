@@ -8,7 +8,7 @@ class SetSerializer<T> implements Serializer<Set<T>> {
 
   @override
   void serialize(Set<T> object, BytesBuilder builder) {
-    const Uint64Serializer().serialize(object.length, builder);
+    builder.writeUint64(object.length);
     for (final elem in object) {
       t.serialize(elem, builder);
     }
@@ -16,7 +16,7 @@ class SetSerializer<T> implements Serializer<Set<T>> {
 
   @override
   Set<T> deserialize(BytesReader reader) {
-    final length = const Uint64Serializer().deserialize(reader);
+    final length = reader.readUint64();
     final res = <T>{};
     for (var i = 0; i < length; i++) {
       res.add(t.deserialize(reader));

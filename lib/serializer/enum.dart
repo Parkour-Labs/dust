@@ -7,8 +7,9 @@ class EnumSerializer<T extends Enum> implements Serializer<T> {
   const EnumSerializer(this.values);
 
   @override
-  void serialize(T object, BytesBuilder builder) => const Uint8Serializer().serialize(object.index, builder);
+  void serialize(T object, BytesBuilder builder) =>
+      builder.writeUint32(object.index);
 
   @override
-  T deserialize(BytesReader reader) => values[const Uint8Serializer().deserialize(reader)];
+  T deserialize(BytesReader reader) => values[reader.readUint32()];
 }
