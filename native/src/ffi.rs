@@ -7,6 +7,7 @@ pub mod test;
 
 use rusqlite::Connection;
 use std::cell::RefCell;
+use std::collections::HashMap;
 
 use self::structs::{CArray, CAtom, CEdge, CEventData, CId, CNode, COption, CPair, CResult, CTriple, CUnit};
 use crate::{
@@ -59,8 +60,14 @@ pub extern "C" fn qinhuai_add_acyclic_edge(label: u64) {
 #[no_mangle]
 pub unsafe extern "C" fn qinhuai_open(len: u64, ptr: *mut u8) -> CResult<CUnit> {
   convert_result(|| {
+    if STORE.with(|cell| cell.borrow().is_some()) {
+      // FIXME: This is a hack to avoid double-initialisation in flutter's hot reload, but this will
+      // cause new databases unable to be opened.
+      return Ok(CUnit(0));
+    }
     let path = CArray(len, ptr).as_ref();
-    let conn = Connection::open(std::str::from_utf8(path).map_err(|_| StoreError::InvalidUtf8)?)?;
+    let path = std::str::from_utf8(path).map_err(|_| StoreError::InvalidUtf8)?;
+    let conn = Connection::open(path)?;
     conn.execute_batch(
       "
       PRAGMA auto_vacuum = INCREMENTAL;
