@@ -482,4 +482,34 @@ extension BoolPackX on int {
   bool get value6 => (this & (1 << 6)) != 0;
 
   bool get value7 => (this & (1 << 7)) != 0;
+
+  BoolPack copyWith({
+    bool? value0,
+    bool? value1,
+    bool? value2,
+    bool? value3,
+    bool? value4,
+    bool? value5,
+    bool? value6,
+    bool? value7,
+  }) {
+    var result = _setIfNotNull(0, value0);
+    result = result._setIfNotNull(1, value1);
+    result = result._setIfNotNull(2, value2);
+    result = result._setIfNotNull(3, value3);
+    result = result._setIfNotNull(4, value4);
+    result = result._setIfNotNull(5, value5);
+    result = result._setIfNotNull(6, value6);
+    result = result._setIfNotNull(7, value7);
+    return result;
+  }
+
+  BoolPack _setIfNotNull(int bitId, bool? value) {
+    if (value == null) return this;
+    if (value) {
+      return this | (1 << bitId);
+    } else {
+      return this & ~(1 << bitId);
+    }
+  }
 }

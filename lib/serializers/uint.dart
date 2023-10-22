@@ -13,6 +13,8 @@ class Uint8Serializer implements Serializer<int> {
   int deserialize(BytesReader reader) => reader.readUint8();
 }
 
+typedef BoolPackSerializer = Uint8Serializer;
+
 class Uint16Serializer implements Serializer<int> {
   const Uint16Serializer();
 
