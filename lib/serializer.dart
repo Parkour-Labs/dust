@@ -2,21 +2,6 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart';
-
-export 'serializer/datetime.dart';
-export 'serializer/enum.dart';
-export 'serializer/float.dart';
-export 'serializer/int.dart';
-export 'serializer/list.dart';
-export 'serializer/map.dart';
-export 'serializer/option.dart';
-export 'serializer/record.dart';
-export 'serializer/set.dart';
-export 'serializer/string.dart';
-export 'serializer/uint.dart';
-export 'serializer/uint8list.dart';
-
 const _kEndian = Endian.big;
 
 /// **IMPORTANT**: if you may ever need to change the serialization format of
@@ -132,7 +117,7 @@ abstract base class VersionedSerializer<T> implements Serializer<T> {
   void checkCapacityAndShowWarning() {
     if (serializers.length > 123 &&
         serializers.last is! VersionedSerializer<T>) {
-      debugPrint(
+      print(
         'You have used up ${serializers.length} out of 128 versions for a '
         '`VersionedSerializer`. To ensure future extensibility, ensure to '
         'add a `VersionedSerializer` to the end.',
@@ -148,7 +133,6 @@ abstract base class VersionedSerializer<T> implements Serializer<T> {
     }
   }
 
-  @nonVirtual
   @override
   void serialize(T object, BytesBuilder builder) {
     checkCapacityAndShowWarning();
@@ -157,7 +141,6 @@ abstract base class VersionedSerializer<T> implements Serializer<T> {
     serializers[version].serialize(object, builder);
   }
 
-  @nonVirtual
   @override
   T deserialize(BytesReader reader) {
     checkCapacityAndShowWarning();
@@ -242,7 +225,6 @@ abstract base class ExtensibleSerializer<T> implements Serializer<T> {
   /// fields should be the same as the one returned by [getFields].
   T createObject(List<dynamic> fields);
 
-  @nonVirtual
   @override
   void serialize(T object, BytesBuilder builder) {
     final fields = getFields(object);
@@ -254,7 +236,6 @@ abstract base class ExtensibleSerializer<T> implements Serializer<T> {
     }
   }
 
-  @nonVirtual
   @override
   T deserialize(BytesReader reader) {
     final fields = <dynamic>[];
@@ -487,11 +468,18 @@ typedef BoolPack = int;
 
 extension BoolPackX on int {
   bool get value0 => (this & (1 << 0)) != 0;
+
   bool get value1 => (this & (1 << 1)) != 0;
+
   bool get value2 => (this & (1 << 2)) != 0;
+
   bool get value3 => (this & (1 << 3)) != 0;
+
   bool get value4 => (this & (1 << 4)) != 0;
+
   bool get value5 => (this & (1 << 5)) != 0;
+
   bool get value6 => (this & (1 << 6)) != 0;
+
   bool get value7 => (this & (1 << 7)) != 0;
 }
