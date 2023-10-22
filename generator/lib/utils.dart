@@ -22,12 +22,14 @@ int fnv64Hash(String s) {
 
 /// Resolves any type aliases and ensures that [type] is a non-nullable object type.
 InterfaceType resolve(DartType type, Element elem) {
-  if (type.nullabilitySuffix != NullabilitySuffix.none) fail('Type `$type` should not be nullable.', elem);
+  if (type.nullabilitySuffix != NullabilitySuffix.none)
+    fail('Type `$type` should not be nullable.', elem);
   final alias = type.alias;
   if (alias != null) {
     return resolve(alias.element.aliasedType, elem);
   } else {
-    if (type is! InterfaceType) fail('Type `$type` should be an object type (class or interface).', elem);
+    if (type is! InterfaceType)
+      fail('Type `$type` should be an object type (class or interface).', elem);
     return type;
   }
 }
@@ -64,7 +66,8 @@ String construct(DartObject? value, Element elem) {
       final type = resolve(rawType, elem);
       final revivable = reader.revive();
       if (reader.instanceOf(kRecordChecker)) {
-        final positional = revivable.positionalArguments.map(recursive).join(', ');
+        final positional =
+            revivable.positionalArguments.map(recursive).join(', ');
         return '($positional)';
       } else if (reader.instanceOf(kEnumChecker)) {
         final accessor = revivable.accessor;
@@ -73,9 +76,13 @@ String construct(DartObject? value, Element elem) {
         final name = type.element.name;
         final dot = (revivable.accessor != '') ? '.' : '';
         final accessor = revivable.accessor;
-        final positional = revivable.positionalArguments.map(recursive).join(', ');
-        final comma = revivable.namedArguments.isNotEmpty ? ', ' : '';
-        final named = revivable.namedArguments.entries.map((e) => '${e.key}: ${recursive(e.value)}').join(', ');
+        final positional =
+            revivable.positionalArguments.map(recursive).join(', ');
+
+        final comma = revivable.positionalArguments.isNotEmpty ? ', ' : '';
+        final named = revivable.namedArguments.entries
+            .map((e) => '${e.key}: ${recursive(e.value)}')
+            .join(', ');
         return '$name$dot$accessor($positional$comma$named)';
       }
     }
