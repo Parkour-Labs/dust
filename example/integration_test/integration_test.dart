@@ -2,8 +2,8 @@ import 'dart:ffi';
 
 import 'package:qinhuai/ffi.dart';
 import 'package:qinhuai/reactive.dart';
+import 'package:qinhuai/serializers.dart';
 import 'package:qinhuai/store.dart';
-import 'package:qinhuai/serializer.dart';
 import 'package:qinhuai/annotations.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -88,7 +88,8 @@ void main() {
     assert(uid == const Id(kIntMin + 233, kIntMin + 666));
 
     final arrayUint8 = bindings.qinhuai_test_array_u8();
-    assert(arrayUint8.len == 5 && listEquals(arrayUint8.ptr.asTypedList(5), [1, 2, 3, 233, 234]));
+    assert(arrayUint8.len == 5 &&
+        listEquals(arrayUint8.ptr.asTypedList(5), [1, 2, 3, 233, 234]));
     bindings.qinhuai_drop_array_u8(arrayUint8);
 
     final arrayIdId = bindings.qinhuai_test_array_id_id();
@@ -96,7 +97,8 @@ void main() {
     {
       final first = arrayIdId.ptr.elementAt(0).ref;
       final second = arrayIdId.ptr.elementAt(1).ref;
-      assert(Id.fromNative(first.first) == id && Id.fromNative(first.second) == uid);
+      assert(Id.fromNative(first.first) == id &&
+          Id.fromNative(first.second) == uid);
       assert(Id.fromNative(second.first) == const Id(0, 1));
       assert(Id.fromNative(second.second) == const Id(1, 0));
     }
@@ -107,7 +109,9 @@ void main() {
     {
       final first = arrayIdUint64Id.ptr.elementAt(0).ref;
       final second = arrayIdUint64Id.ptr.elementAt(1).ref;
-      assert(Id.fromNative(first.first) == id && first.second == 233 && Id.fromNative(first.third) == const Id(0, 1));
+      assert(Id.fromNative(first.first) == id &&
+          first.second == 233 &&
+          Id.fromNative(first.third) == const Id(0, 1));
       assert(Id.fromNative(second.first) == const Id(1, 1) &&
           second.second == 234 &&
           Id.fromNative(second.third) == const Id(1, 0));
@@ -118,7 +122,8 @@ void main() {
     assert(atomSome.tag == 1 &&
         Id.fromNative(atomSome.some.src) == id &&
         atomSome.some.label == kIntMin + 1 &&
-        listEquals(atomSome.some.value.ptr.asTypedList(5), [1, 2, 3, 233, 234]));
+        listEquals(
+            atomSome.some.value.ptr.asTypedList(5), [1, 2, 3, 233, 234]));
     bindings.qinhuai_drop_option_atom(atomSome);
 
     final atomNone = bindings.qinhuai_test_option_atom_none();
@@ -168,8 +173,12 @@ void main() {
       assert(Id.fromNative(edge.id) == const Id(1, 0));
       assert(edge.prev.tag == 1 && edge.curr.tag == 1);
       final prev = edge.prev.some, curr = edge.curr.some;
-      assert(Id.fromNative(prev.src) == id && prev.label == 7 && Id.fromNative(prev.dst) == uid);
-      assert(Id.fromNative(curr.src) == uid && curr.label == 8 && Id.fromNative(curr.dst) == id);
+      assert(Id.fromNative(prev.src) == id &&
+          prev.label == 7 &&
+          Id.fromNative(prev.dst) == uid);
+      assert(Id.fromNative(curr.src) == uid &&
+          curr.label == 8 &&
+          Id.fromNative(curr.dst) == id);
     }
     bindings.qinhuai_drop_array_event_data(arrayEventData);
   });
@@ -179,7 +188,8 @@ void main() {
     for (var i = 0; i < 10; i++) {
       final arrayUint8 = bindings.qinhuai_test_array_u8_big(32000000); // 32MB
       bindings.qinhuai_drop_array_u8(arrayUint8);
-      final arrayEventData = bindings.qinhuai_test_array_event_data_big(10, 1600000); // 32MB
+      final arrayEventData =
+          bindings.qinhuai_test_array_event_data_big(10, 1600000); // 32MB
       bindings.qinhuai_drop_array_event_data(arrayEventData);
     }
   });
@@ -206,14 +216,19 @@ void main() {
       store.setEdge(store.randomId(), (id0, 23333, id1));
       store.getAtomById(id0, (slv) {
         final (src, label, value) = slv!;
-        assert(src == id0 && label == 233 && const Int64Serializer().deserialize(BytesReader(value)) == 666);
+        assert(src == id0 &&
+            label == 233 &&
+            const Int64Serializer().deserialize(BytesReader(value)) == 666);
       });
       store.getAtomById(id1, (slv) {
         final (src, label, value) = slv!;
-        assert(src == id1 && label == 2333 && const Int64Serializer().deserialize(BytesReader(value)) == 6666);
+        assert(src == id1 &&
+            label == 2333 &&
+            const Int64Serializer().deserialize(BytesReader(value)) == 6666);
       });
       final edges = <(int, Id)>[];
-      store.getEdgeLabelDstBySrc(id0, (id, label, dst) => edges.add((label, dst)));
+      store.getEdgeLabelDstBySrc(
+          id0, (id, label, dst) => edges.add((label, dst)));
       assert(edges.length == 1);
       assert(edges.single == (23333, id1));
     });
@@ -222,12 +237,15 @@ void main() {
       final trivial = Trivial.create();
       final trivialAgain = Trivial.create();
 
-      final something = Something.create(atomOne: 'test', atomTwo: '2333', linkOne: trivial, linkTwo: trivial);
+      final something = Something.create(
+          atomOne: 'test', atomTwo: '2333', linkOne: trivial, linkTwo: trivial);
       final somethingElse = Something.create(atomOne: 'test', linkOne: trivial);
       somethingElse.linkThree.insert(something);
 
-      final somethingCopy = const $SomethingRepository().get(something.id).peek()!;
-      final somethingElseCopy = const $SomethingRepository().get(somethingElse.id).peek()!;
+      final somethingCopy =
+          const $SomethingRepository().get(something.id).peek()!;
+      final somethingElseCopy =
+          const $SomethingRepository().get(somethingElse.id).peek()!;
 
       assert(somethingCopy.atomOne.peek() == 'test');
       assert(somethingCopy.atomTwo.peek()! == '2333');
@@ -269,7 +287,8 @@ void main() {
     });
 
     test('object_store_perf', () {
-      final something = Something.create(atomOne: '', linkOne: Trivial.create());
+      final something =
+          Something.create(atomOne: '', linkOne: Trivial.create());
       final stopwatch = Stopwatch()..start();
       for (var i = 0; i < 100000; i++) {
         something.atomOne.set('value: $i');

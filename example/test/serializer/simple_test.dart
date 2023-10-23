@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qinhuai/serializer.dart';
+import 'package:qinhuai/serializers.dart';
 
 Uint8List serialize<T>(T value, Serializer<T> serializer) {
   final builder = BytesBuilder();
@@ -9,7 +9,8 @@ Uint8List serialize<T>(T value, Serializer<T> serializer) {
 }
 
 T deserialize<T>(List<int> bytes, Serializer<T> serializer) {
-  return serializer.deserialize(BytesReader(Uint8List.fromList(bytes).buffer.asByteData()));
+  return serializer
+      .deserialize(BytesReader(Uint8List.fromList(bytes).buffer.asByteData()));
 }
 
 bool listEquals<T>(List<T> lhs, List<T> rhs) {
@@ -22,14 +23,22 @@ bool listEquals<T>(List<T> lhs, List<T> rhs) {
 
 void main() {
   test('serialize_deserialize_simple', () {
-    assert(listEquals(serialize(1, const Uint64Serializer()), [0, 0, 0, 0, 0, 0, 0, 1]));
-    assert(listEquals(serialize(-2, const Int64Serializer()), [255, 255, 255, 255, 255, 255, 255, 254]));
-    assert(deserialize([0, 0, 0, 0, 0, 0, 0, 1], const Uint64Serializer()) == 1);
-    assert(deserialize([255, 255, 255, 255, 255, 255, 255, 254], const Int64Serializer()) == -2);
-    assert(listEquals(serialize(null, const OptionSerializer(Int64Serializer())), [0]));
     assert(listEquals(
-        serialize(-1, const OptionSerializer(Int64Serializer())), [1, 255, 255, 255, 255, 255, 255, 255, 255]));
+        serialize(1, const Uint64Serializer()), [0, 0, 0, 0, 0, 0, 0, 1]));
+    assert(listEquals(serialize(-2, const Int64Serializer()),
+        [255, 255, 255, 255, 255, 255, 255, 254]));
+    assert(
+        deserialize([0, 0, 0, 0, 0, 0, 0, 1], const Uint64Serializer()) == 1);
+    assert(deserialize([255, 255, 255, 255, 255, 255, 255, 254],
+            const Int64Serializer()) ==
+        -2);
+    assert(listEquals(
+        serialize(null, const OptionSerializer(Int64Serializer())), [0]));
+    assert(listEquals(serialize(-1, const OptionSerializer(Int64Serializer())),
+        [1, 255, 255, 255, 255, 255, 255, 255, 255]));
     assert(deserialize([0], const OptionSerializer(Int64Serializer())) == null);
-    assert(deserialize([1, 255, 255, 255, 255, 255, 255, 255, 255], const OptionSerializer(Int64Serializer())) == -1);
+    assert(deserialize([1, 255, 255, 255, 255, 255, 255, 255, 255],
+            const OptionSerializer(Int64Serializer())) ==
+        -1);
   });
 }
