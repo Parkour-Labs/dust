@@ -33,7 +33,7 @@ extension ObserverExtension on Observer {
 
 /// An observable value.
 abstract interface class Observable<T> {
-  /// Two-way onnects with observer [o].
+  /// Two-way connects with observer [o].
   ///
   /// This function is useful for implementing the interface, but not commonly
   /// called from outside.
@@ -68,7 +68,9 @@ abstract interface class ObservableList<T> extends Observable<List<T>> {
 /// An observable mutable list.
 abstract interface class ObservableMutList<T> extends ObservableList<T> {
   void insert(int index, T value);
+
   void update(int index, T value);
+
   void remove(int index);
 }
 
@@ -80,6 +82,7 @@ abstract interface class ObservableSet<T> extends Observable<List<T>> {
 /// An observable mutable set or multiset.
 abstract interface class ObservableMutSet<T> extends ObservableSet<T> {
   void insert(T value);
+
   void remove(T value);
 }
 
@@ -92,6 +95,7 @@ abstract interface class ObservableMap<S, T> extends Observable<List<(S, T)>> {
 /// An observable mutable map.
 abstract interface class ObservableMutMap<S, T> extends ObservableMap<S, T> {
   void update(S key, T value);
+
   void remove(S key);
 }
 
@@ -162,7 +166,9 @@ class Active<T> with ObservableMixin<T> implements ObservableMut<T> {
 }
 
 /// A value computed and cached from other [Observable]s.
-class Reactive<T> with ObservableMixin<T>, ObserverMixin implements Observable<T>, Observer {
+class Reactive<T>
+    with ObservableMixin<T>, ObserverMixin
+    implements Observable<T>, Observer {
   T Function(Observer o) _recompute;
   bool _dirty = false;
   late T _value;
