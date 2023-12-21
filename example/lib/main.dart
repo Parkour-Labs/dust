@@ -1,6 +1,3 @@
-import 'dart:ffi';
-
-import 'package:qinhuai/ffi.dart';
 import 'package:flutter/material.dart';
 
 void main() {
@@ -34,28 +31,11 @@ class MyHomePage extends StatelessWidget {
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: Text(title),
       ),
-      body: Center(
+      body: const Center(
           child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          // Text('${fnv64Hash('hello')}'),
-          // Text('${testHash('hello')}'),
-          Text('${testList()}'),
-        ],
+        children: <Widget>[],
       )),
     );
   }
-}
-
-/*
-int testHash(String name) {
-  final ptr = name.toNativeUtf8(allocator: malloc);
-  final res = getNativeBindings().make_label(ptr);
-  malloc.free(ptr);
-  return res;
-}
-*/
-
-List<int> testList() {
-  return Ffi.bindings.qinhuai_test_array_u8().ptr.asTypedList(5).toList();
 }

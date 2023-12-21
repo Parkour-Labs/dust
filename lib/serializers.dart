@@ -370,6 +370,7 @@ class BytesReader {
 
 extension BytesBuilderWriteExtension on BytesBuilder {
   void writeInt8(int value) {
+    assert(value >= -(1 << 7) && value < (1 << 7), 'Out of range');
     final buffer = Uint8List(1);
     final view = ByteData.view(buffer.buffer);
     view.setInt8(0, value);
@@ -377,6 +378,7 @@ extension BytesBuilderWriteExtension on BytesBuilder {
   }
 
   void writeUint8(int value) {
+    assert(value >= 0 && value < (1 << 8), 'Out of range');
     final buffer = Uint8List(1);
     final view = ByteData.view(buffer.buffer);
     view.setUint8(0, value);
@@ -384,6 +386,7 @@ extension BytesBuilderWriteExtension on BytesBuilder {
   }
 
   void writeInt16(int value) {
+    assert(value >= -(1 << 15) && value < (1 << 15), 'Out of range');
     final buffer = Uint8List(2);
     final view = ByteData.view(buffer.buffer);
     view.setInt16(0, value, _kEndian);
@@ -391,6 +394,7 @@ extension BytesBuilderWriteExtension on BytesBuilder {
   }
 
   void writeUint16(int value) {
+    assert(value >= 0 && value < (1 << 16), 'Out of range');
     final buffer = Uint8List(2);
     final view = ByteData.view(buffer.buffer);
     view.setUint16(0, value, _kEndian);
@@ -398,6 +402,7 @@ extension BytesBuilderWriteExtension on BytesBuilder {
   }
 
   void writeInt32(int value) {
+    assert(value >= -(1 << 31) && value < (1 << 31), 'Out of range');
     final buffer = Uint8List(4);
     final view = ByteData.view(buffer.buffer);
     view.setInt32(0, value, _kEndian);
@@ -405,6 +410,7 @@ extension BytesBuilderWriteExtension on BytesBuilder {
   }
 
   void writeUint32(int value) {
+    assert(value >= 0 && value < (1 << 32), 'Out of range');
     final buffer = Uint8List(4);
     final view = ByteData.view(buffer.buffer);
     view.setUint32(0, value, _kEndian);
@@ -491,14 +497,14 @@ class BoolPack {
     bool value7 = false,
   ]) {
     var data = 0;
-    if (value0) data |= 1 << 0;
-    if (value1) data |= 1 << 1;
-    if (value2) data |= 1 << 2;
-    if (value3) data |= 1 << 3;
-    if (value4) data |= 1 << 4;
-    if (value5) data |= 1 << 5;
-    if (value6) data |= 1 << 6;
-    if (value7) data |= 1 << 7;
+    data |= (value0 ? 1 : 0) << 0;
+    data |= (value1 ? 1 : 0) << 1;
+    data |= (value2 ? 1 : 0) << 2;
+    data |= (value3 ? 1 : 0) << 3;
+    data |= (value4 ? 1 : 0) << 4;
+    data |= (value5 ? 1 : 0) << 5;
+    data |= (value6 ? 1 : 0) << 6;
+    data |= (value7 ? 1 : 0) << 7;
     return BoolPack(data);
   }
 
@@ -524,12 +530,12 @@ class BoolPack {
     return BoolPack(result);
   }
 
-  static int _setIfNotNull(int data, int bit, bool? value) {
+  static int _setIfNotNull(int data, int index, bool? value) {
     if (value == null) return data;
     if (value) {
-      return data | (1 << bit);
+      return data | (1 << index);
     } else {
-      return data & ~(1 << bit);
+      return data & ~(1 << index);
     }
   }
 }

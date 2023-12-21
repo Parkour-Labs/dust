@@ -3,11 +3,9 @@
 pub mod drop;
 pub mod store;
 pub mod structs;
-pub mod test;
 
 use rusqlite::Connection;
 use std::cell::RefCell;
-use std::collections::HashMap;
 
 use self::structs::{CArray, CAtom, CEdge, CEventData, CId, CNode, COption, CPair, CResult, CTriple, CUnit};
 use crate::{

@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:qinhuai/reactive.dart';
 
 void main() {
-  test('active_reactive_simple', () {
+  test('Example should work', () {
     final a = [Active(1), Active(2), Active(3), Active(4)];
     final b = [
       Reactive((r) => a[0].get(r) + a[1].get(r)),
@@ -22,7 +22,8 @@ void main() {
       Reactive((r) => c[2].get(r) + c[3].get(r)),
       Reactive((r) => c[3].get(r) + c[0].get(r)),
     ];
-    final sum = Reactive((r) => d[0].get(r) + d[1].get(r) + d[2].get(r) + d[3].get(r));
+    final sum =
+        Reactive((r) => d[0].get(r) + d[1].get(r) + d[2].get(r) + d[3].get(r));
     assert(sum.peek() == 40);
 
     c[0].set((r) => b[0].get(r) + b[1].get(r));
@@ -36,7 +37,7 @@ void main() {
     assert(c[3].peek() == 8 + 2 * 232);
   });
 
-  test('dynamic_dependencies_simple', () {
+  test('Number of updates should be optimal', () {
     var updates = 0;
 
     final a = [
