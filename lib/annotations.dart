@@ -1,4 +1,4 @@
-import 'serializer.dart';
+import 'serializers.dart';
 
 class Model {
   const Model();

@@ -20,7 +20,9 @@ class ReactiveBuilder extends ReactiveWidget {
   Widget build(BuildContext context, Observer o) => builder(context, o);
 }
 
-class _ReactiveWidgetState extends State<ReactiveWidget> with ObserverMixin implements Observer {
+class _ReactiveWidgetState extends State<ReactiveWidget>
+    with ObserverMixin
+    implements Observer {
   bool _visited = false;
 
   @override

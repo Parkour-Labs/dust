@@ -1,7 +1,9 @@
 import '../reactive.dart';
 import '../store.dart';
 
-class Multilinks<T> with ObservableMixin<List<T>> implements ObservableMutSet<T> {
+class Multilinks<T>
+    with ObservableMixin<List<T>>
+    implements ObservableMutSet<T> {
   final Id src;
   final int label;
   final Repository<T> _repository;
@@ -10,7 +12,11 @@ class Multilinks<T> with ObservableMixin<List<T>> implements ObservableMutSet<T>
   Multilinks(this.src, this.label, this._repository) {
     final weak = WeakReference(this);
     Store.instance.subscribeEdgeBySrcLabel(
-        src, label, (id, dst) => weak.target?._insert(id, dst), (id) => weak.target?._remove(id), this);
+        src,
+        label,
+        (id, dst) => weak.target?._insert(id, dst),
+        (id) => weak.target?._remove(id),
+        this);
   }
 
   @override
@@ -36,7 +42,8 @@ class Multilinks<T> with ObservableMixin<List<T>> implements ObservableMutSet<T>
 
   @override
   void insert(T value) {
-    Store.instance.setEdge(Store.instance.randomId(), (src, label, _repository.id(value)));
+    Store.instance.setEdge(
+        Store.instance.randomId(), (src, label, _repository.id(value)));
     Store.instance.barrier();
   }
 

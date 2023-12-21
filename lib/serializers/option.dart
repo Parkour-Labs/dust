@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import '../serializer.dart';
+import '../serializers.dart';
 
 class OptionSerializer<T extends Object> implements Serializer<T?> {
   final Serializer<T> t;

@@ -7,7 +7,7 @@ import 'package:ffi/ffi.dart';
 
 import 'ffi.dart';
 import 'multimap.dart';
-import 'serializer.dart';
+import 'serializers.dart';
 import 'store/id.dart';
 import 'store/repository.dart';
 
@@ -22,20 +22,45 @@ export 'store/backlinks.dart';
 
 class AlreadyDeletedException<T> implements Exception {}
 
-ByteData _view(CArrayUint8 array) => array.ptr.asTypedList(array.len).buffer.asByteData();
+ByteData _view(CArrayUint8 array) =>
+    array.ptr.asTypedList(array.len).buffer.asByteData();
 
 typedef NodeByIdSubscription = void Function(int? l);
 typedef NodeByLabelSubscription = (void Function(Id id), void Function(Id id));
 typedef AtomByIdSubscription = void Function((Id, int, ByteData)? slv);
-typedef AtomBySrcSubscription = (void Function(Id id, int label, ByteData value), void Function(Id id));
-typedef AtomBySrcLabelSubscription = (void Function(Id id, ByteData value), void Function(Id id));
-typedef AtomByLabelSubscription = (void Function(Id id, Id src, ByteData value), void Function(Id id));
-typedef AtomByLabelValueSubscription = (void Function(Id id, Id src), void Function(Id id));
+typedef AtomBySrcSubscription = (
+  void Function(Id id, int label, ByteData value),
+  void Function(Id id)
+);
+typedef AtomBySrcLabelSubscription = (
+  void Function(Id id, ByteData value),
+  void Function(Id id)
+);
+typedef AtomByLabelSubscription = (
+  void Function(Id id, Id src, ByteData value),
+  void Function(Id id)
+);
+typedef AtomByLabelValueSubscription = (
+  void Function(Id id, Id src),
+  void Function(Id id)
+);
 typedef EdgeByIdSubscription = void Function((Id, int, Id)? sld);
-typedef EdgeBySrcSubscription = (void Function(Id id, int label, Id dst), void Function(Id id));
-typedef EdgeBySrcLabelSubscription = (void Function(Id id, Id dst), void Function(Id id));
-typedef EdgeByDstSubscription = (void Function(Id id, Id src, int label), void Function(Id id));
-typedef EdgeByDstLabelSubscription = (void Function(Id id, Id src), void Function(Id id));
+typedef EdgeBySrcSubscription = (
+  void Function(Id id, int label, Id dst),
+  void Function(Id id)
+);
+typedef EdgeBySrcLabelSubscription = (
+  void Function(Id id, Id dst),
+  void Function(Id id)
+);
+typedef EdgeByDstSubscription = (
+  void Function(Id id, Id src, int label),
+  void Function(Id id)
+);
+typedef EdgeByDstLabelSubscription = (
+  void Function(Id id, Id src),
+  void Function(Id id)
+);
 
 /// The main wrapper class around FFI functions.
 ///
@@ -57,18 +82,32 @@ class Store {
   final edgeByDst = MultiMap<Id, EdgeByDstSubscription>();
   final edgeByDstLabel = MultiMap<(Id, int), EdgeByDstLabelSubscription>();
 
-  late final _nodeByIdFinalizer = Finalizer<(Id, NodeByIdSubscription)>(_unsubscribeNodeById);
-  late final _nodeByLabelFinalizer = Finalizer<(int, NodeByLabelSubscription)>(_unsubscribeNodeByLabel);
-  late final _atomByIdFinalizer = Finalizer<(Id, AtomByIdSubscription)>(_unsubscribeAtomById);
-  late final _atomBySrcFinalizer = Finalizer<(Id, AtomBySrcSubscription)>(_unsubscribeAtomBySrc);
-  late final _atomBySrcLabelFinalizer = Finalizer<((Id, int), AtomBySrcLabelSubscription)>(_unsubscribeAtomBySrcLabel);
-  late final _atomByLabelFinalizer = Finalizer<(int, AtomByLabelSubscription)>(_unsubscribeAtomByLabel);
+  late final _nodeByIdFinalizer =
+      Finalizer<(Id, NodeByIdSubscription)>(_unsubscribeNodeById);
+  late final _nodeByLabelFinalizer =
+      Finalizer<(int, NodeByLabelSubscription)>(_unsubscribeNodeByLabel);
+  late final _atomByIdFinalizer =
+      Finalizer<(Id, AtomByIdSubscription)>(_unsubscribeAtomById);
+  late final _atomBySrcFinalizer =
+      Finalizer<(Id, AtomBySrcSubscription)>(_unsubscribeAtomBySrc);
+  late final _atomBySrcLabelFinalizer =
+      Finalizer<((Id, int), AtomBySrcLabelSubscription)>(
+          _unsubscribeAtomBySrcLabel);
+  late final _atomByLabelFinalizer =
+      Finalizer<(int, AtomByLabelSubscription)>(_unsubscribeAtomByLabel);
   // late final _atomByLabelValueFinalizer = Finalizer<((int, Object), AtomByLabelValueSubscription)>(_unsubscribeAtomByLabelValue);
-  late final _edgeByIdFinalizer = Finalizer<(Id, EdgeByIdSubscription)>(_unsubscribeEdgeById);
-  late final _edgeBySrcFinalizer = Finalizer<(Id, EdgeBySrcSubscription)>(_unsubscribeEdgeBySrc);
-  late final _edgeBySrcLabelFinalizer = Finalizer<((Id, int), EdgeBySrcLabelSubscription)>(_unsubscribeEdgeBySrcLabel);
-  late final _edgeByDstFinalizer = Finalizer<(Id, EdgeByDstSubscription)>(_unsubscribeEdgeByDst);
-  late final _edgeByDstLabelFinalizer = Finalizer<((Id, int), EdgeByDstLabelSubscription)>(_unsubscribeEdgeByDstLabel);
+  late final _edgeByIdFinalizer =
+      Finalizer<(Id, EdgeByIdSubscription)>(_unsubscribeEdgeById);
+  late final _edgeBySrcFinalizer =
+      Finalizer<(Id, EdgeBySrcSubscription)>(_unsubscribeEdgeBySrc);
+  late final _edgeBySrcLabelFinalizer =
+      Finalizer<((Id, int), EdgeBySrcLabelSubscription)>(
+          _unsubscribeEdgeBySrcLabel);
+  late final _edgeByDstFinalizer =
+      Finalizer<(Id, EdgeByDstSubscription)>(_unsubscribeEdgeByDst);
+  late final _edgeByDstLabelFinalizer =
+      Finalizer<((Id, int), EdgeByDstLabelSubscription)>(
+          _unsubscribeEdgeByDstLabel);
 
   Store._(this.bindings);
 
@@ -80,10 +119,14 @@ class Store {
     final bindings = Ffi.bindings;
     for (final repository in repositories) {
       final schema = repository.init();
-      for (final label in schema.stickyNodes) bindings.qinhuai_add_sticky_node(label);
-      for (final label in schema.stickyAtoms) bindings.qinhuai_add_sticky_atom(label);
-      for (final label in schema.stickyEdges) bindings.qinhuai_add_sticky_edge(label);
-      for (final label in schema.acyclicEdges) bindings.qinhuai_add_acyclic_edge(label);
+      for (final label in schema.stickyNodes)
+        bindings.qinhuai_add_sticky_node(label);
+      for (final label in schema.stickyAtoms)
+        bindings.qinhuai_add_sticky_atom(label);
+      for (final label in schema.stickyEdges)
+        bindings.qinhuai_add_sticky_edge(label);
+      for (final label in schema.acyclicEdges)
+        bindings.qinhuai_add_acyclic_edge(label);
     }
     final ptr = databasePath.toNativeUtf8(allocator: malloc);
     bindings.qinhuai_open(ptr.length, ptr.cast<Uint8>());
@@ -125,7 +168,13 @@ class Store {
   /// Obtains atom value.
   void getAtomById(Id id, void Function((Id, int, ByteData)?) fn) {
     final data = bindings.qinhuai_atom(id.high, id.low);
-    fn(data.tag == 0 ? null : (Id.fromNative(data.some.src), data.some.label, _view(data.some.value)));
+    fn(data.tag == 0
+        ? null
+        : (
+            Id.fromNative(data.some.src),
+            data.some.label,
+            _view(data.some.value)
+          ));
     bindings.qinhuai_drop_option_atom(data);
   }
 
@@ -140,8 +189,10 @@ class Store {
   }
 
   /// Queries the forward index.
-  void getAtomValueBySrcLabel(Id src, int label, void Function(Id, ByteData) fn) {
-    final data = bindings.qinhuai_atom_id_value_by_src_label(src.high, src.low, label);
+  void getAtomValueBySrcLabel(
+      Id src, int label, void Function(Id, ByteData) fn) {
+    final data =
+        bindings.qinhuai_atom_id_value_by_src_label(src.high, src.low, label);
     for (var i = 0; i < data.len; i++) {
       final elem = data.ptr.elementAt(i).ref;
       fn(Id.fromNative(elem.first), _view(elem.second));
@@ -154,7 +205,8 @@ class Store {
     final data = bindings.qinhuai_atom_id_src_value_by_label(label);
     for (var i = 0; i < data.len; i++) {
       final elem = data.ptr.elementAt(i).ref;
-      fn(Id.fromNative(elem.first), Id.fromNative(elem.second), _view(elem.third));
+      fn(Id.fromNative(elem.first), Id.fromNative(elem.second),
+          _view(elem.third));
     }
     bindings.qinhuai_drop_array_id_id_array_u8(data);
   }
@@ -169,7 +221,13 @@ class Store {
   /// Obtains edge value.
   void getEdgeById(Id id, void Function((Id, int, Id)?) fn) {
     final data = bindings.qinhuai_edge(id.high, id.low);
-    fn(data.tag == 0 ? null : (Id.fromNative(data.some.src), data.some.label, Id.fromNative(data.some.dst)));
+    fn(data.tag == 0
+        ? null
+        : (
+            Id.fromNative(data.some.src),
+            data.some.label,
+            Id.fromNative(data.some.dst)
+          ));
   }
 
   /// Queries the forward index.
@@ -184,7 +242,8 @@ class Store {
 
   /// Queries the forward index.
   void getEdgeDstBySrcLabel(Id src, int label, void Function(Id, Id) fn) {
-    final data = bindings.qinhuai_edge_id_dst_by_src_label(src.high, src.low, label);
+    final data =
+        bindings.qinhuai_edge_id_dst_by_src_label(src.high, src.low, label);
     for (var i = 0; i < data.len; i++) {
       final item = data.ptr.elementAt(i).ref;
       fn(Id.fromNative(item.first), Id.fromNative(item.second));
@@ -204,7 +263,8 @@ class Store {
 
   /// Queries the reverse index.
   void getEdgeSrcByDstLabel(Id dst, int label, void Function(Id, Id) fn) {
-    final data = bindings.qinhuai_edge_id_src_by_dst_label(dst.high, dst.low, label);
+    final data =
+        bindings.qinhuai_edge_id_src_by_dst_label(dst.high, dst.low, label);
     for (var i = 0; i < data.len; i++) {
       final item = data.ptr.elementAt(i).ref;
       fn(Id.fromNative(item.first), Id.fromNative(item.second));
@@ -235,7 +295,8 @@ class Store {
       final len = bytes.length;
       final ptr = malloc.allocate<Uint8>(len);
       for (var i = 0; i < len; i++) ptr.elementAt(i).value = bytes[i];
-      bindings.qinhuai_set_atom_some(id.high, id.low, src.high, src.low, label, len, ptr);
+      bindings.qinhuai_set_atom_some(
+          id.high, id.low, src.high, src.low, label, len, ptr);
       malloc.free(ptr);
     }
   }
@@ -246,13 +307,15 @@ class Store {
       bindings.qinhuai_set_edge_none(id.high, id.low);
     } else {
       final (src, label, dst) = sld;
-      bindings.qinhuai_set_edge_some(id.high, id.low, src.high, src.low, label, dst.high, dst.low);
+      bindings.qinhuai_set_edge_some(
+          id.high, id.low, src.high, src.low, label, dst.high, dst.low);
     }
   }
 
   Uint8List syncVersion() {
     final data = bindings.qinhuai_sync_version();
-    final res = Uint8List.fromList(data.ptr.asTypedList(data.len)); // Makes copy.
+    final res =
+        Uint8List.fromList(data.ptr.asTypedList(data.len)); // Makes copy.
     bindings.qinhuai_drop_array_u8(data);
     return res;
   }
@@ -264,7 +327,8 @@ class Store {
     for (var i = 0; i < len; i++) ptr.elementAt(i).value = version[i];
     final data = bindings.qinhuai_sync_actions(len, ptr);
     malloc.free(ptr);
-    final res = Uint8List.fromList(data.ptr.asTypedList(data.len)); // Makes copy.
+    final res =
+        Uint8List.fromList(data.ptr.asTypedList(data.len)); // Makes copy.
     bindings.qinhuai_drop_array_u8(data);
     return res;
   }
@@ -289,7 +353,8 @@ class Store {
   }
 
   /// Subscribes to queries on the reverse index.
-  void subscribeNodeByLabel(int label, void Function(Id id) insert, void Function(Id id) remove, Object owner) {
+  void subscribeNodeByLabel(int label, void Function(Id id) insert,
+      void Function(Id id) remove, Object owner) {
     final key = label;
     final value = (insert, remove);
     nodeByLabel.add(key, value);
@@ -298,7 +363,8 @@ class Store {
   }
 
   /// Subscribes to atom value changes.
-  void subscribeAtomById(Id id, void Function((Id, int, ByteData)? slv) update, Object owner) {
+  void subscribeAtomById(
+      Id id, void Function((Id, int, ByteData)? slv) update, Object owner) {
     final key = id;
     final value = update;
     atomById.add(key, value);
@@ -308,7 +374,10 @@ class Store {
 
   /// Subscribes to queries on the forward index.
   void subscribeAtomBySrc(
-      Id src, void Function(Id id, int label, ByteData value) insert, void Function(Id id) remove, Object owner) {
+      Id src,
+      void Function(Id id, int label, ByteData value) insert,
+      void Function(Id id) remove,
+      Object owner) {
     final key = src;
     final value = (insert, remove);
     atomBySrc.add(key, value);
@@ -318,7 +387,11 @@ class Store {
 
   /// Subscribes to queries on the forward index.
   void subscribeAtomBySrcLabel(
-      Id src, int label, void Function(Id id, ByteData value) insert, void Function(Id id) remove, Object owner) {
+      Id src,
+      int label,
+      void Function(Id id, ByteData value) insert,
+      void Function(Id id) remove,
+      Object owner) {
     final key = (src, label);
     final value = (insert, remove);
     atomBySrcLabel.add(key, value);
@@ -328,7 +401,10 @@ class Store {
 
   /// Subscribes to queries on the reverse index.
   void subscribeAtomByLabel(
-      int label, void Function(Id id, Id src, ByteData value) insert, void Function(Id id) remove, Object owner) {
+      int label,
+      void Function(Id id, Id src, ByteData value) insert,
+      void Function(Id id) remove,
+      Object owner) {
     final key = label;
     final value = (insert, remove);
     atomByLabel.add(key, value);
@@ -345,7 +421,8 @@ class Store {
   */
 
   /// Subscribes to edge value changes.
-  void subscribeEdgeById(Id id, void Function((Id, int, Id)? sld) update, Object owner) {
+  void subscribeEdgeById(
+      Id id, void Function((Id, int, Id)? sld) update, Object owner) {
     final key = id;
     final value = update;
     edgeById.add(key, value);
@@ -355,7 +432,10 @@ class Store {
 
   /// Subscribes to queries on the forward index.
   void subscribeEdgeBySrc(
-      Id src, void Function(Id id, int label, Id dst) insert, void Function(Id id) remove, Object owner) {
+      Id src,
+      void Function(Id id, int label, Id dst) insert,
+      void Function(Id id) remove,
+      Object owner) {
     final key = src;
     final value = (insert, remove);
     edgeBySrc.add(key, value);
@@ -365,7 +445,11 @@ class Store {
 
   /// Subscribes to queries on the forward index.
   void subscribeEdgeBySrcLabel(
-      Id src, int label, void Function(Id id, Id dst) insert, void Function(Id id) remove, Object owner) {
+      Id src,
+      int label,
+      void Function(Id id, Id dst) insert,
+      void Function(Id id) remove,
+      Object owner) {
     final key = (src, label);
     final value = (insert, remove);
     edgeBySrcLabel.add(key, value);
@@ -375,7 +459,10 @@ class Store {
 
   /// Subscribes to queries on the reverse index.
   void subscribeEdgeByDst(
-      Id dst, void Function(Id id, Id src, int label) insert, void Function(Id id) remove, Object owner) {
+      Id dst,
+      void Function(Id id, Id src, int label) insert,
+      void Function(Id id) remove,
+      Object owner) {
     final key = dst;
     final value = (insert, remove);
     edgeByDst.add(key, value);
@@ -385,7 +472,11 @@ class Store {
 
   /// Subscribes to queries on the reverse index.
   void subscribeEdgeByDstLabel(
-      Id dst, int label, void Function(Id id, Id src) insert, void Function(Id id) remove, Object owner) {
+      Id dst,
+      int label,
+      void Function(Id id, Id src) insert,
+      void Function(Id id) remove,
+      Object owner) {
     final key = (dst, label);
     final value = (insert, remove);
     edgeByDstLabel.add(key, value);
@@ -393,18 +484,29 @@ class Store {
     getEdgeSrcByDstLabel(dst, label, insert);
   }
 
-  void _unsubscribeNodeById((Id, NodeByIdSubscription) kv) => nodeById.remove(kv.$1, kv.$2);
-  void _unsubscribeNodeByLabel((int, NodeByLabelSubscription) kv) => nodeByLabel.remove(kv.$1, kv.$2);
-  void _unsubscribeAtomById((Id, AtomByIdSubscription) kv) => atomById.remove(kv.$1, kv.$2);
-  void _unsubscribeAtomBySrc((Id, AtomBySrcSubscription) kv) => atomBySrc.remove(kv.$1, kv.$2);
-  void _unsubscribeAtomBySrcLabel(((Id, int), AtomBySrcLabelSubscription) kv) => atomBySrcLabel.remove(kv.$1, kv.$2);
-  void _unsubscribeAtomByLabel((int, AtomByLabelSubscription) kv) => atomByLabel.remove(kv.$1, kv.$2);
+  void _unsubscribeNodeById((Id, NodeByIdSubscription) kv) =>
+      nodeById.remove(kv.$1, kv.$2);
+  void _unsubscribeNodeByLabel((int, NodeByLabelSubscription) kv) =>
+      nodeByLabel.remove(kv.$1, kv.$2);
+  void _unsubscribeAtomById((Id, AtomByIdSubscription) kv) =>
+      atomById.remove(kv.$1, kv.$2);
+  void _unsubscribeAtomBySrc((Id, AtomBySrcSubscription) kv) =>
+      atomBySrc.remove(kv.$1, kv.$2);
+  void _unsubscribeAtomBySrcLabel(((Id, int), AtomBySrcLabelSubscription) kv) =>
+      atomBySrcLabel.remove(kv.$1, kv.$2);
+  void _unsubscribeAtomByLabel((int, AtomByLabelSubscription) kv) =>
+      atomByLabel.remove(kv.$1, kv.$2);
   // void _unsubscribeAtomByLabelValue(((int, Object), AtomByLabelValueSubscription) kv) => atomByLabelValue.remove(kv.$1, kv.$2);
-  void _unsubscribeEdgeById((Id, EdgeByIdSubscription) kv) => edgeById.remove(kv.$1, kv.$2);
-  void _unsubscribeEdgeBySrc((Id, EdgeBySrcSubscription) kv) => edgeBySrc.remove(kv.$1, kv.$2);
-  void _unsubscribeEdgeBySrcLabel(((Id, int), EdgeBySrcLabelSubscription) kv) => edgeBySrcLabel.remove(kv.$1, kv.$2);
-  void _unsubscribeEdgeByDst((Id, EdgeByDstSubscription) kv) => edgeByDst.remove(kv.$1, kv.$2);
-  void _unsubscribeEdgeByDstLabel(((Id, int), EdgeByDstLabelSubscription) kv) => edgeByDstLabel.remove(kv.$1, kv.$2);
+  void _unsubscribeEdgeById((Id, EdgeByIdSubscription) kv) =>
+      edgeById.remove(kv.$1, kv.$2);
+  void _unsubscribeEdgeBySrc((Id, EdgeBySrcSubscription) kv) =>
+      edgeBySrc.remove(kv.$1, kv.$2);
+  void _unsubscribeEdgeBySrcLabel(((Id, int), EdgeBySrcLabelSubscription) kv) =>
+      edgeBySrcLabel.remove(kv.$1, kv.$2);
+  void _unsubscribeEdgeByDst((Id, EdgeByDstSubscription) kv) =>
+      edgeByDst.remove(kv.$1, kv.$2);
+  void _unsubscribeEdgeByDstLabel(((Id, int), EdgeByDstLabelSubscription) kv) =>
+      edgeByDstLabel.remove(kv.$1, kv.$2);
 
   /// Processes all events and invokes relevant observers.
   void barrier() {
@@ -445,8 +547,10 @@ class Store {
             final value = _view(curr.some.value);
             for (final update in atomById[id]) update((id, label, value));
             for (final (insert, _) in atomBySrc[src]) insert(id, label, value);
-            for (final (insert, _) in atomBySrcLabel[(src, label)]) insert(id, value);
-            for (final (insert, _) in atomByLabel[label]) insert(id, src, value);
+            for (final (insert, _) in atomBySrcLabel[(src, label)])
+              insert(id, value);
+            for (final (insert, _) in atomByLabel[label])
+              insert(id, src, value);
           } else {
             for (final update in atomById[id]) update(null);
           }
@@ -469,9 +573,11 @@ class Store {
             final dst = Id.fromNative(curr.some.dst);
             for (final update in edgeById[id]) update((src, label, dst));
             for (final (insert, _) in edgeBySrc[src]) insert(id, label, dst);
-            for (final (insert, _) in edgeBySrcLabel[(src, label)]) insert(id, dst);
+            for (final (insert, _) in edgeBySrcLabel[(src, label)])
+              insert(id, dst);
             for (final (insert, _) in edgeByDst[dst]) insert(id, src, label);
-            for (final (insert, _) in edgeByDstLabel[(dst, label)]) insert(id, src);
+            for (final (insert, _) in edgeByDstLabel[(dst, label)])
+              insert(id, src);
           } else {
             for (final update in edgeById[id]) update(null);
           }
@@ -483,6 +589,7 @@ class Store {
 
     // Debounced commit after each barrier.
     committer?.cancel();
-    committer = Timer(const Duration(milliseconds: 200), bindings.qinhuai_commit);
+    committer =
+        Timer(const Duration(milliseconds: 200), bindings.qinhuai_commit);
   }
 }

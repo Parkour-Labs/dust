@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import '../serializer.dart';
+import '../serializers.dart';
 
 class EnumSerializer<T extends Enum> implements Serializer<T> {
   final List<T> values;

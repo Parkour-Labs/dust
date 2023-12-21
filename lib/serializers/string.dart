@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import '../serializer.dart';
+import '../serializers.dart';
 
 class StringSerializer implements Serializer<String> {
   const StringSerializer();

@@ -44,15 +44,17 @@ class NodeAuto<T> implements Observable<T> {
   }
 }
 
-class NodesByLabel<T> with ObservableMixin<List<T>> implements ObservableSet<T> {
+class NodesByLabel<T>
+    with ObservableMixin<List<T>>
+    implements ObservableSet<T> {
   final int label;
   final Repository<T> _repository;
   final Set<Id> _ids = {};
 
   NodesByLabel(this.label, this._repository) {
     final weak = WeakReference(this);
-    Store.instance
-        .subscribeNodeByLabel(label, (id) => weak.target?._insert(id), (id) => weak.target?._remove(id), this);
+    Store.instance.subscribeNodeByLabel(label, (id) => weak.target?._insert(id),
+        (id) => weak.target?._remove(id), this);
   }
 
   @override

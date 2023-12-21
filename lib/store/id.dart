@@ -11,7 +11,8 @@ final class Id {
         low = cid.low;
 
   @override
-  bool operator ==(Object other) => other is Id && other.high == high && other.low == low;
+  bool operator ==(Object other) =>
+      other is Id && other.high == high && other.low == low;
 
   @override
   int get hashCode => high ^ low;

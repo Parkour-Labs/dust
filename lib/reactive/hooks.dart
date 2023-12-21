@@ -37,11 +37,13 @@ Reactive<T> useReactive<T>(T Function(Observer o) recompute) {
 }
 
 /// Flutter Hooks extension that calls a function whenever an [Observable] is notified.
-Trigger<T> useTrigger<T>(Observable<T> observable, void Function(T value) callback) {
+Trigger<T> useTrigger<T>(
+    Observable<T> observable, void Function(T value) callback) {
   return useMemoized(() => Trigger(observable, callback));
 }
 
 /// Flutter Hooks extension that calls a function whenever an [Observable] is notified.
-Comparer<T> useComparer<T>(Observable<T> observable, void Function(T? prev, T curr) callback) {
+Comparer<T> useComparer<T>(
+    Observable<T> observable, void Function(T? prev, T curr) callback) {
   return useMemoized(() => Comparer(observable, callback));
 }

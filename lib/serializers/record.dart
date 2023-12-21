@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import '../serializer.dart';
+import '../serializers.dart';
 
 class Record1Serializer<A> implements Serializer<(A,)> {
   final Serializer<A> a;

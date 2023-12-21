@@ -10,7 +10,8 @@ class LinkOption<T> with ObservableMixin<T?> implements ObservableMut<T?> {
 
   LinkOption(this.id, this.src, this.label, this._repository) {
     final weak = WeakReference(this);
-    Store.instance.subscribeEdgeById(id, (sld) => weak.target?._update(sld), this);
+    Store.instance
+        .subscribeEdgeById(id, (sld) => weak.target?._update(sld), this);
   }
 
   @override
@@ -27,7 +28,8 @@ class LinkOption<T> with ObservableMixin<T?> implements ObservableMut<T?> {
 
   @override
   void set(T? value) {
-    Store.instance.setEdge(id, (value == null) ? null : (src, label, _repository.id(value)));
+    Store.instance.setEdge(
+        id, (value == null) ? null : (src, label, _repository.id(value)));
     Store.instance.barrier();
   }
 }
@@ -41,7 +43,8 @@ class Link<T> with ObservableMixin<T> implements ObservableMut<T> {
 
   Link(this.id, this.src, this.label, this._repository) {
     final weak = WeakReference(this);
-    Store.instance.subscribeEdgeById(id, (sld) => weak.target?._update(sld), this);
+    Store.instance
+        .subscribeEdgeById(id, (sld) => weak.target?._update(sld), this);
   }
 
   @override

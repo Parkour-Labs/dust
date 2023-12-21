@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import '../serializer.dart';
+import '../serializers.dart';
 
 class MapSerializer<T, U> implements Serializer<Map<T, U>> {
   final Serializer<T> t;

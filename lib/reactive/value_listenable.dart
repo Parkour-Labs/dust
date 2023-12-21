@@ -12,7 +12,9 @@ extension AsObservableExtension<T> on ValueListenable<T> {
   Observable<T> observable() => _AsObservable(this);
 }
 
-class _AsValueListenable<T> with ObserverMixin implements Observer, ValueListenable<T> {
+class _AsValueListenable<T>
+    with ObserverMixin
+    implements Observer, ValueListenable<T> {
   final Observable<T> _observable;
   final List<VoidCallback> _callbacks = [];
   late T _value;

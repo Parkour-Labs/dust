@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import '../serializer.dart';
+import '../serializers.dart';
 
 class Float32Serializer implements Serializer<double> {
   const Float32Serializer();
