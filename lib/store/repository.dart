@@ -15,8 +15,12 @@
 import '../store.dart';
 
 abstract interface class Repository<T> {
+  /// Initialises the repository schema.
   Schema init();
+
   Id id(T model);
+
   NodeOption<T> get(Id id);
+
   void delete(T model);
 }

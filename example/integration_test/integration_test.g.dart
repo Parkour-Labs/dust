@@ -9,6 +9,22 @@ part of 'integration_test.dart';
 // ignore_for_file: duplicate_ignore, unused_local_variable, non_constant_identifier_names, constant_identifier_names, invalid_use_of_protected_member, unnecessary_cast, prefer_const_constructors, lines_longer_than_80_chars, require_trailing_commas, inference_failure_on_function_invocation, unnecessary_parenthesis, unnecessary_raw_strings, unnecessary_null_checks, join_return_with_assignment, prefer_final_locals, avoid_js_rounded_ints, avoid_positional_boolean_parameters, always_specify_types
 // coverage:ignore-file
 
+mixin _$Trivial {
+  Id get id;
+}
+
+final class _Trivial extends Trivial {
+  const _Trivial._(this.id) : super._();
+
+  factory _Trivial() {
+    final id = Store.instance.randomId();
+    return _Trivial._(id);
+  }
+
+  @override
+  final Id id;
+}
+
 class $TrivialRepository implements Repository<Trivial> {
   const $TrivialRepository();
 
@@ -67,9 +83,7 @@ class $TrivialRepository implements Repository<Trivial> {
   NodeOption<Trivial> get(Id $id) {
     final $existing = $entries[$id]?.target;
     if ($existing != null) return $existing;
-    final $model = Trivial._(
-      $id,
-    );
+    final $model = _Trivial._($id);
     final $entry = NodeOption($id, $TrivialRepository.Label, $model);
     $entries[$id] = WeakReference($entry);
     return $entry;

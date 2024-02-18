@@ -12,14 +12,10 @@ part 'integration_test.g.dart';
 const int kIntMin = -9223372036854775808;
 
 @Model()
-class Trivial {
-  final Id id;
+abstract class Trivial with _$Trivial {
+  const Trivial._();
 
-  Trivial._(this.id);
-
-  factory Trivial.create() => const $TrivialRepository().create();
-
-  void delete() => const $TrivialRepository().delete(this);
+  factory Trivial() = _Trivial;
 }
 
 @Model()
@@ -115,8 +111,8 @@ void main() {
     });
 
     test('object_store_wrapper', () {
-      final trivial = Trivial.create();
-      final trivialAgain = Trivial.create();
+      final trivial = Trivial();
+      final trivialAgain = Trivial();
 
       final something = Something.create(
           atomOne: 'test', atomTwo: '2333', linkOne: trivial, linkTwo: trivial);
@@ -168,8 +164,7 @@ void main() {
     });
 
     test('object_store_perf', () {
-      final something =
-          Something.create(atomOne: '', linkOne: Trivial.create());
+      final something = Something.create(atomOne: '', linkOne: Trivial());
       final stopwatch = Stopwatch()..start();
       for (var i = 0; i < 100000; i++) {
         something.atomOne.set('value: $i');

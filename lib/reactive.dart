@@ -69,18 +69,18 @@ extension ObservableExtension<T> on Observable<T> {
 }
 
 /// An observable mutable value.
-abstract interface class ObservableMut<T> extends Observable<T> {
+abstract interface class ObservableMut<T> implements Observable<T> {
   void set(T value);
 }
 
 /// An observable list.
-abstract interface class ObservableList<T> extends Observable<List<T>> {
+abstract interface class ObservableList<T> implements Observable<List<T>> {
   // int length(Observer? o);
   T? element(int index, Observer? o);
 }
 
 /// An observable mutable list.
-abstract interface class ObservableMutList<T> extends ObservableList<T> {
+abstract interface class ObservableMutList<T> implements ObservableList<T> {
   void insert(int index, T value);
 
   void update(int index, T value);
@@ -89,25 +89,26 @@ abstract interface class ObservableMutList<T> extends ObservableList<T> {
 }
 
 /// An observable set or multiset.
-abstract interface class ObservableSet<T> extends Observable<List<T>> {
+abstract interface class ObservableSet<T> implements Observable<List<T>> {
   // int length(Observer? o);
 }
 
 /// An observable mutable set or multiset.
-abstract interface class ObservableMutSet<T> extends ObservableSet<T> {
+abstract interface class ObservableMutSet<T> implements ObservableSet<T> {
   void insert(T value);
 
   void remove(T value);
 }
 
 /// An observable map.
-abstract interface class ObservableMap<S, T> extends Observable<List<(S, T)>> {
+abstract interface class ObservableMap<S, T>
+    implements Observable<List<(S, T)>> {
   // int length(Observer? o);
   T? element(S key, Observer? o);
 }
 
 /// An observable mutable map.
-abstract interface class ObservableMutMap<S, T> extends ObservableMap<S, T> {
+abstract interface class ObservableMutMap<S, T> implements ObservableMap<S, T> {
   void update(S key, T value);
 
   void remove(S key);
@@ -177,6 +178,10 @@ class Active<T> with ObservableMixin<T> implements ObservableMut<T> {
     this._value = value;
     notifyAll();
   }
+}
+
+extension ActiveX<T> on T {
+  Active<T> activate() => Active(this);
 }
 
 /// A value computed and cached from other [Observable]s.

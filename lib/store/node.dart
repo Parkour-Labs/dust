@@ -43,8 +43,9 @@ class NodeOption<T> extends ObservableMixin<T?> implements Observable<T?> {
 class NodeAuto<T> implements Observable<T> {
   final NodeOption _inner;
   final void Function() _callback;
+  final void Function(T)? _onCreated;
 
-  NodeAuto(this._inner, this._callback);
+  NodeAuto(this._inner, this._callback, [this._onCreated]);
 
   @override
   void connect(Observer o) => _inner.connect(o);
@@ -54,7 +55,9 @@ class NodeAuto<T> implements Observable<T> {
     final res = _inner.get(o);
     if (res != null) return res;
     _callback();
-    return _inner.get(o)!;
+    final r = _inner.get(o)!;
+    _onCreated?.call(r);
+    return r;
   }
 }
 
