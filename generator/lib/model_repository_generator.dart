@@ -11,7 +11,7 @@ import 'utils.dart';
 const kBacklinkAnnotation = TypeChecker.fromRuntime(Backlink);
 
 const kConstraintsAnnotation = TypeChecker.fromRuntime(Constraints);
-const kDefaultAnnotation = TypeChecker.fromRuntime(Default);
+const kDefaultAnnotation = TypeChecker.fromRuntime(DustDft);
 const kGlobalAnnotation = TypeChecker.fromRuntime(Global);
 
 const kActiveName = 'Active';

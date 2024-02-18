@@ -10,6 +10,6 @@ class Todo with _$Todo {
   factory Todo({
     required String title,
     String? description,
-    @Default(false) bool completed,
+    @DustDft(false) bool completed,
   }) = _Todo;
 }

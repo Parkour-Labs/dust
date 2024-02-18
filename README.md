@@ -1,4 +1,4 @@
-# Qinhuai
+# Dust
 
 [![android](https://github.com/Parkour-Labs/qinhuai/actions/workflows/android.yml/badge.svg)](https://github.com/Parkour-Labs/qinhuai/actions/workflows/android.yml)
 
