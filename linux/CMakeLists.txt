@@ -4,10 +4,10 @@
 cmake_minimum_required(VERSION 3.10)
 
 # Project-level configuration.
-project(qinhuai)
+project(dust)
 
 # Invoke the build for native code.
-add_custom_target(qinhuai
+add_custom_target(dust
   ALL
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../native/
   # COMMAND rustup target add x86_64-unknown-linux-gnu i686-unknown-linux-gnu aarch64-unknown-linux-gnu
@@ -18,7 +18,7 @@ add_custom_target(qinhuai
 )
 
 # List of absolute paths to libraries that should be bundled with the plugin.
-set(qinhuai_bundled_libraries
-  ${CMAKE_CURRENT_BINARY_DIR}/native/release/libqinhuai.so
+set(dust_bundled_libraries
+  ${CMAKE_CURRENT_BINARY_DIR}/native/release/libdust.so
   PARENT_SCOPE
 )

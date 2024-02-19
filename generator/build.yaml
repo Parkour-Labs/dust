@@ -4,14 +4,14 @@ builders:
   # Name of the builder.
   model_repository:
     # Library URI containing the builder.
-    import: "package:qinhuai_generator/builders.dart"
+    import: "package:dust_generator/builders.dart"
     # Name of the function in the above library to call.
     builder_factories: ["modelRepositoryBuilder"]
     # The mapping from the source extension to the generated file extension.
     # Format: `NAME.g.part` where
     # - `NAME` corresponds to the second argument to the `SharedPartBuilder` constructor.
     # - `.g.part` is the extension expected by `SharedPartBuilder`.
-    build_extensions: {".dart": ["model_repository.g.part"]}
+    build_extensions: { ".dart": ["model_repository.g.part"] }
     # Will automatically run on any package that depends on it.
     auto_apply: dependents
     # First generate the output to a hidden cache dir.

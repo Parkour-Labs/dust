@@ -23,11 +23,11 @@ import 'ffi/native_bindings.dart';
 class Ffi {
   static final bindings = NativeBindings(library);
   static final library = switch (defaultTargetPlatform) {
-    TargetPlatform.android => DynamicLibrary.open('libqinhuai.so'),
+    TargetPlatform.android => DynamicLibrary.open('libdust.so'),
     TargetPlatform.iOS => DynamicLibrary.process(),
     TargetPlatform.macOS => DynamicLibrary.process(),
-    TargetPlatform.linux => DynamicLibrary.open('libqinhuai.so'),
-    TargetPlatform.windows => DynamicLibrary.open('qinhuai.dll'),
+    TargetPlatform.linux => DynamicLibrary.open('libdust.so'),
+    TargetPlatform.windows => DynamicLibrary.open('dust.dll'),
     _ => throw UnimplementedError('Unsupported platform'),
   };
 }

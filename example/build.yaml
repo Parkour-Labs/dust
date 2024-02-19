@@ -10,7 +10,7 @@ targets:
         - test/**
         - integration_test/**
     builders:
-      qinhuai_generator|model_repository:
+      dust_generator|model_repository:
         generate_for:
           include:
             - test/**

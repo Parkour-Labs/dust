@@ -1,7 +1,7 @@
-name: qinhuai_generator
-description: Code generator for the Dart side of qinhuai.
+name: dust_generator
+description: Code generator for the Dart side of dust.
 version: 1.0.0
-repository: https://github.com/Parkour-Labs/qinhuai/
+repository: https://github.com/Parkour-Labs/dust/generator
 publish_to: "none"
 
 environment:
@@ -9,7 +9,7 @@ environment:
 
 dependencies:
   analyzer: ^6.2.0
-  qinhuai:
+  dust:
     path: ../
   build: ^2.4.1
   build_config: ^1.1.1

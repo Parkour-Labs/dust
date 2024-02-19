@@ -2,7 +2,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qinhuai/serializers.dart';
+import 'package:dust/serializers.dart';
 
 String randomString(Random random, int maxLength) {
   const chars =

@@ -13,11 +13,6 @@ cd "$CARGOKIT_TOOL_TEMP_DIR"
 # with .dart_tool contents.
 
 BUILD_TOOL_PKG_DIR="$BASEDIR/build_tool"
-# check if ~/Developer/flutter/bin/ exists
-if [[ -d "/usr/local/flutter/" ]]; then
-  FLUTTER_ROOT="/usr/local/flutter/"
-fi
-
 
 if [[ -z $FLUTTER_ROOT ]]; then # not defined
   DART="dart"

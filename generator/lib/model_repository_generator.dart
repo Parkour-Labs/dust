@@ -3,7 +3,7 @@ import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:build/build.dart';
 import 'package:source_gen/source_gen.dart';
-import 'package:qinhuai/annotations.dart';
+import 'package:dust/annotations.dart';
 
 import 'serializable_generator.dart';
 import 'utils.dart';
@@ -59,7 +59,8 @@ final class AtomDefault extends FieldType {
   final String serializer;
   final String defaultValue;
   final bool sticky;
-  AtomDefault(this.type, this.serializer, this.defaultValue, {required this.sticky});
+  AtomDefault(this.type, this.serializer, this.defaultValue,
+      {required this.sticky});
 }
 
 final class Link extends FieldType {
@@ -105,15 +106,23 @@ final class Struct {
 /// Converts [DartType] to [FieldType].
 FieldType convertType(DartType rawType, FieldElement elem) {
   final type = resolve(rawType, elem);
-  final constraints = kConstraintsAnnotation.annotationsOfExact(elem).firstOrNull;
+  final constraints =
+      kConstraintsAnnotation.annotationsOfExact(elem).firstOrNull;
   var sticky = constraints?.getField('sticky')?.toBoolValue();
   var acyclic = constraints?.getField('acyclic')?.toBoolValue();
 
-  if (type.element.name == 'Atom' || type.element.name == 'AtomOption' || type.element.name == 'AtomDefault') {
-    if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
+  if (type.element.name == 'Atom' ||
+      type.element.name == 'AtomOption' ||
+      type.element.name == 'AtomDefault') {
+    if (type.typeArguments.length != 1)
+      fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
     final inner = resolve(type.typeArguments.single, elem);
-    final value = kSerializableAnnotation.annotationsOfExact(elem).firstOrNull?.getField('serializer');
-    final serializer = (value != null) ? construct(value, elem) : emitSerializer(inner);
+    final value = kSerializableAnnotation
+        .annotationsOfExact(elem)
+        .firstOrNull
+        ?.getField('serializer');
+    final serializer =
+        (value != null) ? construct(value, elem) : emitSerializer(inner);
     if (serializer == null) {
       fail(
         'Failed to synthesize serializer for type `$inner`. '
@@ -122,40 +131,59 @@ FieldType convertType(DartType rawType, FieldElement elem) {
       );
     }
     if (type.element.name == 'Atom') {
-      if (sticky != null) fail('Sticky constraint is already implied here.', elem);
-      if (acyclic != null) fail('Acyclic constraint cannot be applied here.', elem);
+      if (sticky != null)
+        fail('Sticky constraint is already implied here.', elem);
+      if (acyclic != null)
+        fail('Acyclic constraint cannot be applied here.', elem);
       return Atom(inner, serializer);
     } else if (type.element.name == 'AtomOption') {
-      if (acyclic != null) fail('Acyclic constraint cannot be applied here.', elem);
+      if (acyclic != null)
+        fail('Acyclic constraint cannot be applied here.', elem);
       return AtomOption(inner, serializer, sticky: sticky == true);
     } else if (type.element.name == 'AtomDefault') {
-      final value = kDefaultAnnotation.annotationsOfExact(elem).firstOrNull?.getField('defaultValue');
+      final value = kDefaultAnnotation
+          .annotationsOfExact(elem)
+          .firstOrNull
+          ?.getField('defaultValue');
       final defaultValue = (value != null) ? construct(value, elem) : null;
-      if (defaultValue == null) fail('Please specify a default value using `@Default(defaultValue)`. ', elem);
-      if (acyclic != null) fail('Acyclic constraint cannot be applied here.', elem);
-      return AtomDefault(inner, serializer, defaultValue, sticky: sticky == true);
+      if (defaultValue == null)
+        fail('Please specify a default value using `@Default(defaultValue)`. ',
+            elem);
+      if (acyclic != null)
+        fail('Acyclic constraint cannot be applied here.', elem);
+      return AtomDefault(inner, serializer, defaultValue,
+          sticky: sticky == true);
     }
   }
 
-  if (type.element.name == 'Link' || type.element.name == 'LinkOption' || type.element.name == 'Multilinks') {
-    if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
+  if (type.element.name == 'Link' ||
+      type.element.name == 'LinkOption' ||
+      type.element.name == 'Multilinks') {
+    if (type.typeArguments.length != 1)
+      fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
     final inner = resolve(type.typeArguments.single, elem);
     if (type.element.name == 'Link') {
-      if (sticky != null) fail('Sticky constraint is already implied here.', elem);
+      if (sticky != null)
+        fail('Sticky constraint is already implied here.', elem);
       return Link(inner, acyclic: acyclic == true);
     } else if (type.element.name == 'LinkOption') {
-      return LinkOption(inner, sticky: sticky == true, acyclic: acyclic == true);
+      return LinkOption(inner,
+          sticky: sticky == true, acyclic: acyclic == true);
     } else if (type.element.name == 'Multilinks') {
-      return Multilinks(inner, sticky: sticky == true, acyclic: acyclic == true);
+      return Multilinks(inner,
+          sticky: sticky == true, acyclic: acyclic == true);
     }
   }
 
   if (type.element.name == 'Backlinks') {
-    if (type.typeArguments.length != 1) fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
+    if (type.typeArguments.length != 1)
+      fail('Incorrect number of type arguments in `$type` (expected 1).', elem);
     final inner = resolve(type.typeArguments.single, elem);
     final annot = kBacklinkAnnotation.annotationsOfExact(elem).firstOrNull;
     final value = annot?.getField('name')?.toStringValue();
-    if (value == null) fail('Backlinks must be annotated with `@Backlink(\'fieldName\')`.', elem);
+    if (value == null)
+      fail(
+          'Backlinks must be annotated with `@Backlink(\'fieldName\')`.', elem);
     return Backlinks(inner, value);
   }
 
@@ -167,7 +195,9 @@ FieldType convertType(DartType rawType, FieldElement elem) {
 
 /// Converts [FieldElement] to [Field].
 Field? convertField(FieldElement elem) {
-  if (elem.isSynthetic || elem.isStatic || kTransientAnnotation.annotationsOfExact(elem).isNotEmpty) return null;
+  if (elem.isSynthetic ||
+      elem.isStatic ||
+      kTransientAnnotation.annotationsOfExact(elem).isNotEmpty) return null;
   if (!elem.isFinal) fail('Field must be marked as final.', elem);
   if (elem.isLate) fail('Field must not be marked as late.', elem);
   final name = elem.name;
@@ -188,8 +218,10 @@ Struct convertStruct(ClassElement elem) {
     final type = id.type;
     if (!id.isFinal) fail('The `id` field must be marked as final.', id);
     if (id.isLate) fail('The `id` field must not be marked as late.', id);
-    if (type.nullabilitySuffix != NullabilitySuffix.none) fail('The `id` field must not be marked as nullable.', id);
-    if (type is! InterfaceType || type.element.name != 'Id') fail('The `id` field must have type `Id`.', id);
+    if (type.nullabilitySuffix != NullabilitySuffix.none)
+      fail('The `id` field must not be marked as nullable.', id);
+    if (type is! InterfaceType || type.element.name != 'Id')
+      fail('The `id` field must have type `Id`.', id);
   }
   for (final (i, e) in elem.fields.indexed) {
     if (i == 0) continue; // Skip the `id` field.
@@ -301,7 +333,9 @@ String emitCreateFunctionParams(Struct struct) {
     final name = field.name;
     res += switch (field.type) {
       Atom(type: final inner) => 'required $inner $name,',
-      AtomOption(type: final inner) || AtomDefault(type: final inner) => '$inner? $name,',
+      AtomOption(type: final inner) ||
+      AtomDefault(type: final inner) =>
+        '$inner? $name,',
       Link(type: final inner) => 'required $inner $name,',
       LinkOption(type: final inner) => '$inner? $name,',
       Multilinks() => '',
@@ -388,7 +422,8 @@ String emitGetFunctionCtorArgs(Struct struct) {
     final name = field.name;
     final lab = label(struct.name, name);
     res += switch (field.type) {
-      Atom(type: final inner) => '$name: Atom<$inner>(\$id ^ $lab, \$id, $lab, ${serializer(struct.name, name)},),',
+      Atom(type: final inner) =>
+        '$name: Atom<$inner>(\$id ^ $lab, \$id, $lab, ${serializer(struct.name, name)},),',
       AtomOption(type: final inner) =>
         '$name: AtomOption<$inner>(\$id ^ $lab, \$id, $lab, ${serializer(struct.name, name)},),',
       AtomDefault(type: final inner, :final defaultValue) =>
@@ -455,13 +490,17 @@ String emitGlobalIds(Struct struct, ClassElement elem) {
   }
 
   for (final ctor in elem.constructors) {
-    if (ctor.isFactory && kGlobalAnnotation.annotationsOfExact(ctor).isNotEmpty) generateFor(ctor.name);
+    if (ctor.isFactory && kGlobalAnnotation.annotationsOfExact(ctor).isNotEmpty)
+      generateFor(ctor.name);
   }
   for (final method in elem.methods) {
-    if (method.isStatic && kGlobalAnnotation.annotationsOfExact(method).isNotEmpty) generateFor(method.name);
+    if (method.isStatic &&
+        kGlobalAnnotation.annotationsOfExact(method).isNotEmpty)
+      generateFor(method.name);
   }
   for (final acc in elem.accessors) {
-    if (acc.isStatic && kGlobalAnnotation.annotationsOfExact(acc).isNotEmpty) generateFor(acc.name);
+    if (acc.isStatic && kGlobalAnnotation.annotationsOfExact(acc).isNotEmpty)
+      generateFor(acc.name);
   }
   return res;
 }
@@ -471,8 +510,11 @@ String emitGlobalIds(Struct struct, ClassElement elem) {
 /// For more details, see [https://parkourlabs.feishu.cn/docx/SGi2dLIUUo4MjVxdzsvcxseBnZc](https://parkourlabs.feishu.cn/docx/SGi2dLIUUo4MjVxdzsvcxseBnZc).
 class ModelRepositoryGenerator extends GeneratorForAnnotation<Model> {
   @override
-  String generateForAnnotatedElement(Element element, ConstantReader annotation, BuildStep buildStep) {
-    if (element is! ClassElement || element is EnumElement || element is MixinElement) {
+  String generateForAnnotatedElement(
+      Element element, ConstantReader annotation, BuildStep buildStep) {
+    if (element is! ClassElement ||
+        element is EnumElement ||
+        element is MixinElement) {
       fail('Only classes may be annotated with @Model().', element);
     }
     final struct = convertStruct(element);

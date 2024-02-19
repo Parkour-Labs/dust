@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qinhuai/reactive.dart';
+import 'package:dust/reactive.dart';
 
 void main() {
   test('Example should work', () {

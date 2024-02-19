@@ -1,3 +1,3 @@
-# Flutter qinhuai generator
+# Flutter dust generator
 
-Code generator for the Dart side of qinhuai.
+Code generator for the Dart side of dust.
