@@ -1,4 +1,4 @@
-name: qinhuai_test
+name: dust_test
 description: A new Flutter project.
 version: 1.0.0+1
 homepage:
@@ -6,10 +6,10 @@ repository:
 publish_to: "none"
 
 environment:
-  sdk: '>=3.1.0 <4.0.0'
+  sdk: ">=3.1.0 <4.0.0"
 
 dependencies:
-  qinhuai:
+  dust:
     path: ../
   cupertino_icons: ^1.0.2
   ffi: ^2.0.1
@@ -18,7 +18,7 @@ dependencies:
   path_provider: ^2.1.1
 
 dev_dependencies:
-  qinhuai_generator:
+  dust_generator:
     path: ../generator
   build_runner: ^2.4.6
   flutter_lints: ^3.0.1

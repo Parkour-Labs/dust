@@ -1,7 +1,7 @@
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:build/build.dart';
-import 'package:qinhuai/annotations.dart';
+import 'package:dust/annotations.dart';
 import 'package:source_gen/source_gen.dart';
 
 import 'serializable_generator.dart';
@@ -825,3 +825,4 @@ class ModelRepositoryGenerator extends GeneratorForAnnotation<Model> {
     ''';
   }
 }
+

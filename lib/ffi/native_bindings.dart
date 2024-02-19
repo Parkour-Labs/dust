@@ -44,502 +44,489 @@ class NativeBindings {
   /// Handles native error.
   void _err(CArrayUint8 error) {
     final message = utf8.decode(error.ptr.asTypedList(error.len));
-    qinhuai_drop_array_u8(error);
+    dust_drop_array_u8(error);
     throw NativeError(message);
   }
 
-  void qinhuai_add_acyclic_edge(int label) {
-    return _qinhuai_add_acyclic_edge(label);
+  void dust_add_acyclic_edge(int label) {
+    return _dust_add_acyclic_edge(label);
   }
 
-  late final _qinhuai_add_acyclic_edgePtr =
-      _lookup<NativeFunction<Void Function(Uint64)>>(
-          'qinhuai_add_acyclic_edge');
-  late final _qinhuai_add_acyclic_edge =
-      _qinhuai_add_acyclic_edgePtr.asFunction<void Function(int)>(isLeaf: true);
+  late final _dust_add_acyclic_edgePtr =
+      _lookup<NativeFunction<Void Function(Uint64)>>('dust_add_acyclic_edge');
+  late final _dust_add_acyclic_edge =
+      _dust_add_acyclic_edgePtr.asFunction<void Function(int)>(isLeaf: true);
 
-  void qinhuai_add_sticky_atom(int label) {
-    return _qinhuai_add_sticky_atom(label);
+  void dust_add_sticky_atom(int label) {
+    return _dust_add_sticky_atom(label);
   }
 
-  late final _qinhuai_add_sticky_atomPtr =
-      _lookup<NativeFunction<Void Function(Uint64)>>('qinhuai_add_sticky_atom');
-  late final _qinhuai_add_sticky_atom =
-      _qinhuai_add_sticky_atomPtr.asFunction<void Function(int)>(isLeaf: true);
+  late final _dust_add_sticky_atomPtr =
+      _lookup<NativeFunction<Void Function(Uint64)>>('dust_add_sticky_atom');
+  late final _dust_add_sticky_atom =
+      _dust_add_sticky_atomPtr.asFunction<void Function(int)>(isLeaf: true);
 
-  void qinhuai_add_sticky_edge(int label) {
-    return _qinhuai_add_sticky_edge(label);
+  void dust_add_sticky_edge(int label) {
+    return _dust_add_sticky_edge(label);
   }
 
-  late final _qinhuai_add_sticky_edgePtr =
-      _lookup<NativeFunction<Void Function(Uint64)>>('qinhuai_add_sticky_edge');
-  late final _qinhuai_add_sticky_edge =
-      _qinhuai_add_sticky_edgePtr.asFunction<void Function(int)>(isLeaf: true);
+  late final _dust_add_sticky_edgePtr =
+      _lookup<NativeFunction<Void Function(Uint64)>>('dust_add_sticky_edge');
+  late final _dust_add_sticky_edge =
+      _dust_add_sticky_edgePtr.asFunction<void Function(int)>(isLeaf: true);
 
-  void qinhuai_add_sticky_node(int label) {
-    return _qinhuai_add_sticky_node(label);
+  void dust_add_sticky_node(int label) {
+    return _dust_add_sticky_node(label);
   }
 
-  late final _qinhuai_add_sticky_nodePtr =
-      _lookup<NativeFunction<Void Function(Uint64)>>('qinhuai_add_sticky_node');
-  late final _qinhuai_add_sticky_node =
-      _qinhuai_add_sticky_nodePtr.asFunction<void Function(int)>(isLeaf: true);
+  late final _dust_add_sticky_nodePtr =
+      _lookup<NativeFunction<Void Function(Uint64)>>('dust_add_sticky_node');
+  late final _dust_add_sticky_node =
+      _dust_add_sticky_nodePtr.asFunction<void Function(int)>(isLeaf: true);
 
-  COptionAtom qinhuai_atom(int idh, int idl) {
-    final res = _qinhuai_atom(idh, idl);
+  COptionAtom dust_atom(int idh, int idl) {
+    final res = _dust_atom(idh, idl);
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_atomPtr =
+  late final _dust_atomPtr =
       _lookup<NativeFunction<CResultOptionAtom Function(Uint64, Uint64)>>(
-          'qinhuai_atom');
-  late final _qinhuai_atom = _qinhuai_atomPtr
+          'dust_atom');
+  late final _dust_atom = _dust_atomPtr
       .asFunction<CResultOptionAtom Function(int, int)>(isLeaf: true);
 
-  CArrayTripleIdUint64ArrayUint8 qinhuai_atom_id_label_value_by_src(
+  CArrayTripleIdUint64ArrayUint8 dust_atom_id_label_value_by_src(
       int srch, int srcl) {
-    final res = _qinhuai_atom_id_label_value_by_src(srch, srcl);
+    final res = _dust_atom_id_label_value_by_src(srch, srcl);
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_atom_id_label_value_by_srcPtr = _lookup<
+  late final _dust_atom_id_label_value_by_srcPtr = _lookup<
       NativeFunction<
           CResultArrayTripleIdUint64ArrayUint8 Function(
-              Uint64, Uint64)>>('qinhuai_atom_id_label_value_by_src');
-  late final _qinhuai_atom_id_label_value_by_src =
-      _qinhuai_atom_id_label_value_by_srcPtr
+              Uint64, Uint64)>>('dust_atom_id_label_value_by_src');
+  late final _dust_atom_id_label_value_by_src =
+      _dust_atom_id_label_value_by_srcPtr
           .asFunction<CResultArrayTripleIdUint64ArrayUint8 Function(int, int)>(
               isLeaf: true);
 
-  CArrayPairIdId qinhuai_atom_id_src_by_label_value(
+  CArrayPairIdId dust_atom_id_src_by_label_value(
       int label, int len, Pointer<Uint8> ptr) {
-    final res = _qinhuai_atom_id_src_by_label_value(label, len, ptr);
+    final res = _dust_atom_id_src_by_label_value(label, len, ptr);
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_atom_id_src_by_label_valuePtr = _lookup<
+  late final _dust_atom_id_src_by_label_valuePtr = _lookup<
       NativeFunction<
           CResultArrayPairIdId Function(Uint64, Uint64,
-              Pointer<Uint8>)>>('qinhuai_atom_id_src_by_label_value');
-  late final _qinhuai_atom_id_src_by_label_value =
-      _qinhuai_atom_id_src_by_label_valuePtr
+              Pointer<Uint8>)>>('dust_atom_id_src_by_label_value');
+  late final _dust_atom_id_src_by_label_value =
+      _dust_atom_id_src_by_label_valuePtr
           .asFunction<CResultArrayPairIdId Function(int, int, Pointer<Uint8>)>(
               isLeaf: true);
 
-  CArrayTripleIdIdArrayUint8 qinhuai_atom_id_src_value_by_label(int label) {
-    final res = _qinhuai_atom_id_src_value_by_label(label);
+  CArrayTripleIdIdArrayUint8 dust_atom_id_src_value_by_label(int label) {
+    final res = _dust_atom_id_src_value_by_label(label);
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_atom_id_src_value_by_labelPtr = _lookup<
+  late final _dust_atom_id_src_value_by_labelPtr = _lookup<
           NativeFunction<CResultArrayTripleIdIdArrayUint8 Function(Uint64)>>(
-      'qinhuai_atom_id_src_value_by_label');
-  late final _qinhuai_atom_id_src_value_by_label =
-      _qinhuai_atom_id_src_value_by_labelPtr
+      'dust_atom_id_src_value_by_label');
+  late final _dust_atom_id_src_value_by_label =
+      _dust_atom_id_src_value_by_labelPtr
           .asFunction<CResultArrayTripleIdIdArrayUint8 Function(int)>(
               isLeaf: true);
 
-  CArrayPairIdArrayUint8 qinhuai_atom_id_value_by_src_label(
+  CArrayPairIdArrayUint8 dust_atom_id_value_by_src_label(
       int srch, int srcl, int label) {
-    final res = _qinhuai_atom_id_value_by_src_label(srch, srcl, label);
+    final res = _dust_atom_id_value_by_src_label(srch, srcl, label);
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_atom_id_value_by_src_labelPtr = _lookup<
+  late final _dust_atom_id_value_by_src_labelPtr = _lookup<
       NativeFunction<
           CResultArrayPairIdArrayUint8 Function(
-              Uint64, Uint64, Uint64)>>('qinhuai_atom_id_value_by_src_label');
-  late final _qinhuai_atom_id_value_by_src_label =
-      _qinhuai_atom_id_value_by_src_labelPtr
+              Uint64, Uint64, Uint64)>>('dust_atom_id_value_by_src_label');
+  late final _dust_atom_id_value_by_src_label =
+      _dust_atom_id_value_by_src_labelPtr
           .asFunction<CResultArrayPairIdArrayUint8 Function(int, int, int)>(
               isLeaf: true);
 
-  CArrayEventData qinhuai_barrier() {
-    final res = _qinhuai_barrier();
+  CArrayEventData dust_barrier() {
+    final res = _dust_barrier();
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_barrierPtr =
-      _lookup<NativeFunction<CResultArrayEventData Function()>>(
-          'qinhuai_barrier');
-  late final _qinhuai_barrier = _qinhuai_barrierPtr
+  late final _dust_barrierPtr =
+      _lookup<NativeFunction<CResultArrayEventData Function()>>('dust_barrier');
+  late final _dust_barrier = _dust_barrierPtr
       .asFunction<CResultArrayEventData Function()>(isLeaf: true);
 
-  CUnit qinhuai_close() {
-    final res = _qinhuai_close();
+  CUnit dust_close() {
+    final res = _dust_close();
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_closePtr =
-      _lookup<NativeFunction<CResultUnit Function()>>('qinhuai_close');
-  late final _qinhuai_close =
-      _qinhuai_closePtr.asFunction<CResultUnit Function()>(isLeaf: true);
+  late final _dust_closePtr =
+      _lookup<NativeFunction<CResultUnit Function()>>('dust_close');
+  late final _dust_close =
+      _dust_closePtr.asFunction<CResultUnit Function()>(isLeaf: true);
 
-  CUnit qinhuai_commit() {
-    final res = _qinhuai_commit();
+  CUnit dust_commit() {
+    final res = _dust_commit();
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_commitPtr =
-      _lookup<NativeFunction<CResultUnit Function()>>('qinhuai_commit');
-  late final _qinhuai_commit =
-      _qinhuai_commitPtr.asFunction<CResultUnit Function()>(isLeaf: true);
+  late final _dust_commitPtr =
+      _lookup<NativeFunction<CResultUnit Function()>>('dust_commit');
+  late final _dust_commit =
+      _dust_commitPtr.asFunction<CResultUnit Function()>(isLeaf: true);
 
   /// Drops the return value of [`barrier`].
-  void qinhuai_drop_array_event_data(CArrayEventData value) {
-    return _qinhuai_drop_array_event_data(value);
+  void dust_drop_array_event_data(CArrayEventData value) {
+    return _dust_drop_array_event_data(value);
   }
 
-  late final _qinhuai_drop_array_event_dataPtr =
+  late final _dust_drop_array_event_dataPtr =
       _lookup<NativeFunction<Void Function(CArrayEventData)>>(
-          'qinhuai_drop_array_event_data');
-  late final _qinhuai_drop_array_event_data = _qinhuai_drop_array_event_dataPtr
+          'dust_drop_array_event_data');
+  late final _dust_drop_array_event_data = _dust_drop_array_event_dataPtr
       .asFunction<void Function(CArrayEventData)>(isLeaf: true);
 
   /// Drops the return value of [`node_id_by_label`].
-  void qinhuai_drop_array_id(CArrayId value) {
-    return _qinhuai_drop_array_id(value);
+  void dust_drop_array_id(CArrayId value) {
+    return _dust_drop_array_id(value);
   }
 
-  late final _qinhuai_drop_array_idPtr =
-      _lookup<NativeFunction<Void Function(CArrayId)>>('qinhuai_drop_array_id');
-  late final _qinhuai_drop_array_id = _qinhuai_drop_array_idPtr
-      .asFunction<void Function(CArrayId)>(isLeaf: true);
+  late final _dust_drop_array_idPtr =
+      _lookup<NativeFunction<Void Function(CArrayId)>>('dust_drop_array_id');
+  late final _dust_drop_array_id =
+      _dust_drop_array_idPtr.asFunction<void Function(CArrayId)>(isLeaf: true);
 
   /// Drops the return value of [`atom_id_value_by_src_label`].
-  void qinhuai_drop_array_id_array_u8(CArrayPairIdArrayUint8 value) {
-    return _qinhuai_drop_array_id_array_u8(value);
+  void dust_drop_array_id_array_u8(CArrayPairIdArrayUint8 value) {
+    return _dust_drop_array_id_array_u8(value);
   }
 
-  late final _qinhuai_drop_array_id_array_u8Ptr =
+  late final _dust_drop_array_id_array_u8Ptr =
       _lookup<NativeFunction<Void Function(CArrayPairIdArrayUint8)>>(
-          'qinhuai_drop_array_id_array_u8');
-  late final _qinhuai_drop_array_id_array_u8 =
-      _qinhuai_drop_array_id_array_u8Ptr
-          .asFunction<void Function(CArrayPairIdArrayUint8)>(isLeaf: true);
+          'dust_drop_array_id_array_u8');
+  late final _dust_drop_array_id_array_u8 = _dust_drop_array_id_array_u8Ptr
+      .asFunction<void Function(CArrayPairIdArrayUint8)>(isLeaf: true);
 
   /// Drops the return value of [`atom_id_src_by_label_value`],
   /// [`edge_id_dst_by_src_label`] and [`edge_id_src_by_dst_label`].
-  void qinhuai_drop_array_id_id(CArrayPairIdId value) {
-    return _qinhuai_drop_array_id_id(value);
+  void dust_drop_array_id_id(CArrayPairIdId value) {
+    return _dust_drop_array_id_id(value);
   }
 
-  late final _qinhuai_drop_array_id_idPtr =
+  late final _dust_drop_array_id_idPtr =
       _lookup<NativeFunction<Void Function(CArrayPairIdId)>>(
-          'qinhuai_drop_array_id_id');
-  late final _qinhuai_drop_array_id_id = _qinhuai_drop_array_id_idPtr
+          'dust_drop_array_id_id');
+  late final _dust_drop_array_id_id = _dust_drop_array_id_idPtr
       .asFunction<void Function(CArrayPairIdId)>(isLeaf: true);
 
   /// Drops the return value of [`atom_id_src_value_by_label`].
-  void qinhuai_drop_array_id_id_array_u8(CArrayTripleIdIdArrayUint8 value) {
-    return _qinhuai_drop_array_id_id_array_u8(value);
+  void dust_drop_array_id_id_array_u8(CArrayTripleIdIdArrayUint8 value) {
+    return _dust_drop_array_id_id_array_u8(value);
   }
 
-  late final _qinhuai_drop_array_id_id_array_u8Ptr =
+  late final _dust_drop_array_id_id_array_u8Ptr =
       _lookup<NativeFunction<Void Function(CArrayTripleIdIdArrayUint8)>>(
-          'qinhuai_drop_array_id_id_array_u8');
-  late final _qinhuai_drop_array_id_id_array_u8 =
-      _qinhuai_drop_array_id_id_array_u8Ptr
+          'dust_drop_array_id_id_array_u8');
+  late final _dust_drop_array_id_id_array_u8 =
+      _dust_drop_array_id_id_array_u8Ptr
           .asFunction<void Function(CArrayTripleIdIdArrayUint8)>(isLeaf: true);
 
   /// Drops the return value of [`edge_id_src_label_by_dst`].
-  void qinhuai_drop_array_id_id_u64(CArrayTripleIdIdUint64 value) {
-    return _qinhuai_drop_array_id_id_u64(value);
+  void dust_drop_array_id_id_u64(CArrayTripleIdIdUint64 value) {
+    return _dust_drop_array_id_id_u64(value);
   }
 
-  late final _qinhuai_drop_array_id_id_u64Ptr =
+  late final _dust_drop_array_id_id_u64Ptr =
       _lookup<NativeFunction<Void Function(CArrayTripleIdIdUint64)>>(
-          'qinhuai_drop_array_id_id_u64');
-  late final _qinhuai_drop_array_id_id_u64 = _qinhuai_drop_array_id_id_u64Ptr
+          'dust_drop_array_id_id_u64');
+  late final _dust_drop_array_id_id_u64 = _dust_drop_array_id_id_u64Ptr
       .asFunction<void Function(CArrayTripleIdIdUint64)>(isLeaf: true);
 
   /// Drops the return value of [`atom_id_label_value_by_src`].
-  void qinhuai_drop_array_id_u64_array_u8(
-      CArrayTripleIdUint64ArrayUint8 value) {
-    return _qinhuai_drop_array_id_u64_array_u8(value);
+  void dust_drop_array_id_u64_array_u8(CArrayTripleIdUint64ArrayUint8 value) {
+    return _dust_drop_array_id_u64_array_u8(value);
   }
 
-  late final _qinhuai_drop_array_id_u64_array_u8Ptr =
+  late final _dust_drop_array_id_u64_array_u8Ptr =
       _lookup<NativeFunction<Void Function(CArrayTripleIdUint64ArrayUint8)>>(
-          'qinhuai_drop_array_id_u64_array_u8');
-  late final _qinhuai_drop_array_id_u64_array_u8 =
-      _qinhuai_drop_array_id_u64_array_u8Ptr
+          'dust_drop_array_id_u64_array_u8');
+  late final _dust_drop_array_id_u64_array_u8 =
+      _dust_drop_array_id_u64_array_u8Ptr
           .asFunction<void Function(CArrayTripleIdUint64ArrayUint8)>(
               isLeaf: true);
 
   /// Drops the return value of [`edge_id_label_dst_by_src`].
-  void qinhuai_drop_array_id_u64_id(CArrayTripleIdUint64Id value) {
-    return _qinhuai_drop_array_id_u64_id(value);
+  void dust_drop_array_id_u64_id(CArrayTripleIdUint64Id value) {
+    return _dust_drop_array_id_u64_id(value);
   }
 
-  late final _qinhuai_drop_array_id_u64_idPtr =
+  late final _dust_drop_array_id_u64_idPtr =
       _lookup<NativeFunction<Void Function(CArrayTripleIdUint64Id)>>(
-          'qinhuai_drop_array_id_u64_id');
-  late final _qinhuai_drop_array_id_u64_id = _qinhuai_drop_array_id_u64_idPtr
+          'dust_drop_array_id_u64_id');
+  late final _dust_drop_array_id_u64_id = _dust_drop_array_id_u64_idPtr
       .asFunction<void Function(CArrayTripleIdUint64Id)>(isLeaf: true);
 
   /// Drops the return value of [`sync_version`] and [`sync_actions`]
   /// and all error results.
-  void qinhuai_drop_array_u8(CArrayUint8 value) {
-    return _qinhuai_drop_array_u8(value);
+  void dust_drop_array_u8(CArrayUint8 value) {
+    return _dust_drop_array_u8(value);
   }
 
-  late final _qinhuai_drop_array_u8Ptr =
-      _lookup<NativeFunction<Void Function(CArrayUint8)>>(
-          'qinhuai_drop_array_u8');
-  late final _qinhuai_drop_array_u8 = _qinhuai_drop_array_u8Ptr
+  late final _dust_drop_array_u8Ptr =
+      _lookup<NativeFunction<Void Function(CArrayUint8)>>('dust_drop_array_u8');
+  late final _dust_drop_array_u8 = _dust_drop_array_u8Ptr
       .asFunction<void Function(CArrayUint8)>(isLeaf: true);
 
   /// Drops the return value of [`atom`].
-  void qinhuai_drop_option_atom(COptionAtom value) {
-    return _qinhuai_drop_option_atom(value);
+  void dust_drop_option_atom(COptionAtom value) {
+    return _dust_drop_option_atom(value);
   }
 
-  late final _qinhuai_drop_option_atomPtr =
+  late final _dust_drop_option_atomPtr =
       _lookup<NativeFunction<Void Function(COptionAtom)>>(
-          'qinhuai_drop_option_atom');
-  late final _qinhuai_drop_option_atom = _qinhuai_drop_option_atomPtr
+          'dust_drop_option_atom');
+  late final _dust_drop_option_atom = _dust_drop_option_atomPtr
       .asFunction<void Function(COptionAtom)>(isLeaf: true);
 
-  COptionEdge qinhuai_edge(int idh, int idl) {
-    final res = _qinhuai_edge(idh, idl);
+  COptionEdge dust_edge(int idh, int idl) {
+    final res = _dust_edge(idh, idl);
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_edgePtr =
+  late final _dust_edgePtr =
       _lookup<NativeFunction<CResultOptionEdge Function(Uint64, Uint64)>>(
-          'qinhuai_edge');
-  late final _qinhuai_edge = _qinhuai_edgePtr
+          'dust_edge');
+  late final _dust_edge = _dust_edgePtr
       .asFunction<CResultOptionEdge Function(int, int)>(isLeaf: true);
 
-  CArrayPairIdId qinhuai_edge_id_dst_by_src_label(
-      int srch, int srcl, int label) {
-    final res = _qinhuai_edge_id_dst_by_src_label(srch, srcl, label);
+  CArrayPairIdId dust_edge_id_dst_by_src_label(int srch, int srcl, int label) {
+    final res = _dust_edge_id_dst_by_src_label(srch, srcl, label);
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_edge_id_dst_by_src_labelPtr = _lookup<
+  late final _dust_edge_id_dst_by_src_labelPtr = _lookup<
       NativeFunction<
           CResultArrayPairIdId Function(
-              Uint64, Uint64, Uint64)>>('qinhuai_edge_id_dst_by_src_label');
-  late final _qinhuai_edge_id_dst_by_src_label =
-      _qinhuai_edge_id_dst_by_src_labelPtr
-          .asFunction<CResultArrayPairIdId Function(int, int, int)>(
-              isLeaf: true);
+              Uint64, Uint64, Uint64)>>('dust_edge_id_dst_by_src_label');
+  late final _dust_edge_id_dst_by_src_label = _dust_edge_id_dst_by_src_labelPtr
+      .asFunction<CResultArrayPairIdId Function(int, int, int)>(isLeaf: true);
 
-  CArrayTripleIdUint64Id qinhuai_edge_id_label_dst_by_src(int srch, int srcl) {
-    final res = _qinhuai_edge_id_label_dst_by_src(srch, srcl);
+  CArrayTripleIdUint64Id dust_edge_id_label_dst_by_src(int srch, int srcl) {
+    final res = _dust_edge_id_label_dst_by_src(srch, srcl);
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_edge_id_label_dst_by_srcPtr = _lookup<
+  late final _dust_edge_id_label_dst_by_srcPtr = _lookup<
       NativeFunction<
           CResultArrayTripleIdUint64Id Function(
-              Uint64, Uint64)>>('qinhuai_edge_id_label_dst_by_src');
-  late final _qinhuai_edge_id_label_dst_by_src =
-      _qinhuai_edge_id_label_dst_by_srcPtr
-          .asFunction<CResultArrayTripleIdUint64Id Function(int, int)>(
-              isLeaf: true);
+              Uint64, Uint64)>>('dust_edge_id_label_dst_by_src');
+  late final _dust_edge_id_label_dst_by_src = _dust_edge_id_label_dst_by_srcPtr
+      .asFunction<CResultArrayTripleIdUint64Id Function(int, int)>(
+          isLeaf: true);
 
-  CArrayPairIdId qinhuai_edge_id_src_by_dst_label(
-      int dsth, int dstl, int label) {
-    final res = _qinhuai_edge_id_src_by_dst_label(dsth, dstl, label);
+  CArrayPairIdId dust_edge_id_src_by_dst_label(int dsth, int dstl, int label) {
+    final res = _dust_edge_id_src_by_dst_label(dsth, dstl, label);
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_edge_id_src_by_dst_labelPtr = _lookup<
+  late final _dust_edge_id_src_by_dst_labelPtr = _lookup<
       NativeFunction<
           CResultArrayPairIdId Function(
-              Uint64, Uint64, Uint64)>>('qinhuai_edge_id_src_by_dst_label');
-  late final _qinhuai_edge_id_src_by_dst_label =
-      _qinhuai_edge_id_src_by_dst_labelPtr
-          .asFunction<CResultArrayPairIdId Function(int, int, int)>(
-              isLeaf: true);
+              Uint64, Uint64, Uint64)>>('dust_edge_id_src_by_dst_label');
+  late final _dust_edge_id_src_by_dst_label = _dust_edge_id_src_by_dst_labelPtr
+      .asFunction<CResultArrayPairIdId Function(int, int, int)>(isLeaf: true);
 
-  CArrayTripleIdIdUint64 qinhuai_edge_id_src_label_by_dst(int dsth, int dstl) {
-    final res = _qinhuai_edge_id_src_label_by_dst(dsth, dstl);
+  CArrayTripleIdIdUint64 dust_edge_id_src_label_by_dst(int dsth, int dstl) {
+    final res = _dust_edge_id_src_label_by_dst(dsth, dstl);
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_edge_id_src_label_by_dstPtr = _lookup<
+  late final _dust_edge_id_src_label_by_dstPtr = _lookup<
       NativeFunction<
           CResultArrayTripleIdIdUint64 Function(
-              Uint64, Uint64)>>('qinhuai_edge_id_src_label_by_dst');
-  late final _qinhuai_edge_id_src_label_by_dst =
-      _qinhuai_edge_id_src_label_by_dstPtr
-          .asFunction<CResultArrayTripleIdIdUint64 Function(int, int)>(
-              isLeaf: true);
+              Uint64, Uint64)>>('dust_edge_id_src_label_by_dst');
+  late final _dust_edge_id_src_label_by_dst = _dust_edge_id_src_label_by_dstPtr
+      .asFunction<CResultArrayTripleIdIdUint64 Function(int, int)>(
+          isLeaf: true);
 
-  COptionNode qinhuai_node(int idh, int idl) {
-    final res = _qinhuai_node(idh, idl);
+  COptionNode dust_node(int idh, int idl) {
+    final res = _dust_node(idh, idl);
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_nodePtr =
+  late final _dust_nodePtr =
       _lookup<NativeFunction<CResultOptionNode Function(Uint64, Uint64)>>(
-          'qinhuai_node');
-  late final _qinhuai_node = _qinhuai_nodePtr
+          'dust_node');
+  late final _dust_node = _dust_nodePtr
       .asFunction<CResultOptionNode Function(int, int)>(isLeaf: true);
 
-  CArrayId qinhuai_node_id_by_label(int label) {
-    final res = _qinhuai_node_id_by_label(label);
+  CArrayId dust_node_id_by_label(int label) {
+    final res = _dust_node_id_by_label(label);
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_node_id_by_labelPtr =
+  late final _dust_node_id_by_labelPtr =
       _lookup<NativeFunction<CResultArrayId Function(Uint64)>>(
-          'qinhuai_node_id_by_label');
-  late final _qinhuai_node_id_by_label = _qinhuai_node_id_by_labelPtr
+          'dust_node_id_by_label');
+  late final _dust_node_id_by_label = _dust_node_id_by_labelPtr
       .asFunction<CResultArrayId Function(int)>(isLeaf: true);
 
-  CUnit qinhuai_open(int len, Pointer<Uint8> ptr) {
-    final res = _qinhuai_open(len, ptr);
+  CUnit dust_open(int len, Pointer<Uint8> ptr) {
+    final res = _dust_open(len, ptr);
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_openPtr =
+  late final _dust_openPtr =
       _lookup<NativeFunction<CResultUnit Function(Uint64, Pointer<Uint8>)>>(
-          'qinhuai_open');
-  late final _qinhuai_open = _qinhuai_openPtr
+          'dust_open');
+  late final _dust_open = _dust_openPtr
       .asFunction<CResultUnit Function(int, Pointer<Uint8>)>(isLeaf: true);
 
-  CId qinhuai_random_id() {
-    return _qinhuai_random_id();
+  CId dust_random_id() {
+    return _dust_random_id();
   }
 
-  late final _qinhuai_random_idPtr =
-      _lookup<NativeFunction<CId Function()>>('qinhuai_random_id');
-  late final _qinhuai_random_id =
-      _qinhuai_random_idPtr.asFunction<CId Function()>(isLeaf: true);
+  late final _dust_random_idPtr =
+      _lookup<NativeFunction<CId Function()>>('dust_random_id');
+  late final _dust_random_id =
+      _dust_random_idPtr.asFunction<CId Function()>(isLeaf: true);
 
-  CUnit qinhuai_set_atom_none(int idh, int idl) {
-    final res = _qinhuai_set_atom_none(idh, idl);
+  CUnit dust_set_atom_none(int idh, int idl) {
+    final res = _dust_set_atom_none(idh, idl);
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_set_atom_nonePtr =
+  late final _dust_set_atom_nonePtr =
       _lookup<NativeFunction<CResultUnit Function(Uint64, Uint64)>>(
-          'qinhuai_set_atom_none');
-  late final _qinhuai_set_atom_none = _qinhuai_set_atom_nonePtr
+          'dust_set_atom_none');
+  late final _dust_set_atom_none = _dust_set_atom_nonePtr
       .asFunction<CResultUnit Function(int, int)>(isLeaf: true);
 
-  CUnit qinhuai_set_atom_some(int idh, int idl, int srch, int srcl, int label,
+  CUnit dust_set_atom_some(int idh, int idl, int srch, int srcl, int label,
       int len, Pointer<Uint8> ptr) {
-    final res = _qinhuai_set_atom_some(idh, idl, srch, srcl, label, len, ptr);
+    final res = _dust_set_atom_some(idh, idl, srch, srcl, label, len, ptr);
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_set_atom_somePtr = _lookup<
+  late final _dust_set_atom_somePtr = _lookup<
       NativeFunction<
           CResultUnit Function(Uint64, Uint64, Uint64, Uint64, Uint64, Uint64,
-              Pointer<Uint8>)>>('qinhuai_set_atom_some');
-  late final _qinhuai_set_atom_some = _qinhuai_set_atom_somePtr.asFunction<
+              Pointer<Uint8>)>>('dust_set_atom_some');
+  late final _dust_set_atom_some = _dust_set_atom_somePtr.asFunction<
       CResultUnit Function(
           int, int, int, int, int, int, Pointer<Uint8>)>(isLeaf: true);
 
-  CUnit qinhuai_set_edge_none(int idh, int idl) {
-    final res = _qinhuai_set_edge_none(idh, idl);
+  CUnit dust_set_edge_none(int idh, int idl) {
+    final res = _dust_set_edge_none(idh, idl);
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_set_edge_nonePtr =
+  late final _dust_set_edge_nonePtr =
       _lookup<NativeFunction<CResultUnit Function(Uint64, Uint64)>>(
-          'qinhuai_set_edge_none');
-  late final _qinhuai_set_edge_none = _qinhuai_set_edge_nonePtr
+          'dust_set_edge_none');
+  late final _dust_set_edge_none = _dust_set_edge_nonePtr
       .asFunction<CResultUnit Function(int, int)>(isLeaf: true);
 
-  CUnit qinhuai_set_edge_some(
+  CUnit dust_set_edge_some(
       int idh, int idl, int srch, int srcl, int label, int dsth, int dstl) {
-    final res = _qinhuai_set_edge_some(idh, idl, srch, srcl, label, dsth, dstl);
+    final res = _dust_set_edge_some(idh, idl, srch, srcl, label, dsth, dstl);
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_set_edge_somePtr = _lookup<
+  late final _dust_set_edge_somePtr = _lookup<
       NativeFunction<
           CResultUnit Function(Uint64, Uint64, Uint64, Uint64, Uint64, Uint64,
-              Uint64)>>('qinhuai_set_edge_some');
-  late final _qinhuai_set_edge_some = _qinhuai_set_edge_somePtr
+              Uint64)>>('dust_set_edge_some');
+  late final _dust_set_edge_some = _dust_set_edge_somePtr
       .asFunction<CResultUnit Function(int, int, int, int, int, int, int)>(
           isLeaf: true);
 
-  CUnit qinhuai_set_node_none(int idh, int idl) {
-    final res = _qinhuai_set_node_none(idh, idl);
+  CUnit dust_set_node_none(int idh, int idl) {
+    final res = _dust_set_node_none(idh, idl);
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_set_node_nonePtr =
+  late final _dust_set_node_nonePtr =
       _lookup<NativeFunction<CResultUnit Function(Uint64, Uint64)>>(
-          'qinhuai_set_node_none');
-  late final _qinhuai_set_node_none = _qinhuai_set_node_nonePtr
+          'dust_set_node_none');
+  late final _dust_set_node_none = _dust_set_node_nonePtr
       .asFunction<CResultUnit Function(int, int)>(isLeaf: true);
 
-  CUnit qinhuai_set_node_some(int idh, int idl, int label) {
-    final res = _qinhuai_set_node_some(idh, idl, label);
+  CUnit dust_set_node_some(int idh, int idl, int label) {
+    final res = _dust_set_node_some(idh, idl, label);
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_set_node_somePtr =
+  late final _dust_set_node_somePtr =
       _lookup<NativeFunction<CResultUnit Function(Uint64, Uint64, Uint64)>>(
-          'qinhuai_set_node_some');
-  late final _qinhuai_set_node_some = _qinhuai_set_node_somePtr
+          'dust_set_node_some');
+  late final _dust_set_node_some = _dust_set_node_somePtr
       .asFunction<CResultUnit Function(int, int, int)>(isLeaf: true);
 
-  CArrayUint8 qinhuai_sync_actions(int len, Pointer<Uint8> ptr) {
-    final res = _qinhuai_sync_actions(len, ptr);
+  CArrayUint8 dust_sync_actions(int len, Pointer<Uint8> ptr) {
+    final res = _dust_sync_actions(len, ptr);
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_sync_actionsPtr = _lookup<
+  late final _dust_sync_actionsPtr = _lookup<
           NativeFunction<CResultArrayUint8 Function(Uint64, Pointer<Uint8>)>>(
-      'qinhuai_sync_actions');
-  late final _qinhuai_sync_actions = _qinhuai_sync_actionsPtr
+      'dust_sync_actions');
+  late final _dust_sync_actions = _dust_sync_actionsPtr
       .asFunction<CResultArrayUint8 Function(int, Pointer<Uint8>)>(
           isLeaf: true);
 
-  CUnit qinhuai_sync_join(int len, Pointer<Uint8> ptr) {
-    final res = _qinhuai_sync_join(len, ptr);
+  CUnit dust_sync_join(int len, Pointer<Uint8> ptr) {
+    final res = _dust_sync_join(len, ptr);
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_sync_joinPtr =
+  late final _dust_sync_joinPtr =
       _lookup<NativeFunction<CResultUnit Function(Uint64, Pointer<Uint8>)>>(
-          'qinhuai_sync_join');
-  late final _qinhuai_sync_join = _qinhuai_sync_joinPtr
+          'dust_sync_join');
+  late final _dust_sync_join = _dust_sync_joinPtr
       .asFunction<CResultUnit Function(int, Pointer<Uint8>)>(isLeaf: true);
 
-  CArrayUint8 qinhuai_sync_version() {
-    final res = _qinhuai_sync_version();
+  CArrayUint8 dust_sync_version() {
+    final res = _dust_sync_version();
     if (res.tag != 0) _err(res.body.err);
     return res.body.ok;
   }
 
-  late final _qinhuai_sync_versionPtr =
+  late final _dust_sync_versionPtr =
       _lookup<NativeFunction<CResultArrayUint8 Function()>>(
-          'qinhuai_sync_version');
-  late final _qinhuai_sync_version = _qinhuai_sync_versionPtr
+          'dust_sync_version');
+  late final _dust_sync_version = _dust_sync_versionPtr
       .asFunction<CResultArrayUint8 Function()>(isLeaf: true);
 }

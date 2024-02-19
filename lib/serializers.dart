@@ -39,7 +39,7 @@ const _kEndian = Endian.big;
 /// Implement this interface **only if** you are sure that you will never need
 /// to change the serialization format of your data.
 ///
-/// Qinhuai has provided a set of serializers that are **stable** and will most
+/// Dust has provided a set of serializers that are **stable** and will most
 /// likely never change. You can find them in the `serializers` directory. These
 /// serializers implement this interface directly.
 ///

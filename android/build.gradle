@@ -1,6 +1,6 @@
 // The Cargo NDK Gradle Plugin builds the native code with the Android NDK.
 
-group 'com.example.qinhuai'
+group 'io.parkourlabs.dust'
 version '1.0'
 
 buildscript {
@@ -31,7 +31,7 @@ apply from: '../cargokit/gradle/plugin.gradle'
 
 android {
     if (project.android.hasProperty('namespace')) {
-        namespace 'com.example.qinhuai'
+        namespace 'io.parkourlabs.dust'
     }
 
     // Bumping the plugin compileSdkVersion requires all clients of this plugin
@@ -62,5 +62,5 @@ android {
 // See: https://matejknopp.com/post/flutter_plugin_in_rust_with_no_prebuilt_binaries/
 cargokit {
     manifestDir = '../native/'
-    libname = 'qinhuai'
+    libname = 'dust'
 }

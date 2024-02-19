@@ -1,6 +1,6 @@
 # Example project
 
-Demonstrates how to use the qinhuai plugin.
+Demonstrates how to use the dust plugin.
 
 ## Getting Started
 

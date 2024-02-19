@@ -11,7 +11,7 @@ builders:
   # Name of the builder.
   dustBuilder:
     # Library URI containing the builder.
-    import: "package:qinhuai_generator/builders.dart"
+    import: "package:dust_generator/builders.dart"
     # Name of the function in the above library to call.
     builder_factories: ["dustBuilder"]
     # The mapping from the source extension to the generated file extension.
