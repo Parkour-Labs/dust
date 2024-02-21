@@ -17,7 +17,7 @@ final class _Trivial extends Trivial {
   const _Trivial._(this.id) : super._();
 
   factory _Trivial() {
-    final id = Store.instance.randomId();
+    final id = Dust.instance.randomId();
     return _Trivial._(id);
   }
 
@@ -52,14 +52,14 @@ class $TrivialRepository implements Repository<Trivial> {
     Id $id,
   ) {
     assert($init, 'Repository should be registered in `Store.open`.');
-    final $store = Store.instance;
+    final $store = Dust.instance;
     $store.setNode($id, $TrivialRepository.Label);
 
     $store.barrier();
   }
 
   Trivial create() {
-    final $id = Store.instance.randomId();
+    final $id = Dust.instance.randomId();
     final $node = get($id);
     $write(
       $id,
@@ -93,7 +93,7 @@ class $TrivialRepository implements Repository<Trivial> {
   void delete(Trivial $model) {
     assert($init, 'Repository should be registered in `Store.open`.');
     final $id = $model.id;
-    final $store = Store.instance;
+    final $store = Dust.instance;
     $entries.remove($id);
     $store.setNode($id, null);
     $store.barrier();
@@ -145,7 +145,7 @@ class $SomethingRepository implements Repository<Something> {
     Trivial? linkTwo,
   }) {
     assert($init, 'Repository should be registered in `Store.open`.');
-    final $store = Store.instance;
+    final $store = Dust.instance;
     $store.setNode($id, $SomethingRepository.Label);
     $store.setAtom(
       $id ^ $SomethingRepository.atomOneLabel,
@@ -195,7 +195,7 @@ class $SomethingRepository implements Repository<Something> {
     required Trivial linkOne,
     Trivial? linkTwo,
   }) {
-    final $id = Store.instance.randomId();
+    final $id = Dust.instance.randomId();
     final $node = get($id);
     $write(
       $id,
@@ -277,7 +277,7 @@ class $SomethingRepository implements Repository<Something> {
   void delete(Something $model) {
     assert($init, 'Repository should be registered in `Store.open`.');
     final $id = $model.id;
-    final $store = Store.instance;
+    final $store = Dust.instance;
     $entries.remove($id);
     $store.setNode($id, null);
     $store.barrier();

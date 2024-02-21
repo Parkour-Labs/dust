@@ -48,7 +48,7 @@ class $TodoRepository implements Repository<Todo> {
   static bool $init = false;
 
   Todo create() {
-    final id = Store.instance.randomId();
+    final id = Dust.instance.randomId();
     final node = get(id);
     $write(id);
     return node.get(null)!;

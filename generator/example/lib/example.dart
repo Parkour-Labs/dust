@@ -1,5 +1,4 @@
-import 'package:qinhuai/annotations.dart';
-import 'package:qinhuai/store.dart';
+import 'package:dust/dust.dart';
 
 part 'example.dust.dart';
 

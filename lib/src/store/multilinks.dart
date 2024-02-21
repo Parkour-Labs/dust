@@ -12,21 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:collection';
+
 import '../reactive.dart';
 import '../store.dart';
 
-class Backlinks<T> with ObservableMixin<List<T>> implements ObservableSet<T> {
-  final Id dst;
+class Multilinks<T>
+    with ObservableMixin<List<T>>
+    implements ObservableMutSet<T> {
+  final Id src;
   final int label;
   final Repository<T> _repository;
-  final Map<Id, Id> _srcs = {};
+  final Map<Id, Id> _dsts = {};
 
-  Backlinks(this.dst, this.label, this._repository) {
+  Multilinks(this.src, this.label, this._repository) {
     final weak = WeakReference(this);
-    Store.instance.subscribeEdgeByDstLabel(
-        dst,
+    Dust.instance.subscribeEdgeBySrcLabel(
+        src,
         label,
-        (id, src) => weak.target?._insert(id, src),
+        (id, dst) => weak.target?._insert(id, dst),
         (id) => weak.target?._remove(id),
         this);
   }
@@ -35,20 +39,38 @@ class Backlinks<T> with ObservableMixin<List<T>> implements ObservableSet<T> {
   List<T> get(Observer? o) {
     if (o != null) connect(o);
     final res = <T>[];
-    for (final src in _srcs.values) {
-      final item = _repository.get(src).get(o);
+    for (final dst in _dsts.values) {
+      final item = _repository.get(dst).get(o);
       if (item != null) res.add(item);
     }
-    return res;
+    return UnmodifiableListView(res);
   }
 
-  void _insert(Id id, Id src) {
-    _srcs[id] = src;
+  void _insert(Id id, Id dst) {
+    _dsts[id] = dst;
     notifyAll();
   }
 
   void _remove(Id id) {
-    _srcs.remove(id);
+    _dsts.remove(id);
     notifyAll();
+  }
+
+  @override
+  void insert(T value) {
+    Dust.instance
+        .setEdge(Dust.instance.randomId(), (src, label, _repository.id(value)));
+    Dust.instance.barrier();
+  }
+
+  @override
+  void remove(T value) {
+    for (final entry in _dsts.entries) {
+      if (entry.value == _repository.id(value)) {
+        Dust.instance.setEdge(entry.key, null);
+        Dust.instance.barrier();
+        break;
+      }
+    }
   }
 }

@@ -16,9 +16,11 @@ export 'ffi/native_bindings.dart';
 export 'ffi/native_structs.dart';
 
 import 'dart:ffi';
+import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 
 import 'ffi/native_bindings.dart';
+import 'store.dart';
 
 class Ffi {
   static final bindings = NativeBindings(library);
@@ -30,4 +32,25 @@ class Ffi {
     TargetPlatform.windows => DynamicLibrary.open('dust.dll'),
     _ => throw UnimplementedError('Unsupported platform'),
   };
+
+  static void init(String databasePath, List<Repository> repositories) {
+    for (final repository in repositories) {
+      final schema = repository.init();
+      for (final label in schema.stickyNodes) {
+        bindings.dust_add_sticky_node(label);
+      }
+      for (final label in schema.stickyAtoms) {
+        bindings.dust_add_sticky_atom(label);
+      }
+      for (final label in schema.stickyEdges) {
+        bindings.dust_add_sticky_edge(label);
+      }
+      for (final label in schema.acyclicEdges) {
+        bindings.dust_add_acyclic_edge(label);
+      }
+    }
+    final ptr = databasePath.toNativeUtf8(allocator: malloc);
+    bindings.dust_open(ptr.length, ptr.cast<Uint8>());
+    malloc.free(ptr);
+  }
 }

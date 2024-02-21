@@ -79,7 +79,7 @@ typedef EdgeByDstLabelSubscription = (
 /// The main wrapper class around FFI functions.
 ///
 /// Also responsible for subscriptions and reactivity.
-class Store {
+class Dust {
   final NativeBindings bindings;
   Timer? committer;
 
@@ -123,40 +123,32 @@ class Store {
       Finalizer<((Id, int), EdgeByDstLabelSubscription)>(
           _unsubscribeEdgeByDstLabel);
 
-  Store._(this.bindings);
+  Dust._(this.bindings);
 
-  /// The global [Store] instance.
-  static Store? _instance;
+  /// The global [Dust] instance.
+  static Dust? _instance;
 
-  /// Initialises the global [Store] instance.
+  /// Initialises the global [Dust] instance.
   static void open(String databasePath, List<Repository> repositories) {
-    final bindings = Ffi.bindings;
-    for (final repository in repositories) {
-      final schema = repository.init();
-      for (final label in schema.stickyNodes)
-        bindings.dust_add_sticky_node(label);
-      for (final label in schema.stickyAtoms)
-        bindings.dust_add_sticky_atom(label);
-      for (final label in schema.stickyEdges)
-        bindings.dust_add_sticky_edge(label);
-      for (final label in schema.acyclicEdges)
-        bindings.dust_add_acyclic_edge(label);
-    }
-    final ptr = databasePath.toNativeUtf8(allocator: malloc);
-    bindings.dust_open(ptr.length, ptr.cast<Uint8>());
-    malloc.free(ptr);
-    _instance = Store._(bindings);
+    Ffi.init(databasePath, repositories);
+    _instance = Dust._(Ffi.bindings);
   }
 
-  /// Disconnects the global [Store] instance.
+  /// Disconnects the global [Dust] instance.
   static void close() {
     instance.committer?.cancel();
     instance.bindings.dust_close();
     _instance = null;
   }
 
-  /// Obtains the global [Store] instance. Must be called after [open] has been called once.
-  static Store get instance => _instance!;
+  /// Obtains the global [Dust] instance. Must be called after [open] has been called once.
+  static Dust get instance {
+    if (_instance == null)
+      throw StateError(
+        'Dust not opened, did you forget to call Dust.open?',
+      );
+    return _instance!;
+  }
 
   /// Makes a random 128-bit ID.
   Id randomId() {
@@ -173,7 +165,7 @@ class Store {
   void getNodeByLabel(int label, void Function(Id) fn) {
     final data = bindings.dust_node_id_by_label(label);
     for (var i = 0; i < data.len; i++) {
-      final elem = data.ptr.elementAt(i).ref;
+      final elem = (data.ptr + i).ref;
       fn(Id.fromNative(elem));
     }
     bindings.dust_drop_array_id(data);
@@ -196,7 +188,7 @@ class Store {
   void getAtomLabelValueBySrc(Id src, void Function(Id, int, ByteData) fn) {
     final data = bindings.dust_atom_id_label_value_by_src(src.high, src.low);
     for (var i = 0; i < data.len; i++) {
-      final elem = data.ptr.elementAt(i).ref;
+      final elem = (data.ptr + i).ref;
       fn(Id.fromNative(elem.first), elem.second, _view(elem.third));
     }
     bindings.dust_drop_array_id_u64_array_u8(data);
@@ -208,7 +200,7 @@ class Store {
     final data =
         bindings.dust_atom_id_value_by_src_label(src.high, src.low, label);
     for (var i = 0; i < data.len; i++) {
-      final elem = data.ptr.elementAt(i).ref;
+      final elem = (data.ptr + i).ref;
       fn(Id.fromNative(elem.first), _view(elem.second));
     }
     bindings.dust_drop_array_id_array_u8(data);
@@ -218,7 +210,7 @@ class Store {
   void getAtomSrcValueByLabel(int label, void Function(Id, Id, ByteData) fn) {
     final data = bindings.dust_atom_id_src_value_by_label(label);
     for (var i = 0; i < data.len; i++) {
-      final elem = data.ptr.elementAt(i).ref;
+      final elem = (data.ptr + i).ref;
       fn(Id.fromNative(elem.first), Id.fromNative(elem.second),
           _view(elem.third));
     }
@@ -248,7 +240,7 @@ class Store {
   void getEdgeLabelDstBySrc(Id src, void Function(Id, int, Id) fn) {
     final data = bindings.dust_edge_id_label_dst_by_src(src.high, src.low);
     for (var i = 0; i < data.len; i++) {
-      final elem = data.ptr.elementAt(i).ref;
+      final elem = (data.ptr + i).ref;
       fn(Id.fromNative(elem.first), elem.second, Id.fromNative(elem.third));
     }
     bindings.dust_drop_array_id_u64_id(data);
@@ -259,7 +251,7 @@ class Store {
     final data =
         bindings.dust_edge_id_dst_by_src_label(src.high, src.low, label);
     for (var i = 0; i < data.len; i++) {
-      final item = data.ptr.elementAt(i).ref;
+      final item = (data.ptr + i).ref;
       fn(Id.fromNative(item.first), Id.fromNative(item.second));
     }
     bindings.dust_drop_array_id_id(data);
@@ -269,7 +261,7 @@ class Store {
   void getEdgeSrcLabelByDst(Id dst, void Function(Id, Id, int) fn) {
     final data = bindings.dust_edge_id_src_label_by_dst(dst.high, dst.low);
     for (var i = 0; i < data.len; i++) {
-      final item = data.ptr.elementAt(i).ref;
+      final item = (data.ptr + i).ref;
       fn(Id.fromNative(item.first), Id.fromNative(item.second), item.third);
     }
     bindings.dust_drop_array_id_id_u64(data);
@@ -280,7 +272,7 @@ class Store {
     final data =
         bindings.dust_edge_id_src_by_dst_label(dst.high, dst.low, label);
     for (var i = 0; i < data.len; i++) {
-      final item = data.ptr.elementAt(i).ref;
+      final item = (data.ptr + i).ref;
       fn(Id.fromNative(item.first), Id.fromNative(item.second));
     }
     bindings.dust_drop_array_id_id(data);
@@ -308,7 +300,7 @@ class Store {
       // See: https://github.com/dart-lang/sdk/issues/44589
       final len = bytes.length;
       final ptr = malloc.allocate<Uint8>(len);
-      for (var i = 0; i < len; i++) ptr.elementAt(i).value = bytes[i];
+      for (var i = 0; i < len; i++) (ptr + i).value = bytes[i];
       bindings.dust_set_atom_some(
           id.high, id.low, src.high, src.low, label, len, ptr);
       malloc.free(ptr);
@@ -338,7 +330,7 @@ class Store {
     // See: https://github.com/dart-lang/sdk/issues/44589
     final len = version.length;
     final ptr = malloc.allocate<Uint8>(len);
-    for (var i = 0; i < len; i++) ptr.elementAt(i).value = version[i];
+    for (var i = 0; i < len; i++) (ptr + i).value = version[i];
     final data = bindings.dust_sync_actions(len, ptr);
     malloc.free(ptr);
     final res =
@@ -352,7 +344,7 @@ class Store {
     // See: https://github.com/dart-lang/sdk/issues/44589
     final len = actions.length;
     final ptr = malloc.allocate<Uint8>(len);
-    for (var i = 0; i < len; i++) ptr.elementAt(i).value = actions[i];
+    for (var i = 0; i < len; i++) (ptr + i).value = actions[i];
     final _ = bindings.dust_sync_join(len, ptr);
     malloc.free(ptr);
   }
@@ -526,7 +518,7 @@ class Store {
   void barrier() {
     final data = bindings.dust_barrier();
     for (var i = 0; i < data.len; i++) {
-      final event = data.ptr.elementAt(i).ref;
+      final event = (data.ptr + i).ref;
       switch (event.tag) {
         case 0:
           final id = Id.fromNative(event.body.node.id);

@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'serializers.dart';
+import 'src/serializer.dart';
+export 'src/serializer.dart';
 
 /// The annotation for a model class. A model is an object that can be
 /// serialized and persisted to the database.

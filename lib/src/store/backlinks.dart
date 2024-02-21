@@ -12,25 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'dart:collection';
-
 import '../reactive.dart';
 import '../store.dart';
 
-class Multilinks<T>
-    with ObservableMixin<List<T>>
-    implements ObservableMutSet<T> {
-  final Id src;
+class Backlinks<T> with ObservableMixin<List<T>> implements ObservableSet<T> {
+  final Id dst;
   final int label;
   final Repository<T> _repository;
-  final Map<Id, Id> _dsts = {};
+  final Map<Id, Id> _srcs = {};
 
-  Multilinks(this.src, this.label, this._repository) {
+  Backlinks(this.dst, this.label, this._repository) {
     final weak = WeakReference(this);
-    Store.instance.subscribeEdgeBySrcLabel(
-        src,
+    Dust.instance.subscribeEdgeByDstLabel(
+        dst,
         label,
-        (id, dst) => weak.target?._insert(id, dst),
+        (id, src) => weak.target?._insert(id, src),
         (id) => weak.target?._remove(id),
         this);
   }
@@ -39,38 +35,20 @@ class Multilinks<T>
   List<T> get(Observer? o) {
     if (o != null) connect(o);
     final res = <T>[];
-    for (final dst in _dsts.values) {
-      final item = _repository.get(dst).get(o);
+    for (final src in _srcs.values) {
+      final item = _repository.get(src).get(o);
       if (item != null) res.add(item);
     }
-    return UnmodifiableListView(res);
+    return res;
   }
 
-  void _insert(Id id, Id dst) {
-    _dsts[id] = dst;
+  void _insert(Id id, Id src) {
+    _srcs[id] = src;
     notifyAll();
   }
 
   void _remove(Id id) {
-    _dsts.remove(id);
+    _srcs.remove(id);
     notifyAll();
-  }
-
-  @override
-  void insert(T value) {
-    Store.instance.setEdge(
-        Store.instance.randomId(), (src, label, _repository.id(value)));
-    Store.instance.barrier();
-  }
-
-  @override
-  void remove(T value) {
-    for (final entry in _dsts.entries) {
-      if (entry.value == _repository.id(value)) {
-        Store.instance.setEdge(entry.key, null);
-        Store.instance.barrier();
-        break;
-      }
-    }
   }
 }
