@@ -25,7 +25,7 @@ class Multilinks<T>
 
   Multilinks(this.src, this.label, this._repository) {
     final weak = WeakReference(this);
-    Store.instance.subscribeEdgeBySrcLabel(
+    Dust.instance.subscribeEdgeBySrcLabel(
         src,
         label,
         (id, dst) => weak.target?._insert(id, dst),
@@ -56,17 +56,17 @@ class Multilinks<T>
 
   @override
   void insert(T value) {
-    Store.instance.setEdge(
-        Store.instance.randomId(), (src, label, _repository.id(value)));
-    Store.instance.barrier();
+    Dust.instance
+        .setEdge(Dust.instance.randomId(), (src, label, _repository.id(value)));
+    Dust.instance.barrier();
   }
 
   @override
   void remove(T value) {
     for (final entry in _dsts.entries) {
       if (entry.value == _repository.id(value)) {
-        Store.instance.setEdge(entry.key, null);
-        Store.instance.barrier();
+        Dust.instance.setEdge(entry.key, null);
+        Dust.instance.barrier();
         break;
       }
     }

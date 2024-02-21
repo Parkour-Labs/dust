@@ -23,7 +23,7 @@ class Backlinks<T> with ObservableMixin<List<T>> implements ObservableSet<T> {
 
   Backlinks(this.dst, this.label, this._repository) {
     final weak = WeakReference(this);
-    Store.instance.subscribeEdgeByDstLabel(
+    Dust.instance.subscribeEdgeByDstLabel(
         dst,
         label,
         (id, src) => weak.target?._insert(id, src),

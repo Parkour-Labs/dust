@@ -23,7 +23,7 @@ class NodeOption<T> extends ObservableMixin<T?> implements Observable<T?> {
 
   NodeOption(this.id, this.label, this._model) {
     final weak = WeakReference(this);
-    Store.instance.subscribeNodeById(id, (l) => weak.target?._update(l), this);
+    Dust.instance.subscribeNodeById(id, (l) => weak.target?._update(l), this);
   }
 
   @override
@@ -67,7 +67,7 @@ class NodesByLabel<T>
 
   NodesByLabel(this.label, this._repository) {
     final weak = WeakReference(this);
-    Store.instance.subscribeNodeByLabel(label, (id) => weak.target?._insert(id),
+    Dust.instance.subscribeNodeByLabel(label, (id) => weak.target?._insert(id),
         (id) => weak.target?._remove(id), this);
   }
 

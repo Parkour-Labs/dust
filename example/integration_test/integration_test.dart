@@ -75,18 +75,18 @@ void main() {
   group('object_store', () {
     setUpAll(() async {
       final dir = await getTemporaryDirectory();
-      Store.open('${dir.path}/data.sqlite3', [
+      Dust.open('${dir.path}/data.sqlite3', [
         const $TrivialRepository(),
         const $SomethingRepository(),
       ]);
     });
 
     tearDownAll(() {
-      Store.close();
+      Dust.close();
     });
 
     test('object_store_no_barrier', () {
-      final store = Store.instance;
+      final store = Dust.instance;
       final id0 = store.randomId();
       final id1 = store.randomId();
       store.setAtom(id0, (id0, 233, 666, const Int64Serializer()));
@@ -159,8 +159,8 @@ void main() {
 
       something.delete();
       assert(const $SomethingRepository().get(something.id).peek() == null);
-      Store.instance.setAtom(somethingElse.atomOne.id, null);
-      Store.instance.barrier();
+      Dust.instance.setAtom(somethingElse.atomOne.id, null);
+      Dust.instance.barrier();
       assert(const $SomethingRepository().get(somethingElse.id).peek() == null);
     });
 

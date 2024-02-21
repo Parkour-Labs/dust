@@ -27,7 +27,7 @@ class AtomOption<T> with ObservableMixin<T?> implements ObservableMut<T?> {
 
   AtomOption(this.id, this.src, this.label, this._serializer) {
     final weak = WeakReference(this);
-    Store.instance
+    Dust.instance
         .subscribeAtomById(id, (slv) => weak.target?._update(slv), this);
   }
 
@@ -45,9 +45,9 @@ class AtomOption<T> with ObservableMixin<T?> implements ObservableMut<T?> {
 
   @override
   void set(T? value) {
-    Store.instance.setAtom<T>(
+    Dust.instance.setAtom<T>(
         id, (value == null) ? null : (src, label, value, _serializer));
-    Store.instance.barrier();
+    Dust.instance.barrier();
   }
 }
 
@@ -60,7 +60,7 @@ class Atom<T> with ObservableMixin<T> implements ObservableMut<T> {
 
   Atom(this.id, this.src, this.label, this._serializer) {
     final weak = WeakReference(this);
-    Store.instance
+    Dust.instance
         .subscribeAtomById(id, (slv) => weak.target?._update(slv), this);
   }
 
@@ -80,8 +80,8 @@ class Atom<T> with ObservableMixin<T> implements ObservableMut<T> {
 
   @override
   void set(T value) {
-    Store.instance.setAtom<T>(id, (src, label, value, _serializer));
-    Store.instance.barrier();
+    Dust.instance.setAtom<T>(id, (src, label, value, _serializer));
+    Dust.instance.barrier();
   }
 }
 
