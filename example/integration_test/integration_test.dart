@@ -1,7 +1,4 @@
-import 'package:dust/reactive.dart';
-import 'package:dust/serializers.dart';
-import 'package:dust/store.dart';
-import 'package:dust/annotations.dart';
+import 'package:dust/dust.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path_provider/path_provider.dart';
