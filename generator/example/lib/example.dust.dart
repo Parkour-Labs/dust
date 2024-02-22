@@ -17,20 +17,17 @@ mixin _$Todo {
 }
 
 final class _Todo extends Todo {
-  @override // here
+  @override
   final Id id;
 
-  _Todo._(
-    this.id, {
-    // here
-    required this.title$,
-  }) : super._();
+  _Todo._(this.id, {required this.title$}) : super._();
 
-  // here
   factory _Todo({
     required String title,
   }) {
-    return $TodoRepository().create(title: title) as _Todo;
+    return const $TodoRepository().create(
+      title: title,
+    ) as _Todo;
   }
 
   @override
@@ -65,7 +62,7 @@ class $TodoRepository implements Repository<Todo> {
 
   void $write(
     Id $id, {
-    required String title, // here
+    required String title,
   }) {
     assert($init, 'Repository should be registered in `Dust.open`.');
     final $store = Dust.instance;
@@ -74,12 +71,14 @@ class $TodoRepository implements Repository<Todo> {
     $store.barrier();
   }
 
-  Todo create({required String title}) {
+  Todo create({
+    required String title,
+  }) {
     final $id = Dust.instance.randomId();
     final $node = get($id);
     $write(
       $id,
-      title: title, // here
+      title: title,
     );
     final $res = $node.get(null)!;
 
@@ -88,7 +87,7 @@ class $TodoRepository implements Repository<Todo> {
 
   NodeAuto<Todo> auto(
     Id $id, {
-    required String title, // here
+    required String title,
   }) {
     final $node = get($id);
     return NodeAuto(
@@ -106,7 +105,6 @@ class $TodoRepository implements Repository<Todo> {
     final $existing = $entries[$id]?.target;
     if ($existing != null) return $existing;
     final $model = _Todo._(
-      // here
       $id,
       title$: Atom<String>(
         $id ^ $TodoRepository.titleLabel,
