@@ -245,7 +245,7 @@ class $SomethingRepository implements Repository<Something> {
         $SomethingRepository.atomTwoLabel,
         $SomethingRepository.atomTwoSerializer,
       ),
-      linkOne: Link<Trivial>(
+      linkOne: Ln<Trivial>(
         $id ^ $SomethingRepository.linkOneLabel,
         $id,
         $SomethingRepository.linkOneLabel,

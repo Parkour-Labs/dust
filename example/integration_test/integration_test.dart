@@ -25,13 +25,13 @@ class Something {
   @Serializable(StringSerializer())
   final AtomOption<String> atomTwo;
 
-  final Link<Trivial> linkOne;
+  final Ln<Trivial> linkOne;
 
   final LinkOption<Trivial> linkTwo;
 
   final Multilinks<Something> linkThree;
 
-  @Backlink('linkThree')
+  @Ln('linkThree')
   final Backlinks<Something> backlink;
 
   @Transient()

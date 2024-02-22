@@ -3,10 +3,12 @@ import 'package:dust/dust.dart';
 part 'example.dust.dart';
 
 @Model()
-abstract class Todo with _$Todo {
+class Todo with _$Todo {
   Todo._();
 
   factory Todo({
     required String title,
+    String? description,
+    @Dft(false) bool completed,
   }) = _Todo;
 }

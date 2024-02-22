@@ -1,18 +1,21 @@
+import 'dart:collection';
+
+import 'package:analyzer/dart/constant/value.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:build/build.dart';
 import 'package:dust/annotations.dart';
 import 'package:source_gen/source_gen.dart';
 
-import 'serializable_generator.dart';
 import 'utils.dart';
 
 /// Sub-annotations.
-const kBacklinkAnnotation = TypeChecker.fromRuntime(Backlink);
-
-const kConstraintsAnnotation = TypeChecker.fromRuntime(Constraints);
-const kDefaultAnnotation = TypeChecker.fromRuntime(DustDft);
-const kGlobalAnnotation = TypeChecker.fromRuntime(Global);
+const kLinkAnnot = TypeChecker.fromRuntime(Ln);
+const kStickyAnnot = TypeChecker.fromRuntime(Sticky);
+const kSerializerAnnot = TypeChecker.fromRuntime(Serializer);
+const kAcyclicAnnot = TypeChecker.fromRuntime(Acyclic);
+const kDefaultAnnot = TypeChecker.fromRuntime(Dft);
+const kGlobalAnnot = TypeChecker.fromRuntime(Glb);
 
 const kActiveName = 'Active';
 const kAtomName = 'Atom';
@@ -44,13 +47,12 @@ const kIgnoreForFile = [
   'avoid_positional_boolean_parameters',
   'always_specify_types',
 ];
-const kSerializableAnnotation = TypeChecker.fromRuntime(Serializable);
-const kTransientAnnotation = TypeChecker.fromRuntime(Transient);
 
 /// Converts [FieldElement] to [Field].
 Field? convertField(ParameterElement elem) {
   final name = elem.name;
-  final type = convertType(elem.type, elem);
+  final type = convertType(elem);
+  print('Field: $name, $type');
   return Field(name, type);
 }
 
@@ -64,7 +66,7 @@ Future<Struct> convertStruct(ClassElement elem, BuildStep step) async {
   }
 
   final name = elem.name;
-  if (!elem.isAbstract) fail('Class must be abstract.', elem);
+  // if (!elem.isAbstract) fail('Class must be abstract.', elem);
   if (elem.typeParameters.isNotEmpty) fail('Class must not be generic.', elem);
   if (!elem.constructors.any((e) => e.name == '_')) {
     fail(
@@ -91,7 +93,6 @@ Future<Struct> convertStruct(ClassElement elem, BuildStep step) async {
     );
   }
   for (final (i, e) in cstor.parameters.indexed) {
-    if (i == 0) continue; // Skip the `id` field.
     final field = convertField(e);
     if (field != null) fields.add(field);
   }
@@ -99,117 +100,183 @@ Future<Struct> convertStruct(ClassElement elem, BuildStep step) async {
 }
 
 /// Converts [DartType] to [FieldType].
-FieldType convertType(DartType rawType, ParameterElement elem) {
-  final type = resolve(rawType, elem);
-  final constraints =
-      kConstraintsAnnotation.annotationsOfExact(elem).firstOrNull;
-  var sticky = constraints?.getField('sticky')?.toBoolValue();
-  var acyclic = constraints?.getField('acyclic')?.toBoolValue();
+FieldType convertType(ParameterElement elem) {
+  if (elem.isPositional) {
+    ///
+    fail('Positional arguments are not supported.', elem);
+  }
+  final type = resolve(elem.type, elem, allowNullable: true);
+  final sticky = kStickyAnnot.hasAnnotationOfExact(elem);
+  final acyclic = kAcyclicAnnot.hasAnnotationOfExact(elem);
+  final dft = kDefaultAnnot.checkExtractOneOrNull(elem, typeName: 'Dft');
+  if (dft == null && !elem.isRequired && !type.isNullable) {
+    fail(
+      'Field must have a default value if it is not required and not nullable.',
+      elem,
+    );
+  }
+  final fieldOpt = type.isNullable;
+  final ln = kLinkAnnot.checkExtractOneOrNull(elem, typeName: 'Ln');
+  final serializers = kSerializerAnnot.annotationsOf(elem).map((e) {
+    final (element, ty) = findSerializationType(e);
+    final value = computeStringValue(element, e);
+    return (value, ty);
+  });
+  if (ln != null) {
+    return convertLinkType(ln, type, elem,
+        fieldOpt: fieldOpt, sticky: sticky, acyclic: acyclic);
+  }
+  if (acyclic) {
+    fail('Acyclic annotation is only supported for links.', elem);
+  }
+  // TODO: add better support for list types.
+  final serializer = tryConvertSerializer(serializers, type, elem);
+  if (dft != null) {
+    final value = dft.getField('valueValue');
+    final defaultValue = (value != null) ? construct(value, elem) : null;
+    if (defaultValue == null) {
+      fail('Default value must be specified!', elem);
+    }
+    return AtomDefaultType(type, serializer, defaultValue, sticky: sticky);
+  }
+  if (fieldOpt) {
+    return AtomOptionType(type, serializer, sticky: sticky);
+  }
+  return AtomType(type, serializer);
+}
 
-  if (type.element.name == 'Atom' ||
-      type.element.name == 'AtomOption' ||
-      type.element.name == 'AtomDefault') {
-    if (type.typeArguments.length != 1) {
-      fail(
-        'Incorrect number of type arguments in `$type` (expected 1).',
-        elem,
-      );
+FieldType convertLinkType(
+  DartObject ln,
+  InterfaceType type,
+  ParameterElement elem, {
+  required bool fieldOpt,
+  required bool sticky,
+  required bool acyclic,
+}) {
+  final backTo = ln.getField('backTo')?.toString();
+  if (!type.isDartCoreList) {
+    if (backTo != null) {
+      fail('Backlinks must be a list of objects.', elem);
     }
-    final inner = resolve(type.typeArguments.single, elem);
-    final value = kSerializableAnnotation
-        .annotationsOfExact(elem)
-        .firstOrNull
-        ?.getField('serializer');
-    final serializer =
-        (value != null) ? construct(value, elem) : emitSerializer(inner);
-    if (serializer == null) {
-      fail(
-        'Failed to synthesize serializer for type `$inner`. '
-        'Please specify one using `@Serializable(serializerInstance)`. ',
-        elem,
-      );
+    if (fieldOpt) {
+      return LinkOptionType(type, sticky: sticky, acyclic: acyclic);
     }
-    if (type.element.name == 'Atom') {
-      if (sticky != null) {
-        fail('Sticky constraint is already implied here.', elem);
-      }
-      if (acyclic != null) {
-        fail('Acyclic constraint cannot be applied here.', elem);
-      }
-      return AtomType(inner, serializer);
-    } else if (type.element.name == 'AtomOption') {
-      if (acyclic != null) {
-        fail('Acyclic constraint cannot be applied here.', elem);
-      }
-      return AtomOptionType(inner, serializer, sticky: sticky == true);
-    } else if (type.element.name == 'AtomDefault') {
-      final value = kDefaultAnnotation
-          .annotationsOfExact(elem)
-          .firstOrNull
-          ?.getField('defaultValue');
-      final defaultValue = (value != null) ? construct(value, elem) : null;
-      if (defaultValue == null) {
-        fail(
-          'Please specify a default value using `@Default(defaultValue)`. ',
-          elem,
-        );
-      }
-      if (acyclic != null) {
-        fail('Acyclic constraint cannot be applied here.', elem);
-      }
-      return AtomDefaultType(inner, serializer, defaultValue,
-          sticky: sticky == true);
+    if (!elem.isRequired) {
+      fail('Linked field must be nullable if it is not required.', elem);
+    }
+    return LinkType(type, acyclic: acyclic);
+  }
+  // find the inner type
+  final innerOrNull = type.typeArguments.singleOrNull;
+  if (innerOrNull == null) {
+    fail('Linked field must have a single type argument.', elem);
+  }
+  // the inner type must not be nullable...
+  final inner = resolve(innerOrNull, elem, allowNullable: false);
+  if (backTo != null) {
+    return BacklinksType(inner, backTo);
+  }
+  // TODO: add support for optionality, not terrible important right now
+  return MultilinksType(inner, sticky: sticky, acyclic: acyclic);
+}
+
+String tryConvertSerializer(
+  Iterable<(String, DartType)> serializers,
+  InterfaceType type,
+  ParameterElement elem,
+) {
+  for (final (value, ty) in serializers) {
+    if (ty == type) {
+      return value;
     }
   }
-
-  if (type.element.name == 'Link' ||
-      type.element.name == 'LinkOption' ||
-      type.element.name == 'Multilinks') {
-    if (type.typeArguments.length != 1) {
-      fail(
-        'Incorrect number of type arguments in `$type` (expected 1).',
-        elem,
-      );
+  if (type.isNullable) {
+    return 'OptionSerializer(${tryConvertSerializer(serializers, type, elem)})';
+  }
+  if (type.isDartCoreList) {
+    final innerOrNull = type.typeArguments.singleOrNull;
+    if (innerOrNull == null) {
+      fail('List must have a single type argument.', elem);
     }
-    final inner = resolve(type.typeArguments.single, elem);
-    if (type.element.name == 'Link') {
-      if (sticky != null) {
-        fail('Sticky constraint is already implied here.', elem);
+    final inner = resolve(innerOrNull, elem, allowNullable: true);
+    return 'ListSerializer(${tryConvertSerializer(serializers, inner, elem)})';
+  }
+  if (type.isDartCoreSet) {
+    final innerOrNull = type.typeArguments.singleOrNull;
+    if (innerOrNull == null) {
+      fail('Set must have a single type argument.', elem);
+    }
+    final inner = resolve(innerOrNull, elem, allowNullable: true);
+    return 'SetSerializer(${tryConvertSerializer(serializers, inner, elem)})';
+  }
+  if (type.isDartCoreMap) {
+    final keyOrNull = type.typeArguments.firstOrNull;
+    if (keyOrNull == null) {
+      fail('Map must have a key type argument.', elem);
+    }
+    final key = resolve(keyOrNull, elem, allowNullable: true);
+    final valueOrNull = type.typeArguments.elementAtOrNull(1);
+    if (valueOrNull == null) {
+      fail('Map must have a value type argument.', elem);
+    }
+    final value = resolve(valueOrNull, elem, allowNullable: true);
+    return 'MapSerializer(${tryConvertSerializer(serializers, key, elem)}, '
+        '${tryConvertSerializer(serializers, value, elem)})';
+  }
+  if (serializers.isNotEmpty) {}
+  if (type.isDartCoreString) {
+    return 'StringSerializer()';
+  }
+  if (type.isDartCoreInt) {
+    return 'IntSerializer()';
+  }
+  if (type.isDartCoreDouble) {
+    return 'DoubleSerializer()';
+  }
+  if (type.isDartCoreBool) {
+    return 'BoolSerializer()';
+  }
+  fail('Could not resolve serializer for element.', elem);
+}
+
+(Element, DartType) findSerializationType(DartObject obj) {
+  final elem = obj.type?.element;
+  if (elem == null || elem is! ClassElement) {
+    fail('Serializer must be a class.', elem);
+  }
+  for (final superType in elem.allSupertypes) {
+    if (kSerializerAnnot.isExactlyType(superType)) {
+      final args = superType.typeArguments;
+      if (args.length != 1) {
+        fail('Serializer must have a single type argument.', superType.element);
       }
-      return LinkType(inner, acyclic: acyclic == true);
-    } else if (type.element.name == 'LinkOption') {
-      return LinkOptionType(inner,
-          sticky: sticky == true, acyclic: acyclic == true);
-    } else if (type.element.name == 'Multilinks') {
-      return MultilinksType(inner,
-          sticky: sticky == true, acyclic: acyclic == true);
+      return (elem, args.single);
     }
   }
+  fail('Serializer must implement `Serializer`.', elem);
+}
 
-  if (type.element.name == 'Backlinks') {
-    if (type.typeArguments.length != 1) {
-      fail(
-        'Incorrect number of type arguments in `$type` (expected 1).',
-        elem,
-      );
+String computeStringValue(
+  Element element,
+  DartObject obj,
+) {
+  if (element is PropertyAccessorElement) {
+    final enclosing = element.enclosingElement;
+
+    var accessString = element.name;
+
+    if (enclosing is ClassElement) {
+      accessString = '${enclosing.name}.$accessString';
     }
-    final inner = resolve(type.typeArguments.single, elem);
-    final annot = kBacklinkAnnotation.annotationsOfExact(elem).firstOrNull;
-    final value = annot?.getField('name')?.toStringValue();
-    if (value == null) {
-      fail(
-        'Backlinks must be annotated with `@Backlink(\'fieldName\')`.',
-        elem,
-      );
-    }
-    return BacklinksType(inner, value);
+
+    return accessString;
   }
-
-  fail(
-    'Unsupported field type `$type` (must be one of: `Atom`, `AtomOption`, '
-    '`AtomDefault`, `Link`, `LinkOption`, `Multilinks` or `Backlinks`).',
-    elem,
-  );
+  final reviver = ConstantReader(obj).revive();
+  if (reviver.namedArguments.isNotEmpty ||
+      reviver.positionalArguments.isNotEmpty) {
+    fail('Serializer must not have any arguments.', element);
+  }
+  return reviver.accessor;
 }
 
 /// Creates the function that queries all objects.
@@ -450,19 +517,17 @@ String emitGlobalIds(Struct struct, ClassElement elem) {
   }
 
   for (final ctor in elem.constructors) {
-    if (ctor.isFactory &&
-        kGlobalAnnotation.annotationsOfExact(ctor).isNotEmpty) {
+    if (ctor.isFactory && kGlobalAnnot.annotationsOfExact(ctor).isNotEmpty) {
       generateFor(ctor.name);
     }
   }
   for (final method in elem.methods) {
-    if (method.isStatic &&
-        kGlobalAnnotation.annotationsOfExact(method).isNotEmpty) {
+    if (method.isStatic && kGlobalAnnot.annotationsOfExact(method).isNotEmpty) {
       generateFor(method.name);
     }
   }
   for (final acc in elem.accessors) {
-    if (acc.isStatic && kGlobalAnnotation.annotationsOfExact(acc).isNotEmpty) {
+    if (acc.isStatic && kGlobalAnnot.annotationsOfExact(acc).isNotEmpty) {
       generateFor(acc.name);
     }
   }
@@ -786,7 +851,9 @@ class ModelRepositoryGenerator extends GeneratorForAnnotation<Model> {
       }
 
       final class ${child(struct.name)} extends ${struct.name} {
-        ${child(struct.name)}._(${emitChildCstors(struct)}) : super._();
+        final Id id;
+
+        ${emitChildCstors(struct)} 
 
         ${emitChildFactory(struct)} 
 
@@ -825,4 +892,3 @@ class ModelRepositoryGenerator extends GeneratorForAnnotation<Model> {
     ''';
   }
 }
-

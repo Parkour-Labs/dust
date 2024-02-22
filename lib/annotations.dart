@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'src/serializer.dart';
-export 'src/serializer.dart';
+export 'src/serializer.dart' show Serializer;
 
 /// The annotation for a model class. A model is an object that can be
 /// serialized and persisted to the database.
@@ -69,36 +68,69 @@ class Model {
   final bool generateForwarding;
 }
 
-class Serializable<T> {
-  final Serializer<T> serializer;
-  const Serializable(this.serializer);
-}
-
 /// The annotation for providing a default value to a field. We would love to
 /// call it `@Default`, but that may cause potential naming collisions with
 /// the `freezed` package, which users may use.
-class DustDft<T> {
+class Dft<T> {
   /// The default value for this field.
   final T defaultValue;
 
-  const DustDft(this.defaultValue);
+  const Dft(this.defaultValue);
 }
 
-class Backlink {
-  final String name;
-  const Backlink(this.name);
+/// The annotation for marking a field as a link to another node. If the
+/// [backTo] is specified, then this link is a backlink to another model that
+/// links to this model. Otherwise, this link is a regular link to another
+/// model.
+///
+/// TODO: think of a better name.
+class Ln {
+  final String? backTo;
+  const Ln({this.backTo});
 }
 
-class Transient {
-  const Transient();
+class Glb {
+  const Glb();
 }
 
-class Global {
-  const Global();
+/// Traditional SQL databases have the ability to enforce "referential
+/// integrity": you will never get unexpected null values or broken links when
+/// reading non-nullable fields and relationships. For example, if a folder's
+/// parent field is non-nullable, deleting a folder that contains other folders
+/// will either fail ("on delete cancel" mode) or result in all sub-folders
+/// being deleted ("on delete cascade" mode).
+///
+/// In Qinhuai, due to the presence of concurrent modifications from different
+/// clients, the "on delete cancel" strategy is not possible - there is always
+/// a possibility, that another client has just directed (on their copy) a
+/// non-nullable edge to the object you are about to delete. Moreover, the
+/// storage format of Qinhuai is not optimal when it comes to checking
+/// traditional referential integrity constraints (in the form of "all objects
+/// of type A always have non-nullable fields/links of types [X, Y, Z]"). So
+/// this model is proposed instead:
+///
+/// - Every atom and link must connect non-deleted nodes; any violation causes
+///   the atom or link to be deleted.
+/// - You can declare certain types of nodes, atoms and edges to be "sticky".
+///   - Once created, "sticky" nodes can never have their label changed; any
+///     violation causes the node to be deleted.
+///   - Once created, "sticky" atoms and edges can never have their src or
+///     label changed; any violation causes the original src node to be
+///     deleted.
+///   - In other words, either all "sticky" things remain "stuck" to the node,
+///     or the node is completely erased.
+/// - Qinhuai will delete and delete, until no further violations of rules
+///   exist (or all data has been deleted).
+///
+/// This process is the last step before committing a transaction, so a saved
+/// database will always be in a consistent state. The additional deletes are
+/// recorded as regular operations, so that they can be synchronised. This
+/// will not affect convergence: only finitely many additional deletes can be
+/// appended (there are only finitely many things to delete...)
+class Sticky {
+  const Sticky();
 }
 
-class Constraints {
-  final bool sticky;
-  final bool acyclic;
-  const Constraints({this.sticky = false, this.acyclic = false});
+class Acyclic {
+  const Acyclic();
 }

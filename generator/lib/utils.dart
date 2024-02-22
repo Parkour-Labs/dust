@@ -10,7 +10,9 @@ import 'package:analyzer/dart/element/type.dart';
 import 'package:build/build.dart';
 import 'package:source_gen/source_gen.dart';
 
-Never fail(String msg, Element? element) {
+/// Fails the code generation by throwing an [InvalidGenerationSourceError]
+/// with the given [msg] and [element].
+Never fail(String msg, [Element? element]) {
   throw InvalidGenerationSourceError(msg, element: element);
 }
 
@@ -25,9 +27,20 @@ int fnv64Hash(String s) {
   return res;
 }
 
-/// Resolves any type aliases and ensures that [type] is a non-nullable object type.
-InterfaceType resolve(DartType type, Element elem) {
-  if (type.nullabilitySuffix != NullabilitySuffix.none) {
+/// Resolves any type aliases.
+///
+/// By default, this ensures that the type is not nullable. You can, however,
+/// override this behavior by setting [allowNullable] to `true`.
+///
+/// Throws an [InvalidGenerationSourceError] if the type is not an object type
+/// (class or interface), or if the type is nullable and [allowNullable] is
+/// `false`.
+InterfaceType resolve(
+  DartType type,
+  Element elem, {
+  bool allowNullable = false,
+}) {
+  if (type.isNullable && !allowNullable) {
     fail('Type `$type` should not be nullable.', elem);
   }
   final alias = type.alias;
@@ -173,5 +186,27 @@ extension ConstructorElementX on ConstructorElement {
         .trim();
     if (redirectedName.isEmpty) return null;
     return redirectedName;
+  }
+}
+
+extension TypeIsNullable on DartType {
+  bool get isNullable => nullabilitySuffix != NullabilitySuffix.none;
+}
+
+extension CheckExtractOneOrNull on TypeChecker {
+  DartObject? checkExtractOneOrNull(
+    Element elem, {
+    // for debug purposes
+    required String typeName,
+    bool throwOnUnresolved = true,
+  }) {
+    final annots = annotationsOf(elem);
+    if (annots.length > 1) {
+      fail(
+        'Could only have one annotation of type $typeName',
+        elem,
+      );
+    }
+    return annots.firstOrNull;
   }
 }
