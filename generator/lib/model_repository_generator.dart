@@ -95,7 +95,7 @@ Future<Struct> convertStruct(ClassElement elem, BuildStep step) async {
       cstor,
     );
   }
-  for (final (i, e) in cstor.parameters.indexed) {
+  for (final (_, e) in cstor.parameters.indexed) {
     final field = convertField(e);
     if (field != null) fields.add(field);
   }
