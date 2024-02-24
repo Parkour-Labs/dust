@@ -14,24 +14,38 @@ mixin _$Todo {
   Atom<String> get title$;
   String get title => title$.get(null);
   set title(String value) => title$.set(value);
+  AtomDefault<bool> get isCompleted$;
+  bool get isCompleted => isCompleted$.get(null);
+  set isCompleted(bool value) => isCompleted$.set(value);
+
+  void delete();
 }
 
 final class _Todo extends Todo {
   @override
   final Id id;
 
-  _Todo._(this.id, {required this.title$}) : super._();
+  _Todo._(this.id, {required this.title$, required this.isCompleted$})
+      : super._();
 
   factory _Todo({
     required String title,
+    bool? isCompleted,
   }) {
     return const $TodoRepository().create(
       title: title,
+      isCompleted: isCompleted,
     ) as _Todo;
   }
 
   @override
   final Atom<String> title$;
+
+  @override
+  final AtomDefault<bool> isCompleted$;
+
+  @override
+  void delete() => const $TodoRepository().delete(this);
 }
 
 class $TodoRepository implements Repository<Todo> {
@@ -39,8 +53,10 @@ class $TodoRepository implements Repository<Todo> {
 
   static const int Label = 8512415165397905237;
   static const int titleLabel = -5241206623633058639;
+  static const int isCompletedLabel = -7402738807038578080;
 
   static const titleSerializer = StringSerializer();
+  static const isCompletedSerializer = BoolSerializer();
 
   static final Map<Id, WeakReference<NodeOption<Todo>>> $entries = {};
 
@@ -63,22 +79,46 @@ class $TodoRepository implements Repository<Todo> {
   void $write(
     Id $id, {
     required String title,
+    bool? isCompleted,
   }) {
     assert($init, 'Repository should be registered in `Dust.open`.');
     final $store = Dust.instance;
     $store.setNode($id, $TodoRepository.Label);
+    $store.setAtom(
+      $id ^ $TodoRepository.titleLabel,
+      (
+        $id,
+        $TodoRepository.titleLabel,
+        title,
+        $TodoRepository.titleSerializer,
+      ),
+    );
+
+    if (isCompleted != null) {
+      $store.setAtom(
+        $id ^ $TodoRepository.isCompletedLabel,
+        (
+          $id,
+          $TodoRepository.isCompletedLabel,
+          isCompleted,
+          $TodoRepository.isCompletedSerializer,
+        ),
+      );
+    }
 
     $store.barrier();
   }
 
   Todo create({
     required String title,
+    bool? isCompleted,
   }) {
     final $id = Dust.instance.randomId();
     final $node = get($id);
     $write(
       $id,
       title: title,
+      isCompleted: isCompleted,
     );
     final $res = $node.get(null)!;
 
@@ -88,6 +128,7 @@ class $TodoRepository implements Repository<Todo> {
   NodeAuto<Todo> auto(
     Id $id, {
     required String title,
+    bool? isCompleted,
   }) {
     final $node = get($id);
     return NodeAuto(
@@ -95,6 +136,7 @@ class $TodoRepository implements Repository<Todo> {
       () => $write(
         $id,
         title: title,
+        isCompleted: isCompleted,
       ),
       ($res) {},
     );
@@ -111,6 +153,13 @@ class $TodoRepository implements Repository<Todo> {
         $id,
         $TodoRepository.titleLabel,
         $TodoRepository.titleSerializer,
+      ),
+      isCompleted$: AtomDefault<bool>(
+        $id ^ $TodoRepository.isCompletedLabel,
+        $id,
+        $TodoRepository.isCompletedLabel,
+        $TodoRepository.isCompletedSerializer,
+        false,
       ),
     );
     final $entry = NodeOption($id, $TodoRepository.Label, $model);

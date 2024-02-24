@@ -79,8 +79,11 @@ Future<Struct> convertStruct(ClassElement elem, BuildStep step) async {
       .where((e) => e.name == '')
       .where((e) => e.isPublic)
       .firstOrNull;
+  print('1. Unnamed public factory: $unnamedPublicFactory');
   if (unnamedPublicFactory == null) failUnnamedPubFactory();
+  print('2. Confirmed having public unnamed factory.');
   final redirect = await unnamedPublicFactory.getRedirectedNameOrNull(step);
+
   if (redirect != '_$name') failUnnamedPubFactory();
 
   final cstor = unnamedPublicFactory;
@@ -109,14 +112,14 @@ FieldType convertType(ParameterElement elem) {
   final sticky = kStickyAnnot.hasAnnotationOfExact(elem);
   final acyclic = kAcyclicAnnot.hasAnnotationOfExact(elem);
   final dft = kDefaultAnnot.checkExtractOneOrNull(elem, typeName: 'Dft');
-  if (dft == null && !elem.isRequired && !type.isNullable) {
+  final ln = kLinkAnnot.checkExtractOneOrNull(elem, typeName: 'Ln');
+  if (dft == null && !elem.isRequired && !type.isNullable && ln == null) {
     fail(
       'Field must have a default value if it is not required and not nullable.',
       elem,
     );
   }
   final fieldOpt = type.isNullable;
-  final ln = kLinkAnnot.checkExtractOneOrNull(elem, typeName: 'Ln');
   final serializers = kSerializerAnnot.annotationsOf(elem).map((e) {
     final (element, ty) = findSerializationType(e);
     final value = computeStringValue(element, e);
@@ -132,7 +135,8 @@ FieldType convertType(ParameterElement elem) {
   // TODO: add better support for list types.
   final serializer = tryConvertSerializer(serializers, type, elem);
   if (dft != null) {
-    final value = dft.getField('valueValue');
+    final value = dft.getField('defaultValue');
+    // print out the value
     final defaultValue = (value != null) ? construct(value, elem) : null;
     if (defaultValue == null) {
       fail('Default value must be specified!', elem);
@@ -153,10 +157,10 @@ FieldType convertLinkType(
   required bool sticky,
   required bool acyclic,
 }) {
-  final backTo = ln.getField('backTo')?.toString();
+  final backTo = ln.getField('backTo');
   if (!type.isDartCoreList) {
-    if (backTo != null) {
-      fail('Backlinks must be a list of objects.', elem);
+    if (backTo?.isNull != true) {
+      fail('Backlinks must be a list of objects, but found: $backTo', elem);
     }
     if (fieldOpt) {
       return LinkOptionType(type, sticky: sticky, acyclic: acyclic);
@@ -173,25 +177,38 @@ FieldType convertLinkType(
   }
   // the inner type must not be nullable...
   final inner = resolve(innerOrNull, elem, allowNullable: false);
-  if (backTo != null) {
-    return BacklinksType(inner, backTo);
+  if (backTo?.isNull != true) {
+    final s = backTo?.toStringValue()?.toString();
+    if (s == null) {
+      fail(
+          'In a @Ln annotation, when `backTo` is specified, it must be a '
+          'string of the name of the field to which the backlink points.',
+          elem);
+    }
+    return BacklinksType(inner, s);
   }
   // TODO: add support for optionality, not terrible important right now
   return MultilinksType(inner, sticky: sticky, acyclic: acyclic);
 }
 
+/// The [annots] are the list of annotations that are serializers and are
+/// attached to the given constructor element.
 String tryConvertSerializer(
-  Iterable<(String, DartType)> serializers,
+  Iterable<(String, DartType)> annots,
   InterfaceType type,
-  ParameterElement elem,
-) {
-  for (final (value, ty) in serializers) {
+  ParameterElement elem, {
+  bool overrideNullable = false,
+}) {
+  for (final (value, ty) in annots) {
     if (ty == type) {
       return value;
     }
   }
-  if (type.isNullable) {
-    return 'OptionSerializer(${tryConvertSerializer(serializers, type, elem)})';
+  if (type.isNullable && !overrideNullable) {
+    // convert type into non-nullable
+    final inner =
+        tryConvertSerializer(annots, type, elem, overrideNullable: true);
+    return 'OptionSerializer($inner)';
   }
   if (type.isDartCoreList) {
     final innerOrNull = type.typeArguments.singleOrNull;
@@ -199,7 +216,7 @@ String tryConvertSerializer(
       fail('List must have a single type argument.', elem);
     }
     final inner = resolve(innerOrNull, elem, allowNullable: true);
-    return 'ListSerializer(${tryConvertSerializer(serializers, inner, elem)})';
+    return 'ListSerializer(${tryConvertSerializer(annots, inner, elem)})';
   }
   if (type.isDartCoreSet) {
     final innerOrNull = type.typeArguments.singleOrNull;
@@ -207,7 +224,7 @@ String tryConvertSerializer(
       fail('Set must have a single type argument.', elem);
     }
     final inner = resolve(innerOrNull, elem, allowNullable: true);
-    return 'SetSerializer(${tryConvertSerializer(serializers, inner, elem)})';
+    return 'SetSerializer(${tryConvertSerializer(annots, inner, elem)})';
   }
   if (type.isDartCoreMap) {
     final keyOrNull = type.typeArguments.firstOrNull;
@@ -220,10 +237,10 @@ String tryConvertSerializer(
       fail('Map must have a value type argument.', elem);
     }
     final value = resolve(valueOrNull, elem, allowNullable: true);
-    return 'MapSerializer(${tryConvertSerializer(serializers, key, elem)}, '
-        '${tryConvertSerializer(serializers, value, elem)})';
+    return 'MapSerializer(${tryConvertSerializer(annots, key, elem)}, '
+        '${tryConvertSerializer(annots, value, elem)})';
   }
-  if (serializers.isNotEmpty) {}
+  if (annots.isNotEmpty) {}
   if (type.isDartCoreString) {
     return 'StringSerializer()';
   }
@@ -310,7 +327,6 @@ String emitCreateFunctionArgs(Struct struct, {required bool includeLinks}) {
 }
 
 String emitCreateFunctionBody(Struct struct) {
-  var res = '';
   final sb = StringBuffer();
   for (final field in struct.fields) {
     final name = field.name;
@@ -355,7 +371,7 @@ String emitCreateFunctionBody(Struct struct) {
         break;
     }
   }
-  return res;
+  return sb.toString();
 }
 
 String emitCreateFunctionParams(Struct struct, {required bool includeLinks}) {
@@ -366,7 +382,7 @@ String emitCreateFunctionParams(Struct struct, {required bool includeLinks}) {
       case AtomOptionType(type: final inner) ||
             AtomDefaultType(type: final inner) ||
             LinkOptionType(type: final inner):
-        sb.write('$inner? $name,');
+        sb.write('$inner $name,');
         break;
       case LinkType(type: final inner) || AtomType(type: final inner):
         sb.write('required $inner $name,');
@@ -388,12 +404,12 @@ String emitCreateFunctionLinksLogic(String res, Struct struct) {
   final sb = StringBuffer();
   for (final field in struct.fields) {
     switch (field.type) {
-      case MultilinksType() || BacklinksType():
+      case MultilinksType():
         final name = field.name;
         sb.writeln(
           '''
           for (final item in $name) {
-            $res.$name\$.add(item);
+            $res.$name\$.insert(item);
           }
           ''',
         );
@@ -629,11 +645,31 @@ String emitSerializerDecls(Struct struct) {
 String emitChildFactory(Struct struct) {
   return '''
   factory ${child(struct.name)}(${emitCreateFunctionParams(struct, includeLinks: true)}) {
+    ${emitFactoryNoBacklinkSpecifiedChecks(struct)}
     return const ${repository(struct.name)}().create(
       ${emitCreateFunctionArgs(struct, includeLinks: true)}
     ) as ${child(struct.name)};
   }
   ''';
+}
+
+String emitFactoryNoBacklinkSpecifiedChecks(Struct struct) {
+  final sb = StringBuffer();
+  for (final field in struct.fields) {
+    switch (field.type) {
+      case BacklinksType():
+        sb.writeln(
+          'assert(${field.name}.isEmpty, \'Backlink ${field.name} in '
+          'constructor currently does not support passing in any arguments, '
+          'but only serve as a marker parameter.\',);',
+        );
+        break;
+      default:
+        // do nothing
+        break;
+    }
+  }
+  return sb.toString();
 }
 
 String emitParentDecls(Struct struct) {
@@ -645,27 +681,18 @@ String emitParentDecls(Struct struct) {
     String Function(InterfaceType)? containedTypeMapper,
   ]) {
     return (type, name) {
-      final rawType = mapper?.call(type) ?? type.toString();
       final contained = containedTypeMapper?.call(type) ?? type.toString();
-      if (containerName == null) {
-        sb.writeln('$rawType get $name;');
-        sb.writeln('set $name($rawType value);');
-      } else {
-        sb.writeln('$containerName<$contained> get $name\$;');
-        sb.writeln('$rawType get $name => $name\$.get(null);');
-        sb.writeln('set $name($rawType value) => $name\$.set(value);');
-      }
+      sb.writeln('$containerName<$contained> get $name\$;');
     };
   }
 
-  String optMapper(InterfaceType type) => '$type?';
   String colMapper(InterfaceType type) => 'List<$type>';
 
   final writeAtom = getWriter(kAtomName);
-  final writeAtomOption = getWriter(kAtomOptionName, optMapper);
+  final writeAtomOption = getWriter(kAtomOptionName);
   final writeAtomDefault = getWriter(kAtomDefaultName);
   final writeLink = getWriter(kLinkName);
-  final writeLinkOption = getWriter(kLinkOptionName, optMapper);
+  final writeLinkOption = getWriter(kLinkOptionName);
   final writeMultilinks = getWriter(kMultilinksName, colMapper);
   final writeBacklinks = getWriter(kBacklinksName, colMapper);
 
@@ -716,10 +743,17 @@ String emitChildDecls(Struct struct) {
   final sb = StringBuffer();
 
   void write(String wrapperName, InterfaceType inner, String name) {
+    // remove \$ postfix of the inner type
+    final String innerString;
+    if (inner.toString().endsWith('\$')) {
+      innerString = inner.toString().substring(0, inner.toString().length - 1);
+    } else {
+      innerString = inner.toString();
+    }
     sb.writeln(
       '''
       @override
-      final $wrapperName<$inner> $name\$;
+      final $wrapperName<$innerString> $name\$;
       ''',
     );
   }
@@ -750,6 +784,19 @@ String emitChildDecls(Struct struct) {
     }
   }
   return sb.toString();
+}
+
+String emitDeleteFunctionApi(Struct struct) {
+  return '''
+  void delete();
+  ''';
+}
+
+String emitDeleteFunctionApiImpl(Struct struct) {
+  return '''
+  @override
+  void delete() => const ${repository(struct.name)}().delete(this);
+  ''';
 }
 
 /// Returns the corresponding label constant name.
@@ -856,6 +903,8 @@ class ModelRepositoryGenerator extends GeneratorForAnnotation<Model> {
 
       mixin ${parent(struct.name)} {
         ${emitParentDecls(struct)}
+
+        ${emitDeleteFunctionApi(struct)}
       }
 
       final class ${child(struct.name)} extends ${struct.name} {
@@ -867,6 +916,8 @@ class ModelRepositoryGenerator extends GeneratorForAnnotation<Model> {
         ${emitChildFactory(struct)} 
 
         ${emitChildDecls(struct)}
+
+        ${emitDeleteFunctionApiImpl(struct)}
       }
 
       class ${repository(struct.name)} implements Repository<${struct.name}> {

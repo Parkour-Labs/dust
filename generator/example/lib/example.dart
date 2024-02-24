@@ -8,5 +8,6 @@ abstract class Todo with _$Todo {
 
   factory Todo({
     required String title,
+    @Dft(false) bool isCompleted,
   }) = _Todo;
 }
