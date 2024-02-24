@@ -9,6 +9,26 @@ part of 'integration_test.dart';
 // ignore_for_file: duplicate_ignore, unused_local_variable, non_constant_identifier_names, constant_identifier_names, invalid_use_of_protected_member, unnecessary_cast, prefer_const_constructors, lines_longer_than_80_chars, require_trailing_commas, inference_failure_on_function_invocation, unnecessary_parenthesis, unnecessary_raw_strings, unnecessary_null_checks, join_return_with_assignment, prefer_final_locals, avoid_js_rounded_ints, avoid_positional_boolean_parameters, always_specify_types
 // coverage:ignore-file
 
+mixin _$Trivial {
+  Id get id;
+
+  void delete();
+}
+
+final class _Trivial extends Trivial {
+  @override
+  final Id id;
+
+  _Trivial._(this.id) : super._();
+
+  factory _Trivial() {
+    return const $TrivialRepository().create() as _Trivial;
+  }
+
+  @override
+  void delete() => const $TrivialRepository().delete(this);
+}
+
 class $TrivialRepository implements Repository<Trivial> {
   const $TrivialRepository();
 
@@ -35,7 +55,7 @@ class $TrivialRepository implements Repository<Trivial> {
   void $write(
     Id $id,
   ) {
-    assert($init, 'Repository should be registered in `Store.open`.');
+    assert($init, 'Repository should be registered in `Dust.open`.');
     final $store = Dust.instance;
     $store.setNode($id, $TrivialRepository.Label);
 
@@ -48,7 +68,9 @@ class $TrivialRepository implements Repository<Trivial> {
     $write(
       $id,
     );
-    return $node.get(null)!;
+    final $res = $node.get(null)!;
+
+    return $res;
   }
 
   NodeAuto<Trivial> auto(
@@ -60,6 +82,7 @@ class $TrivialRepository implements Repository<Trivial> {
       () => $write(
         $id,
       ),
+      ($res) {},
     );
   }
 
@@ -67,7 +90,7 @@ class $TrivialRepository implements Repository<Trivial> {
   NodeOption<Trivial> get(Id $id) {
     final $existing = $entries[$id]?.target;
     if ($existing != null) return $existing;
-    final $model = Trivial._(
+    final $model = _Trivial._(
       $id,
     );
     final $entry = NodeOption($id, $TrivialRepository.Label, $model);
@@ -77,7 +100,7 @@ class $TrivialRepository implements Repository<Trivial> {
 
   @override
   void delete(Trivial $model) {
-    assert($init, 'Repository should be registered in `Store.open`.');
+    assert($init, 'Repository should be registered in `Dust.open`.');
     final $id = $model.id;
     final $store = Dust.instance;
     $entries.remove($id);
@@ -92,6 +115,76 @@ class $TrivialRepository implements Repository<Trivial> {
 // ignore_for_file: duplicate_ignore, unused_local_variable, non_constant_identifier_names, constant_identifier_names, invalid_use_of_protected_member, unnecessary_cast, prefer_const_constructors, lines_longer_than_80_chars, require_trailing_commas, inference_failure_on_function_invocation, unnecessary_parenthesis, unnecessary_raw_strings, unnecessary_null_checks, join_return_with_assignment, prefer_final_locals, avoid_js_rounded_ints, avoid_positional_boolean_parameters, always_specify_types
 // coverage:ignore-file
 
+mixin _$Something {
+  Id get id;
+  Atom<String> get atomOne$;
+  AtomOption<String?> get atomTwo$;
+  Link<Trivial> get linkOne$;
+  LinkOption<Trivial?> get linkTwo$;
+  Multilinks<Something> get linkThree$;
+  Backlinks<Something> get backlink$;
+
+  void delete();
+}
+
+final class _Something extends Something {
+  @override
+  final Id id;
+
+  _Something._(this.id,
+      {required this.atomOne$,
+      required this.atomTwo$,
+      required this.linkOne$,
+      required this.linkTwo$,
+      required this.linkThree$,
+      required this.backlink$})
+      : super._();
+
+  factory _Something({
+    required String atomOne,
+    String? atomTwo,
+    required Trivial linkOne,
+    Trivial? linkTwo,
+    Iterable<Something> linkThree = const Iterable.empty(),
+    Iterable<Something> backlink = const Iterable.empty(),
+  }) {
+    assert(
+      backlink.isEmpty,
+      'Backlink backlink in constructor currently does not support passing in any arguments, but only serve as a marker parameter.',
+    );
+
+    return const $SomethingRepository().create(
+      atomOne: atomOne,
+      atomTwo: atomTwo,
+      linkOne: linkOne,
+      linkTwo: linkTwo,
+      linkThree: linkThree,
+      backlink: backlink,
+    ) as _Something;
+  }
+
+  @override
+  final Atom<String> atomOne$;
+
+  @override
+  final AtomOption<String?> atomTwo$;
+
+  @override
+  final Link<Trivial> linkOne$;
+
+  @override
+  final LinkOption<Trivial?> linkTwo$;
+
+  @override
+  final Multilinks<Something> linkThree$;
+
+  @override
+  final Backlinks<Something> backlink$;
+
+  @override
+  void delete() => const $SomethingRepository().delete(this);
+}
+
 class $SomethingRepository implements Repository<Something> {
   const $SomethingRepository();
 
@@ -103,7 +196,7 @@ class $SomethingRepository implements Repository<Something> {
   static const int linkThreeLabel = 520405320243803301;
 
   static const atomOneSerializer = StringSerializer();
-  static const atomTwoSerializer = StringSerializer();
+  static const atomTwoSerializer = OptionSerializer(StringSerializer());
 
   static final Map<Id, WeakReference<NodeOption<Something>>> $entries = {};
 
@@ -130,7 +223,7 @@ class $SomethingRepository implements Repository<Something> {
     required Trivial linkOne,
     Trivial? linkTwo,
   }) {
-    assert($init, 'Repository should be registered in `Store.open`.');
+    assert($init, 'Repository should be registered in `Dust.open`.');
     final $store = Dust.instance;
     $store.setNode($id, $SomethingRepository.Label);
     $store.setAtom(
@@ -142,6 +235,7 @@ class $SomethingRepository implements Repository<Something> {
         $SomethingRepository.atomOneSerializer,
       ),
     );
+
     if (atomTwo != null) {
       $store.setAtom(
         $id ^ $SomethingRepository.atomTwoLabel,
@@ -153,6 +247,7 @@ class $SomethingRepository implements Repository<Something> {
         ),
       );
     }
+
     $store.setEdge(
       $id ^ $SomethingRepository.linkOneLabel,
       (
@@ -161,6 +256,7 @@ class $SomethingRepository implements Repository<Something> {
         linkOne.id,
       ),
     );
+
     if (linkTwo != null) {
       $store.setEdge(
         $id ^ $SomethingRepository.linkTwoLabel,
@@ -180,6 +276,8 @@ class $SomethingRepository implements Repository<Something> {
     String? atomTwo,
     required Trivial linkOne,
     Trivial? linkTwo,
+    Iterable<Something> linkThree = const Iterable.empty(),
+    Iterable<Something> backlink = const Iterable.empty(),
   }) {
     final $id = Dust.instance.randomId();
     final $node = get($id);
@@ -190,7 +288,12 @@ class $SomethingRepository implements Repository<Something> {
       linkOne: linkOne,
       linkTwo: linkTwo,
     );
-    return $node.get(null)!;
+    final $res = $node.get(null)!;
+    for (final item in linkThree) {
+      $res.linkThree$.insert(item);
+    }
+
+    return $res;
   }
 
   NodeAuto<Something> auto(
@@ -199,6 +302,8 @@ class $SomethingRepository implements Repository<Something> {
     String? atomTwo,
     required Trivial linkOne,
     Trivial? linkTwo,
+    Iterable<Something> linkThree = const Iterable.empty(),
+    Iterable<Something> backlink = const Iterable.empty(),
   }) {
     final $node = get($id);
     return NodeAuto(
@@ -210,6 +315,11 @@ class $SomethingRepository implements Repository<Something> {
         linkOne: linkOne,
         linkTwo: linkTwo,
       ),
+      ($res) {
+        for (final item in linkThree) {
+          $res.linkThree$.insert(item);
+        }
+      },
     );
   }
 
@@ -217,38 +327,38 @@ class $SomethingRepository implements Repository<Something> {
   NodeOption<Something> get(Id $id) {
     final $existing = $entries[$id]?.target;
     if ($existing != null) return $existing;
-    final $model = Something._(
+    final $model = _Something._(
       $id,
-      atomOne: Atom<String>(
+      atomOne$: Atom<String>(
         $id ^ $SomethingRepository.atomOneLabel,
         $id,
         $SomethingRepository.atomOneLabel,
         $SomethingRepository.atomOneSerializer,
       ),
-      atomTwo: AtomOption<String>(
+      atomTwo$: AtomOption<String?>(
         $id ^ $SomethingRepository.atomTwoLabel,
         $id,
         $SomethingRepository.atomTwoLabel,
         $SomethingRepository.atomTwoSerializer,
       ),
-      linkOne: Link<Trivial>(
+      linkOne$: Link<Trivial>(
         $id ^ $SomethingRepository.linkOneLabel,
         $id,
         $SomethingRepository.linkOneLabel,
         const $TrivialRepository(),
       ),
-      linkTwo: LinkOption<Trivial>(
+      linkTwo$: LinkOption<Trivial?>(
         $id ^ $SomethingRepository.linkTwoLabel,
         $id,
         $SomethingRepository.linkTwoLabel,
         const $TrivialRepository(),
       ),
-      linkThree: Multilinks<Something>(
+      linkThree$: Multilinks<Something>(
         $id,
         $SomethingRepository.linkThreeLabel,
         const $SomethingRepository(),
       ),
-      backlink: Backlinks<Something>(
+      backlink$: Backlinks<Something>(
         $id,
         $SomethingRepository.linkThreeLabel,
         const $SomethingRepository(),
@@ -261,7 +371,7 @@ class $SomethingRepository implements Repository<Something> {
 
   @override
   void delete(Something $model) {
-    assert($init, 'Repository should be registered in `Store.open`.');
+    assert($init, 'Repository should be registered in `Dust.open`.');
     final $id = $model.id;
     final $store = Dust.instance;
     $entries.remove($id);

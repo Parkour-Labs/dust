@@ -1,20 +1,27 @@
 # See: https://github.com/dart-lang/source_gen/blob/master/example/build.yaml
 # See: https://pub.dev/packages/build_config
+targets:
+  $default:
+    builders:
+      # Name of the builder.
+      dustBuilder:
+        enabled: true
+
 builders:
   # Name of the builder.
-  model_repository:
+  dustBuilder:
     # Library URI containing the builder.
     import: "package:dust_generator/builders.dart"
     # Name of the function in the above library to call.
-    builder_factories: ["modelRepositoryBuilder"]
+    builder_factories: ["dustBuilder"]
     # The mapping from the source extension to the generated file extension.
     # Format: `NAME.g.part` where
     # - `NAME` corresponds to the second argument to the `SharedPartBuilder` constructor.
     # - `.g.part` is the extension expected by `SharedPartBuilder`.
-    build_extensions: { ".dart": ["model_repository.g.part"] }
+    build_extensions: { ".dart": [".dust.part"] }
     # Will automatically run on any package that depends on it.
     auto_apply: dependents
     # First generate the output to a hidden cache dir.
-    build_to: cache
+    build_to: source
     # Then use the `combining_builder` from `source_gen` to combine the parts from each builder into one part file.
-    applies_builders: ["source_gen|combining_builder"]
+    # applies_builders: ["source_gen|combining_builder"]

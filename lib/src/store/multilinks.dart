@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:collection';
+
 import '../reactive.dart';
 import '../store.dart';
 
@@ -41,7 +43,7 @@ class Multilinks<T>
       final item = _repository.get(dst).get(o);
       if (item != null) res.add(item);
     }
-    return res;
+    return UnmodifiableListView(res);
   }
 
   void _insert(Id id, Id dst) {

@@ -1,11 +1,18 @@
 import 'dart:convert' show utf8;
+import 'package:analyzer/dart/analysis/results.dart';
+import 'package:analyzer/dart/analysis/session.dart';
+import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/ast/token.dart';
 import 'package:analyzer/dart/constant/value.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
+import 'package:build/build.dart';
 import 'package:source_gen/source_gen.dart';
 
-Never fail(String msg, Element element) {
+/// Fails the code generation by throwing an [InvalidGenerationSourceError]
+/// with the given [msg] and [element].
+Never fail(String msg, [Element? element]) {
   throw InvalidGenerationSourceError(msg, element: element);
 }
 
@@ -20,9 +27,20 @@ int fnv64Hash(String s) {
   return res;
 }
 
-/// Resolves any type aliases and ensures that [type] is a non-nullable object type.
-InterfaceType resolve(DartType type, Element elem) {
-  if (type.nullabilitySuffix != NullabilitySuffix.none) {
+/// Resolves any type aliases.
+///
+/// By default, this ensures that the type is not nullable. You can, however,
+/// override this behavior by setting [allowNullable] to `true`.
+///
+/// Throws an [InvalidGenerationSourceError] if the type is not an object type
+/// (class or interface), or if the type is nullable and [allowNullable] is
+/// `false`.
+InterfaceType resolve(
+  DartType type,
+  Element elem, {
+  bool allowNullable = false,
+}) {
+  if (type.isNullable && !allowNullable) {
     fail('Type `$type` should not be nullable.', elem);
   }
   final alias = type.alias;
@@ -94,4 +112,101 @@ String construct(DartObject? value, Element elem) {
   }
 
   return recursive(value);
+}
+
+extension ElementX on Element {
+  /// Adapted from [freezed](https://github.com/rrousselGit/freezed/blob/c78465c720b6f98c6e6f2f02504b899668fea530/packages/freezed/lib/src/utils.dart#L25).
+  ///
+  /// Tries to read the AST node for this element. If can't be found, returns
+  /// null.
+  ///
+  /// TODO: better error handling than null
+  Future<AstNode?> getAstNodeOrNull(BuildStep buildStep) async {
+    if (library == null) {
+      return null;
+    }
+    var lib = library!;
+    while (true) {
+      try {
+        final s = lib.session;
+        final res = s.getParsedLibraryByElement(lib) as ParsedLibraryResult?;
+        return res?.getElementDeclaration(this)?.node;
+      } on InconsistentAnalysisException {
+        final assetId = await buildStep.resolver.assetIdForElement(lib);
+        final isLibrary = await buildStep.resolver.isLibrary(assetId);
+        if (!isLibrary) return null;
+        lib = await buildStep.resolver.libraryFor(assetId);
+      }
+    }
+  }
+}
+
+extension ConstructorElementX on ConstructorElement {
+  /// Adapted from [freezed](https://github.com/rrousselGit/freezed/blob/c78465c720b6f98c6e6f2f02504b899668fea530/packages/freezed/lib/src/freezed_generator.dart#L816).
+  ///
+  /// Tries to get the redirected name of a constructor if this
+  /// [ConstructorElement] is a redirecting one. Simply checking the provided
+  ///
+  /// ```dart
+  /// e.redirectedConstructor != null
+  /// ```
+  ///
+  /// is not enough, as it will only return true if the redirected constructor
+  /// is actually defined. However, we are going to generate code for the
+  /// redirected constructor, so this would not yield the correct result.
+  Future<String?> getRedirectedNameOrNull(BuildStep buildStep) async {
+    final ast = await getAstNodeOrNull(buildStep);
+    if (ast == null) return null;
+    if (ast.endToken.stringValue != ';') return null;
+
+    Token? equalToken = ast.endToken;
+    // walk backwards to find the equal token in the ast.
+    while (true) {
+      if (equalToken == null || equalToken.charOffset < nameOffset) {
+        return null;
+      }
+      if (equalToken.stringValue == '=>') return null;
+      if (equalToken.stringValue == '=') break;
+      equalToken = equalToken.previous;
+    }
+
+    var genericOrEndToken = equalToken;
+
+    // walk forward to scan for the either the start of the generic type (`<`)
+    // or the end of the constructor (`;`).
+    while (genericOrEndToken.stringValue != '<' &&
+        genericOrEndToken.stringValue != ';') {
+      genericOrEndToken = genericOrEndToken.next!;
+    }
+    final s = source.contents.data;
+
+    // get the redirected name
+    final redirectedName = s
+        .substring(equalToken.charOffset + 1, genericOrEndToken.charOffset)
+        .trim();
+    if (redirectedName.isEmpty) return null;
+    return redirectedName;
+  }
+}
+
+extension TypeIsNullable on DartType {
+  bool get isNullable => nullabilitySuffix != NullabilitySuffix.none;
+}
+
+extension CheckExtractOneOrNull on TypeChecker {
+  DartObject? checkExtractOneOrNull(
+    Element elem, {
+    // for debug purposes
+    required String typeName,
+    bool throwOnUnresolved = true,
+  }) {
+    final annots = annotationsOf(elem);
+    if (annots.length > 1) {
+      fail(
+        'Could only have one annotation of type $typeName',
+        elem,
+      );
+    }
+    return annots.firstOrNull;
+  }
 }
